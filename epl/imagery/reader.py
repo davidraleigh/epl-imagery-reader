@@ -33,6 +33,7 @@ class Sentinel2:
 class Metadata:
 
     def search(self, satellite_id, bounding_box=None, start_date=None, end_date=None, limit=10):
+
         return []
 
 

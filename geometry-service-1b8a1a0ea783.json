@@ -1,0 +1,12 @@
+{
+  "type": "service_account",
+  "project_id": "geometry-service",
+  "private_key_id": "1b8a1a0ea783888643ba25385ff20f7e0bc5d64c",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQCe4MO+s4CV/npR\ngo5UxDcvC/61LSsWun7ekuX/DM+YZwnDYFPJRZLLgmYCXzfYmresAA8fZPO8Ds8y\ngoh/JBTk+fVKwbCF5k6EtlOF2a5jLiqR8IiBKys9ENYOdMwJI6wLupkTavYSVWTV\nWTT2eS1ZSJaVfNiSpXTlrgBPTlHHR6uTBBEaVbbLU8F36RxzlOmzKGkwaPZNOK1L\n5hpRqX95MtTwf1dTWAVJzTAP+VlRKkU1RN4sUNgsL75AfknU6HWcJfMEvL7LlwaE\n3ST3VB9+JRL/6jXyEzhI3nNMUkjXPNrTmsGc69E7ioPYW73JUqx5+QjNme/2QFZ7\nYNvs7+NhAgMBAAECggEAAnFkOnbmCbhkia4QnEj6Qb7lGISp0n3FNLeCHJcQy/AS\nqFEfUgYVN6FJH60hOFNfCAtQsDaEIRPtDO1mUKZ9q+x+1cVPE+yqhVPMio93hQbO\nfgO6hO+aCLnNFs1mM+zwiMDNONfr/HRub7GL/6RgRYIORF0WSJaiyrjPav4Xl7vc\nyCyGXFVlA6vA6tfdgU+AiT1NdHe2lwXcCya2Z8HPhvynSsQZkHzRC6we1HnQ77xh\nijis2QXnOy+BTNd3dmg7L5CId+Xwm6m6slurwi8wPVMyJMDnTt3IXsaJnhGHWdGL\nXpeXVufBDUuFQt9+8xOa4Avrxqh3gancLgo8LYO3yQKBgQDdYO1gS8gdJfapf2MO\nHN/gJPxb76Wt5VXpFefWZ+lZFO+ncXhrfYL/xkcFcvJ2sPZ7wBlmVY1xJdmtFmeq\nBQ8UCpWk5r2I3He/dybgEihA8d69fAVBXiCbssPbuPjg5RWx400wBVNAZhhdTFuu\nxfpxjOblRYPfXdU7/H7LaLli2QKBgQC3uZLgZBZNfapB7+uYRT1u5iStcT34av1O\nuXVSie68mlk6ylMv+x8uxvY1eGsYYn7OsUUmr4ubgRAilYMTZABlMAptZycKbKj+\nRQKhyMOP6ypH79Q3HwifFz54jjh/Eh1ftqf2IU4fCCFG4+At3FiSEPP+yALinMrK\nPmugMBEfyQKBgDr6e8NP7Tx2xMRbf9RetPZOZD1KF2XA16aFg4KHpI9rGH4PqPla\nMvBZrsow2Y/tjX1irGGrIUenwdpvQab2OhIoz71jC9POiMilweGodLj4t1LcG7pS\njXVtpuh+2y9vWNxPplzIzmk1yf/xO+vQKuzdkRY78uorYYfduRoQCHPhAoGBALU1\n1Ch+j4De8Y8XlMgbgvxfAs4PY5Ah9rYvNgizA0YC9v+Fj4dDqP36P919aCQlAe3b\n6ti9THWUVtXFogL+H2WufJpro5Ykloo0huQLoNfSm2FYq3eypE5GHtfJbu/mbhJ5\nljCtqN/ypN/G4tZY/wMStZYWsMHS5DGWX5Ef18QBAoGBAMuLBWQ/ytsYVu+m+GI0\noqypNmEZDVYzJjEMDH/BypOftTeLBNvWItDdPf/PrA3Q9U6dAlerKpRRWydDeG7f\ncYBsZmUgL7qRvxcmEKXK2pOZePPL35Hye/+AapeFkSu5fhoEX1tARM1y3sMJ0288\n/s+Uj2rK+5d2m2aLZ86fKN41\n-----END PRIVATE KEY-----\n",
+  "client_email": "landsat-reader@geometry-service.iam.gserviceaccount.com",
+  "client_id": "108798938839252481815",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://accounts.google.com/o/oauth2/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/landsat-reader%40geometry-service.iam.gserviceaccount.com"
+}
