@@ -1,13 +1,13 @@
-from enum import Enum
+# from enum import Enum
 from subprocess import call
 
 import os
 import errno
 
 
-class SatelliteID(Enum):
-    LANDSAT_8 = 1
-    LANDSAT_7 = 2
+# class SatelliteID(Enum):
+#     LANDSAT_8 = 1
+#     LANDSAT_7 = 2
 
 
 class Landsat:
@@ -23,7 +23,7 @@ class Landsat:
     def fetch_imagery(self, file_id):
 
         if self.storage.mount_sub_folder("", "") is False:
-            raise ChildProcessError
+            return False
 
 
 class Sentinel2:
