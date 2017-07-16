@@ -1,8 +1,30 @@
 from enum import Enum
 from subprocess import call
+# Imports the Google Cloud client library
+from google.cloud import bigquery
+
+
+projectid = "geometry-service"
+
 
 import os
 import errno
+
+TIMEOUT_MS = 10000
+
+
+client = bigquery.Client(project=projectid)
+
+# # Perform a synchronous query.
+QUERY = (
+    'SELECT spacecraft_id FROM [bigquery-public-data:cloud_storage_geo_index.landsat_index]'
+    'WHERE spacecraft_id="LANDSAT_8"')
+query = client.run_sync_query('%s LIMIT 10' % QUERY)
+query.timeout_ms = TIMEOUT_MS
+query.run()
+
+for row in query.rows:
+    print(row)
 
 
 class SatelliteID(Enum):
