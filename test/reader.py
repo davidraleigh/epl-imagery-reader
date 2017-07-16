@@ -1,5 +1,5 @@
 import unittest
-from epl.imagery.reader import Metadata, Landsat, Storage#, SatelliteID
+from epl.imagery.reader import Metadata, Landsat, Storage, SatelliteID
 
 
 class TestLandsat(unittest.TestCase):
@@ -8,4 +8,4 @@ class TestLandsat(unittest.TestCase):
         landsat = Landsat("/landsat")
         metadata = Metadata()
         storage = Storage("gcp-public-data-landsat")
-        self.assertEqual(len(metadata.search("SatelliteID.LANDSAT_8")), 10)
+        self.assertEqual(len(metadata.search(SatelliteID.LANDSAT_8)), 10)

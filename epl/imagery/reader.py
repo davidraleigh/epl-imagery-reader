@@ -1,4 +1,4 @@
-# from enum import Enum
+from enum import Enum
 from subprocess import call
 # Imports the Google Cloud client library
 from google.cloud import bigquery
@@ -13,9 +13,9 @@ import errno
 
 
 
-# class SatelliteID(Enum):
-#      LANDSAT_8 = 1
-#      LANDSAT_7 = 2
+class SatelliteID(Enum):
+    LANDSAT_8 = 1
+    LANDSAT_7 = 2
 
 
 class Landsat:
