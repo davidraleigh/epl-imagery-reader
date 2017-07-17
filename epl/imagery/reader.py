@@ -10,6 +10,10 @@ from google.cloud import bigquery
 class SpacecraftID(Enum):
     LANDSAT_8 = 1
     LANDSAT_7 = 2
+    # TODO is there LANDSAT_6?
+    LANDSAT_6 = 3
+    LANDSAT_5 = 4
+
 
 
 class Landsat:
@@ -89,30 +93,21 @@ LIMIT 1"""
             maxy = bounding_box[3]
 
             # dateline danger zone
+            # TODO, this needs to be refined. might be catching too many cases.
             if minx > maxx \
                     or maxx > self.m_danger_west_lon \
                     or minx > self.m_danger_west_lon \
                     or maxx < self.m_danger_east_lon \
                     or minx < self.m_danger_east_lon:
                 print("danger zone. you're probably in trouble")
-            # north_lat	south_lat	west_lon	east_lon
-            # (minx, miny, maxx, maxy)
             else:
-                """
-lifted from esri-geometry-api
-public boolean isIntersecting(Envelope2D other) {
-    return !isEmpty() && !other.isEmpty()
-        // check that x projections overlap
-        && ((xmin <= other.xmin) ? xmax >= other.xmin : other.xmax >= xmin)
-        // check that y projections overlap
-        && ((ymin <= other.ymin) ? ymax >= other.ymin : other.ymax >= ymin);"""
-                query_builder += ' AND '
-
-            query_builder += ' AND bounding_box={}'.format(bounding_box)
+                query_builder += ' AND (({0} <= west_lon AND {1} >= west_lon) OR ' \
+                                 '({0} >= west_lon AND east_lon >= {0}))'.format(minx, maxx)
+                query_builder += ' AND ((south_lat <= {0} AND north_lat >= {0}) OR ' \
+                                 '(south_lat > {0} AND {1} >= south_lat))'.format(miny, maxy)
 
         if start_date is not None:
             query_builder += ' AND date_acquired>="{}"'.format(start_date.isoformat())
-
         if end_date is not None:
             query_builder += ' AND date_acquired<="{}"'.format(end_date.isoformat())
 
