@@ -1,6 +1,7 @@
 import os
 import errno
-
+import threading
+import time
 from enum import Enum
 from subprocess import call
 # Imports the Google Cloud client library
@@ -32,9 +33,49 @@ class Sentinel2:
 
 
 class Metadata:
+
     def __init__(self):
         self.m_client = bigquery.Client()
         self.m_timeout_ms = 10000
+
+        # these values were define on July 16, 2017, buffered by half a degree
+        self.m_danger_east_lon = -165.0661 + 0.5
+        self.m_danger_west_lon = 165.59402 - 0.5
+
+        # TODO, this is overkill. probably, best to use continuous integration to check once a day and update danger
+        # TODO zone as needed. and for now, just buffer the danger zone by a half a degree
+        # do some async query to check if the danger_zone needs updating
+        # thread = threading.Thread(target=self.__get_danger_zone, args=())
+        # thread.daemon = True  # Daemonize thread
+        # thread.start()
+
+    # TODO this is probably overkill
+    def __get_danger_zone(self):
+        west_lon_sql = """SELECT west_lon
+FROM [bigquery-public-data:cloud_storage_geo_index.landsat_index] 
+WHERE west_lon = (
+SELECT MIN(west_lon)
+FROM [bigquery-public-data:cloud_storage_geo_index.landsat_index]
+WHERE east_lon < 0
+AND west_lon > 0 )
+LIMIT 1"""
+
+        east_lon_sql = """SELECT east_lon
+FROM [bigquery-public-data:cloud_storage_geo_index.landsat_index] 
+WHERE east_lon = (
+SELECT MAX(east_lon)
+FROM [bigquery-public-data:cloud_storage_geo_index.landsat_index]
+WHERE east_lon < 0
+AND west_lon > 0 )
+LIMIT 1"""
+        query = self.m_client.run_sync_query(west_lon_sql)
+        query.timeout_ms = self.m_timeout_ms
+        query.run()
+        self.m_danger_west_lon = query.rows[0][0]
+        query = self.m_client.run_sync_query(east_lon_sql)
+        query.timeout_ms = self.m_timeout_ms
+        query.run()
+        self.m_danger_east_lon = query.rows[0][0]
 
     def search(self, satellite_id, bounding_box=None, start_date=None, end_date=None, sort_by=None, limit=10, sql_filters=None):
         # # Perform a synchronous query.
@@ -42,8 +83,30 @@ class Metadata:
                         'WHERE spacecraft_id="{}"'.format(satellite_id.name)
 
         if bounding_box is not None:
+            minx = bounding_box[0]
+            miny = bounding_box[1]
+            maxx = bounding_box[2]
+            maxy = bounding_box[3]
+
+            # dateline danger zone
+            if minx > maxx \
+                    or maxx > self.m_danger_west_lon \
+                    or minx > self.m_danger_west_lon \
+                    or maxx < self.m_danger_east_lon \
+                    or minx < self.m_danger_east_lon:
+                print("danger zone. you're probably in trouble")
             # north_lat	south_lat	west_lon	east_lon
-            query_builder += ' AND '
+            # (minx, miny, maxx, maxy)
+            else:
+                """
+lifted from esri-geometry-api
+public boolean isIntersecting(Envelope2D other) {
+    return !isEmpty() && !other.isEmpty()
+        // check that x projections overlap
+        && ((xmin <= other.xmin) ? xmax >= other.xmin : other.xmax >= xmin)
+        // check that y projections overlap
+        && ((ymin <= other.ymin) ? ymax >= other.ymin : other.ymax >= ymin);"""
+                query_builder += ' AND '
 
             query_builder += ' AND bounding_box={}'.format(bounding_box)
 
@@ -56,6 +119,31 @@ class Metadata:
         if sql_filters is not None:
             for sql_filter in sql_filters:
                 print(sql_filter)
+
+        # TODO sort by area
+        """
+lifted from esri-geometry-api
+if (isEmpty() || other.isEmpty())
+    return false;
+
+if (other.xmin > xmin)
+    xmin = other.xmin;
+
+if (other.xmax < xmax)
+    xmax = other.xmax;
+
+if (other.ymin > ymin)
+    ymin = other.ymin;
+
+if (other.ymax < ymax)
+    ymax = other.ymax;
+
+boolean bIntersecting = xmin <= xmax && ymin <= ymax;
+
+if (!bIntersecting)
+    setEmpty();
+
+return bIntersecting;"""
 
         if sort_by is not None:
             query_builder += ' SORT BY {}'.format(sort_by)
