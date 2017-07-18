@@ -15,7 +15,6 @@ class SpacecraftID(Enum):
     LANDSAT_5 = 4
 
 
-
 class Landsat:
     bucket_name = ""
     base_mount_path = ""
