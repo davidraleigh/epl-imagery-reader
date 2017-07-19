@@ -1,5 +1,6 @@
 import unittest
 import datetime
+import os
 
 from urllib.parse import urlparse
 from datetime import date
@@ -79,7 +80,9 @@ class TestStorage(unittest.TestCase):
         path = rows[0][17]
         gsurl = urlparse(path)
         storage = Storage(gsurl[1])
-        self.assertTrue(storage.mount_sub_folder(gsurl[2], '/data/imagery'))
+        base_path = '/imagery'
+        # full_path = os.path.join('/imagery', gsurl[2])
+        self.assertTrue(storage.mount_sub_folder(gsurl[2], base_path))
 
 
 class TestLandsat(unittest.TestCase):

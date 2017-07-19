@@ -157,23 +157,33 @@ class Storage:
         self.bucket = bucket_name
         self.mounted_sub_folders = {}
 
-    def mount_sub_folder(self, bucket_sub_folder, full_mount_path):
+    def mount_sub_folder(self, bucket_sub_folder, base_path):
         # execute mount command
         # gcsfuse --only-dir LC08/PRE/044/034/LC80440342016259LGN00 gcp-public-data-landsat /landsat
 
+        full_mount_path = base_path.rstrip("\/") + os.path.sep + bucket_sub_folder.strip("\/")
         # subprocess.run("exit 1", shell=True, check=True)
         # subprocess.run(["ls", "-l", "/dev/null"], stdout=subprocess.PIPE)
         if full_mount_path in self.mounted_sub_folders:
             return True
 
         try:
-            os.makedirs(full_mount_path)
+            if not os.path.isdir(full_mount_path):
+                os.makedirs(full_mount_path)
+            else:
+                # check to see if directory is already mounted if so maybe just return True?
+                if len(os.listdir(full_mount_path)) > 0:
+                    return True
+                # hard to know what to do if it's mounted and it's empty...
+                # TODO make a test for that case
+                
         except OSError as exception:
             if exception.errno != errno.EEXIST:
                 raise
 
-        val = call(["gcsfuse", "--only-dir", bucket_sub_folder, self.bucket, full_mount_path])
-        if val != 1:
+        val = call(["gcsfuse", "--only-dir", bucket_sub_folder.lstrip("\/"), self.bucket, full_mount_path])
+        # TODO return error message if necessary
+        if val != 0:
             return False
 
         self.mounted_sub_folders[full_mount_path] = True
