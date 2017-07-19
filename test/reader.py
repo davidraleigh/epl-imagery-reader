@@ -81,7 +81,6 @@ class TestStorage(unittest.TestCase):
         gsurl = urlparse(path)
         storage = Storage(gsurl[1])
         base_path = '/imagery'
-        # full_path = os.path.join('/imagery', gsurl[2])
         self.assertTrue(storage.mount_sub_folder(gsurl[2], base_path))
 
 

@@ -20,15 +20,18 @@ class Landsat:
     base_mount_path = ""
     storage = None
 
-    def __init__(self, base_mount_path):
+    def __init__(self, base_mount_path, bucket_name=None):
         self.bucket_name = "gcp-public-data-landsat"
         self.base_mount_path = base_mount_path
         self.storage = Storage(self.bucket_name)
 
-    def fetch_imagery(self, file_id):
+    def fetch_imagery(self, bucket_sub_folder, band_number):
 
-        if self.storage.mount_sub_folder("", "") is False:
-            return False
+        # TODO
+        if self.storage.mount_sub_folder(bucket_sub_folder, self.base_mount_path) is False:
+            return None
+
+
 
 
 class Sentinel2:
@@ -156,6 +159,7 @@ class Storage:
     def __init__(self, bucket_name):
         self.bucket = bucket_name
         self.mounted_sub_folders = {}
+        self.base_path = None
 
     def mount_sub_folder(self, bucket_sub_folder, base_path):
         # execute mount command
@@ -176,7 +180,7 @@ class Storage:
                     return True
                 # hard to know what to do if it's mounted and it's empty...
                 # TODO make a test for that case
-                
+
         except OSError as exception:
             if exception.errno != errno.EEXIST:
                 raise
@@ -188,3 +192,4 @@ class Storage:
 
         self.mounted_sub_folders[full_mount_path] = True
         return True
+
