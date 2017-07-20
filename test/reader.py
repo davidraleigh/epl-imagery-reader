@@ -1,7 +1,5 @@
 import unittest
 import datetime
-import os
-import sys
 
 from osgeo import gdal
 from urllib.parse import urlparse
