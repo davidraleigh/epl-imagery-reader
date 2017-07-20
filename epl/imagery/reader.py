@@ -7,6 +7,7 @@ from subprocess import call
 # Imports the Google Cloud client library
 from google.cloud import bigquery
 
+
 class SpacecraftID(Enum):
     LANDSAT_8 = 1
     LANDSAT_7 = 2
@@ -30,8 +31,6 @@ class Landsat:
         # TODO
         if self.storage.mount_sub_folder(bucket_sub_folder, self.base_mount_path) is False:
             return None
-
-
 
 
 class Sentinel2:
@@ -192,4 +191,6 @@ class Storage:
 
         self.mounted_sub_folders[full_mount_path] = True
         return True
+
+
 
