@@ -37,11 +37,16 @@ class Landsat:
             return None
 
     def get_vrt(self, metadata, band_numbers):
-        vrt_dataset = etree.Element("VRTDataset").set("rasterXSize", str(metadata.rasterXSize))
+        vrt_dataset = etree.Element("VRTDataset")
         vrt_dataset.set("rasterXSize", str(metadata.rasterXSize))
-        etree.SubElement(vrt_dataset, "SRS").text('PROJCS["WGS 84 / UTM zone 13N",GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563,AUTHORITY["EPSG","7030"]],AUTHORITY["EPSG","6326"]],PRIMEM["Greenwich",0,AUTHORITY["EPSG","8901"]],UNIT["degree",0.0174532925199433,AUTHORITY["EPSG","9122"]],AUTHORITY["EPSG","4326"]],PROJECTION["Transverse_Mercator"],PARAMETER["latitude_of_origin",0],PARAMETER["central_meridian",-105],PARAMETER["scale_factor",0.9996],PARAMETER["false_easting",500000],PARAMETER["false_northing",0],UNIT["metre",1,AUTHORITY["EPSG","9001"]],AXIS["Easting",EAST],AXIS["Northing",NORTH],AUTHORITY["EPSG","32613"]]')
+        vrt_dataset.set("rasterYSize", str(metadata.rasterYSize))
+        etree.SubElement(vrt_dataset, "SRS").text = 'PROJCS["WGS 84 / UTM zone 13N",GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563,AUTHORITY["EPSG","7030"]],AUTHORITY["EPSG","6326"]],PRIMEM["Greenwich",0,AUTHORITY["EPSG","8901"]],UNIT["degree",0.0174532925199433,AUTHORITY["EPSG","9122"]],AUTHORITY["EPSG","4326"]],PROJECTION["Transverse_Mercator"],PARAMETER["latitude_of_origin",0],PARAMETER["central_meridian",-105],PARAMETER["scale_factor",0.9996],PARAMETER["false_easting",500000],PARAMETER["false_northing",0],UNIT["metre",1,AUTHORITY["EPSG","9001"]],AXIS["Easting",EAST],AXIS["Northing",NORTH],AUTHORITY["EPSG","32613"]]'
+        etree.SubElement(vrt_dataset, "GeoTransform").text = ",".join(map(str, [4.4968500000000000e+05,  3.0000000000000000e+01,  0.0000000000000000e+00,  4.5822150000000000e+06,  0.0000000000000000e+00, -3.0000000000000000e+01]))
+        elem_raster_band = etree.SubElement(vrt_dataset, "VRTRasterBand")
+        
         vrt = etree.tostring(vrt_dataset)
-        vrt = """<VRTDataset rasterXSize="7711" rasterYSize="7851">
+        vrt = """
+<VRTDataset rasterXSize="7711" rasterYSize="7851">
   <SRS>PROJCS["WGS 84 / UTM zone 13N",GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563,AUTHORITY["EPSG","7030"]],AUTHORITY["EPSG","6326"]],PRIMEM["Greenwich",0,AUTHORITY["EPSG","8901"]],UNIT["degree",0.0174532925199433,AUTHORITY["EPSG","9122"]],AUTHORITY["EPSG","4326"]],PROJECTION["Transverse_Mercator"],PARAMETER["latitude_of_origin",0],PARAMETER["central_meridian",-105],PARAMETER["scale_factor",0.9996],PARAMETER["false_easting",500000],PARAMETER["false_northing",0],UNIT["metre",1,AUTHORITY["EPSG","9001"]],AXIS["Easting",EAST],AXIS["Northing",NORTH],AUTHORITY["EPSG","32613"]]</SRS>
   <GeoTransform>  4.4968500000000000e+05,  3.0000000000000000e+01,  0.0000000000000000e+00,  4.5822150000000000e+06,  0.0000000000000000e+00, -3.0000000000000000e+01</GeoTransform>
   <VRTRasterBand dataType="UInt16" band="1">
