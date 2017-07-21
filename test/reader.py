@@ -1,16 +1,68 @@
 import unittest
 import datetime
 
+from lxml import etree
 from osgeo import gdal
 from urllib.parse import urlparse
 from datetime import date
-from epl.imagery.reader import Metadata, Landsat, Storage, SpacecraftID
+from epl.imagery.reader import MetadataService, Landsat, Storage, SpacecraftID
 
+
+def text_compare(t1, t2):
+    if not t1 and not t2:
+        return True
+    if t1 == '*' or t2 == '*':
+        return True
+    return (t1 or '').strip() == (t2 or '').strip()
+
+
+# https://bitbucket.org/ianb/formencode/src/tip/formencode/doctest_xml_compare.py?fileviewer=file-view-default#cl-70
+def xml_compare(x1, x2, reporter=None):
+    if x1.tag != x2.tag:
+        if reporter:
+            reporter('Tags do not match: %s and %s' % (x1.tag, x2.tag))
+        return False
+    for name, value in x1.attrib.items():
+        if x2.attrib.get(name) != value:
+            if reporter:
+                reporter('Attributes do not match: %s=%r, %s=%r'
+                         % (name, value, name, x2.attrib.get(name)))
+            return False
+    for name in x2.attrib.keys():
+        if name not in x1.attrib:
+            if reporter:
+                reporter('x2 has an attribute x1 is missing: %s'
+                         % name)
+            return False
+    if not text_compare(x1.text, x2.text):
+        if reporter:
+            reporter('text: %r != %r' % (x1.text, x2.text))
+        return False
+    if not text_compare(x1.tail, x2.tail):
+        if reporter:
+            reporter('tail: %r != %r' % (x1.tail, x2.tail))
+        return False
+    cl1 = x1.getchildren()
+    cl2 = x2.getchildren()
+    if len(cl1) != len(cl2):
+        if reporter:
+            reporter('children length differs, %i != %i'
+                     % (len(cl1), len(cl2)))
+        return False
+    i = 0
+    for c1, c2 in zip(cl1, cl2):
+        i += 1
+        if not xml_compare(c1, c2, reporter=reporter):
+            if reporter:
+                reporter('children %i do not match: %s'
+                         % (i, c1.tag))
+            return False
+    return True
 
 class TestMetaDataSQL(unittest.TestCase):
     def test_start_date(self):
         # gs://gcp-public-data-landsat/LC08/PRE/044/034/LC80440342016259LGN00/
-        metadata = Metadata()
+        metadata = MetadataService()
         d = date(2016, 6, 24)
         rows = metadata.search(SpacecraftID.LANDSAT_8, start_date=d)
         self.assertEqual(len(rows), 10)
@@ -21,7 +73,7 @@ class TestMetaDataSQL(unittest.TestCase):
 
     def test_end_date(self):
         # gs://gcp-public-data-landsat/LC08/PRE/044/034/LC80440342016259LGN00/
-        metadata = Metadata()
+        metadata = MetadataService()
         d = date(2016, 6, 24)
         rows = metadata.search(SpacecraftID.LANDSAT_7, end_date=d)
         self.assertEqual(len(rows), 10)
@@ -32,7 +84,7 @@ class TestMetaDataSQL(unittest.TestCase):
 
     def test_one_day(self):
         # gs://gcp-public-data-landsat/LC08/PRE/044/034/LC80440342016259LGN00/
-        metadata = Metadata()
+        metadata = MetadataService()
         d = date(2016, 6, 24)
         rows = metadata.search(SpacecraftID.LANDSAT_8, start_date=d, end_date=d)
         self.assertEqual(len(rows), 10)
@@ -43,7 +95,7 @@ class TestMetaDataSQL(unittest.TestCase):
 
     def test_1_year(self):
         # gs://gcp-public-data-landsat/LC08/PRE/044/034/LC80440342016259LGN00/
-        metadata = Metadata()
+        metadata = MetadataService()
         d_end = date(2016, 6, 24)
         d_start = date(2015, 6, 24)
         rows = metadata.search(SpacecraftID.LANDSAT_8, start_date=d_start, end_date=d_end)
@@ -55,7 +107,7 @@ class TestMetaDataSQL(unittest.TestCase):
             self.assertGreaterEqual(d_actual, d_start)
 
     def test_bounding_box_1(self):
-        metadata = Metadata()
+        metadata = MetadataService()
         d_end = date(2016, 6, 24)
         d_start = date(2015, 6, 24)
         bounding_box = (-115.927734375, 34.52466147177172, -78.31054687499999, 44.84029065139799)
@@ -72,7 +124,7 @@ class TestMetaDataSQL(unittest.TestCase):
 
 class TestStorage(unittest.TestCase):
     def test_storage_create(self):
-        metadata = Metadata()
+        metadata = MetadataService()
         d_end = date(2016, 6, 24)
         d_start = date(2015, 6, 24)
         bounding_box = (-115.927734375, 34.52466147177172, -78.31054687499999, 44.84029065139799)
@@ -86,7 +138,7 @@ class TestStorage(unittest.TestCase):
 
 class TestLandsat(unittest.TestCase):
     def test_get_file(self):
-        metadata = Metadata()
+        metadata = MetadataService()
         d_end = date(2016, 6, 24)
         d_start = date(2015, 6, 24)
         bounding_box = (-115.927734375, 34.52466147177172, -78.31054687499999, 44.84029065139799)
@@ -95,7 +147,7 @@ class TestLandsat(unittest.TestCase):
         #    'gs://gcp-public-data-landsat/LC08/PRE/037/036/LC80370362016082LGN00'
 
     def test_gdal_info(self):
-        metadata = Metadata()
+        metadata = MetadataService()
         d_end = date(2016, 6, 24)
         d_start = date(2015, 6, 24)
         bounding_box = (-115.927734375, 34.52466147177172, -78.31054687499999, 44.84029065139799)
@@ -107,6 +159,27 @@ class TestLandsat(unittest.TestCase):
         base_path = '/imagery'
         b_mounted = storage.mount_sub_folder(gsurl[2], base_path)
         self.assertTrue(b_mounted)
+
+    def test_vrt(self):
+        metadata = MetadataService()
+        d_end = date(2016, 6, 24)
+        d_start = date(2015, 6, 24)
+        bounding_box = (-115.927734375, 34.52466147177172, -78.31054687499999, 44.84029065139799)
+        rows = metadata.search(SpacecraftID.LANDSAT_8, start_date=d_start, end_date=d_end, bounding_box=bounding_box,
+                               limit=1)
+        path = rows[0][17]
+        gsurl = urlparse(path)
+        storage = Storage(gsurl[1])
+        base_path = '/imagery'
+        b_mounted = storage.mount_sub_folder(gsurl[2], base_path)
+        landsat = Landsat(base_path, gsurl[2])
+        vrt = landsat.get_vrt(None, None)
+        with open('test_1.vrt', 'r') as myfile:
+            data = myfile.read()
+            expected = etree.XML('<xml>%s</xml>' % data)
+            actual = etree.XML('<xml>%s</xml>' % vrt)
+            self.assertTrue(xml_compare(expected, actual, reporter=None))
+
 
 
         # src_ds = gdal.Open(input_file)

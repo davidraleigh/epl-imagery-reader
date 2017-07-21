@@ -2,6 +2,8 @@ import os
 import errno
 import threading
 import time
+
+from lxml import etree
 from enum import Enum
 from subprocess import call
 # Imports the Google Cloud client library
@@ -9,11 +11,13 @@ from google.cloud import bigquery
 
 
 class SpacecraftID(Enum):
-    LANDSAT_8 = 1
-    LANDSAT_7 = 2
-    # TODO is there LANDSAT_6?
-    LANDSAT_6 = 3
-    LANDSAT_5 = 4
+    LANDSAT_8 = 8
+    LANDSAT_7 = 7
+    LANDSAT_5 = 5
+    LANDSAT_4 = 4
+    LANDSAT_1 = 1
+    LANDSAT_3 = 3
+    LANDSAT_2 = 2
 
 
 class Landsat:
@@ -26,19 +30,57 @@ class Landsat:
         self.base_mount_path = base_mount_path
         self.storage = Storage(self.bucket_name)
 
-    def fetch_imagery(self, bucket_sub_folder, band_number):
+    def fetch_imagery_array(self, bucket_sub_folder, band_numbers):
 
         # TODO
         if self.storage.mount_sub_folder(bucket_sub_folder, self.base_mount_path) is False:
             return None
 
+    def get_vrt(self, mounted_dir, band_numbers):
+        
+        vrt = """<VRTDataset rasterXSize="7711" rasterYSize="7851">
+  <SRS>PROJCS["WGS 84 / UTM zone 13N",GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563,AUTHORITY["EPSG","7030"]],AUTHORITY["EPSG","6326"]],PRIMEM["Greenwich",0,AUTHORITY["EPSG","8901"]],UNIT["degree",0.0174532925199433,AUTHORITY["EPSG","9122"]],AUTHORITY["EPSG","4326"]],PROJECTION["Transverse_Mercator"],PARAMETER["latitude_of_origin",0],PARAMETER["central_meridian",-105],PARAMETER["scale_factor",0.9996],PARAMETER["false_easting",500000],PARAMETER["false_northing",0],UNIT["metre",1,AUTHORITY["EPSG","9001"]],AXIS["Easting",EAST],AXIS["Northing",NORTH],AUTHORITY["EPSG","32613"]]</SRS>
+  <GeoTransform>  4.4968500000000000e+05,  3.0000000000000000e+01,  0.0000000000000000e+00,  4.5822150000000000e+06,  0.0000000000000000e+00, -3.0000000000000000e+01</GeoTransform>
+  <VRTRasterBand dataType="UInt16" band="1">
+    <SimpleSource>
+      <SourceFilename relativeToVRT="0">LC80330322015195LGN00_B5.TIF</SourceFilename>
+      <SourceBand>1</SourceBand>
+      <SourceProperties RasterXSize="7711" RasterYSize="7851" DataType="UInt16" BlockXSize="256" BlockYSize="256" />
+      <SrcRect xOff="0" yOff="0" xSize="7711" ySize="7851" />
+      <DstRect xOff="0" yOff="0" xSize="7711" ySize="7851" />
+    </SimpleSource>
+  </VRTRasterBand>
+  <VRTRasterBand dataType="UInt16" band="2">
+    <SimpleSource>
+      <SourceFilename relativeToVRT="0">LC80330322015195LGN00_B4.TIF</SourceFilename>
+      <SourceBand>1</SourceBand>
+      <SourceProperties RasterXSize="7711" RasterYSize="7851" DataType="UInt16" BlockXSize="256" BlockYSize="256" />
+      <SrcRect xOff="0" yOff="0" xSize="7711" ySize="7851" />
+      <DstRect xOff="0" yOff="0" xSize="7711" ySize="7851" />
+    </SimpleSource>
+  </VRTRasterBand>
+  <VRTRasterBand dataType="UInt16" band="3">
+    <SimpleSource>
+      <SourceFilename relativeToVRT="0">LC80330322015195LGN00_B3.TIF</SourceFilename>
+      <SourceBand>1</SourceBand>
+      <SourceProperties RasterXSize="7711" RasterYSize="7851" DataType="UInt16" BlockXSize="256" BlockYSize="256" />
+      <SrcRect xOff="0" yOff="0" xSize="7711" ySize="7851" />
+      <DstRect xOff="0" yOff="0" xSize="7711" ySize="7851" />
+    </SimpleSource>
+  </VRTRasterBand>
+</VRTDataset>"""
+        return vrt
 
 class Sentinel2:
     bucket_name = ""
 
 
 class Metadata:
+    def __init__(self, row):
+        self.spacecraft_id = SpacecraftID.LANDSAT_8
 
+
+class MetadataService:
     def __init__(self):
         self.m_client = bigquery.Client()
         self.m_timeout_ms = 10000
