@@ -36,8 +36,11 @@ class Landsat:
         if self.storage.mount_sub_folder(bucket_sub_folder, self.base_mount_path) is False:
             return None
 
-    def get_vrt(self, mounted_dir, band_numbers):
-        
+    def get_vrt(self, metadata, band_numbers):
+        vrt_dataset = etree.Element("VRTDataset").set("rasterXSize", str(metadata.rasterXSize))
+        vrt_dataset.set("rasterXSize", str(metadata.rasterXSize))
+        etree.SubElement(vrt_dataset, "SRS").text('PROJCS["WGS 84 / UTM zone 13N",GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563,AUTHORITY["EPSG","7030"]],AUTHORITY["EPSG","6326"]],PRIMEM["Greenwich",0,AUTHORITY["EPSG","8901"]],UNIT["degree",0.0174532925199433,AUTHORITY["EPSG","9122"]],AUTHORITY["EPSG","4326"]],PROJECTION["Transverse_Mercator"],PARAMETER["latitude_of_origin",0],PARAMETER["central_meridian",-105],PARAMETER["scale_factor",0.9996],PARAMETER["false_easting",500000],PARAMETER["false_northing",0],UNIT["metre",1,AUTHORITY["EPSG","9001"]],AXIS["Easting",EAST],AXIS["Northing",NORTH],AUTHORITY["EPSG","32613"]]')
+        vrt = etree.tostring(vrt_dataset)
         vrt = """<VRTDataset rasterXSize="7711" rasterYSize="7851">
   <SRS>PROJCS["WGS 84 / UTM zone 13N",GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563,AUTHORITY["EPSG","7030"]],AUTHORITY["EPSG","6326"]],PRIMEM["Greenwich",0,AUTHORITY["EPSG","8901"]],UNIT["degree",0.0174532925199433,AUTHORITY["EPSG","9122"]],AUTHORITY["EPSG","4326"]],PROJECTION["Transverse_Mercator"],PARAMETER["latitude_of_origin",0],PARAMETER["central_meridian",-105],PARAMETER["scale_factor",0.9996],PARAMETER["false_easting",500000],PARAMETER["false_northing",0],UNIT["metre",1,AUTHORITY["EPSG","9001"]],AXIS["Easting",EAST],AXIS["Northing",NORTH],AUTHORITY["EPSG","32613"]]</SRS>
   <GeoTransform>  4.4968500000000000e+05,  3.0000000000000000e+01,  0.0000000000000000e+00,  4.5822150000000000e+06,  0.0000000000000000e+00, -3.0000000000000000e+01</GeoTransform>
@@ -76,8 +79,28 @@ class Sentinel2:
 
 
 class Metadata:
-    def __init__(self, row):
-        self.spacecraft_id = SpacecraftID.LANDSAT_8
+    def __init__(self, row, base_path=None):
+        self.scene_id = row[0]  # STRING	REQUIRED   Unique identifier for a particular Landsat image downlinked to a particular ground station.
+        self.product_id = row[1]  # STRING	NULLABLE Unique identifier for a particular scene processed by the USGS at a particular time, or null for pre-collection data.
+        self.spacecraft_id = row[2]  # STRING	NULLABLE The spacecraft that acquired this scene: one of 'LANDSAT_4' through 'LANDSAT_8'.
+        self.sensor_id = row[3]  # STRING	NULLABLE The type of spacecraft sensor that acquired this scene: 'TM' for the Thematic Mapper, 'ETM' for the Enhanced Thematic Mapper+, or 'OLI/TIRS' for the Operational Land Imager and Thermal Infrared Sensor.
+        self.date_acquired = row[4]  # STRING	NULLABLE The date on which this scene was acquired (UTC).
+        self.sensing_time = row[5]  # STRING	NULLABLE The approximate time at which this scene was acquired (UTC).
+        self.collection_number = row[6]  # STRING	NULLABLE The Landsat collection that this image belongs to, e.g. '01' for Collection 1 or 'PRE' for pre-collection data.
+        self.collection_category = row[7]  # STRING	NULLABLE Indicates the processing level of the image: 'RT' for real-time, 'T1' for Tier 1, 'T2' for Tier 2, and 'N/A' for pre-collection data. RT images will be replaced with Tier 1 or Tier 2 images as they become available.
+        self.data_type = row[8]  # STRING	NULLABLE The type of processed image, e.g. 'L1T' for Level 1 terrain-corrected images.
+        self.wrs_path = row[9]  # INTEGER	NULLABLE The path number of this scene's location in the Worldwide Reference System (WRS).
+        self.wrs_row = row[10]  # INTEGER	NULLABLE The row number of this scene's location in the Worldwide Reference System (WRS).
+        self.cloud_cover = row[11]  # FLOAT	NULLABLE Estimated percentage of this scene affected by cloud cover.
+        self.north_lat = row[12]  # FLOAT	NULLABLE The northern latitude of the bounding box of this scene.
+        self.south_lat = row[13]  # FLOAT	NULLABLE The southern latitude of the bounding box of this scene.
+        self.west_lon = row[14]  # FLOAT	NULLABLE The western longitude of the bounding box of this scene.
+        self.east_lon = row[15]  # FLOAT	NULLABLE The eastern longitude of the bounding box of this scene.
+        self.total_size = row[16]  # INTEGER	NULLABLE The total size of this scene in bytes.
+        self.base_url = row[17]  # STRING	NULLABLE The base URL for this scene in Cloud Storage.
+        self.rasterXSize = 0
+        self.rasterYSize = 0
+
 
 
 class MetadataService:

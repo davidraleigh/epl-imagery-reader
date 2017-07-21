@@ -5,7 +5,7 @@ from lxml import etree
 from osgeo import gdal
 from urllib.parse import urlparse
 from datetime import date
-from epl.imagery.reader import MetadataService, Landsat, Storage, SpacecraftID
+from epl.imagery.reader import MetadataService, Landsat, Storage, SpacecraftID, Metadata
 
 
 def text_compare(t1, t2):
@@ -62,9 +62,9 @@ def xml_compare(x1, x2, reporter=None):
 class TestMetaDataSQL(unittest.TestCase):
     def test_start_date(self):
         # gs://gcp-public-data-landsat/LC08/PRE/044/034/LC80440342016259LGN00/
-        metadata = MetadataService()
+        metadataService = MetadataService()
         d = date(2016, 6, 24)
-        rows = metadata.search(SpacecraftID.LANDSAT_8, start_date=d)
+        rows = metadataService.search(SpacecraftID.LANDSAT_8, start_date=d)
         self.assertEqual(len(rows), 10)
         for row in rows:
             self.assertEqual(row[2], SpacecraftID.LANDSAT_8.name)
@@ -73,9 +73,9 @@ class TestMetaDataSQL(unittest.TestCase):
 
     def test_end_date(self):
         # gs://gcp-public-data-landsat/LC08/PRE/044/034/LC80440342016259LGN00/
-        metadata = MetadataService()
+        metadataService = MetadataService()
         d = date(2016, 6, 24)
-        rows = metadata.search(SpacecraftID.LANDSAT_7, end_date=d)
+        rows = metadataService.search(SpacecraftID.LANDSAT_7, end_date=d)
         self.assertEqual(len(rows), 10)
         for row in rows:
             self.assertEqual(row[2], SpacecraftID.LANDSAT_7.name)
@@ -84,9 +84,9 @@ class TestMetaDataSQL(unittest.TestCase):
 
     def test_one_day(self):
         # gs://gcp-public-data-landsat/LC08/PRE/044/034/LC80440342016259LGN00/
-        metadata = MetadataService()
+        metadataService = MetadataService()
         d = date(2016, 6, 24)
-        rows = metadata.search(SpacecraftID.LANDSAT_8, start_date=d, end_date=d)
+        rows = metadataService.search(SpacecraftID.LANDSAT_8, start_date=d, end_date=d)
         self.assertEqual(len(rows), 10)
         for row in rows:
             self.assertEqual(row[2], SpacecraftID.LANDSAT_8.name)
@@ -95,10 +95,10 @@ class TestMetaDataSQL(unittest.TestCase):
 
     def test_1_year(self):
         # gs://gcp-public-data-landsat/LC08/PRE/044/034/LC80440342016259LGN00/
-        metadata = MetadataService()
+        metadataService = MetadataService()
         d_end = date(2016, 6, 24)
         d_start = date(2015, 6, 24)
-        rows = metadata.search(SpacecraftID.LANDSAT_8, start_date=d_start, end_date=d_end)
+        rows = metadataService.search(SpacecraftID.LANDSAT_8, start_date=d_start, end_date=d_end)
         self.assertEqual(len(rows), 10)
         for row in rows:
             self.assertEqual(row[2], SpacecraftID.LANDSAT_8.name)
@@ -107,11 +107,11 @@ class TestMetaDataSQL(unittest.TestCase):
             self.assertGreaterEqual(d_actual, d_start)
 
     def test_bounding_box_1(self):
-        metadata = MetadataService()
+        metadataService = MetadataService()
         d_end = date(2016, 6, 24)
         d_start = date(2015, 6, 24)
         bounding_box = (-115.927734375, 34.52466147177172, -78.31054687499999, 44.84029065139799)
-        rows = metadata.search(SpacecraftID.LANDSAT_8, start_date=d_start, end_date=d_end, bounding_box=bounding_box)
+        rows = metadataService.search(SpacecraftID.LANDSAT_8, start_date=d_start, end_date=d_end, bounding_box=bounding_box)
         self.assertEqual(len(rows), 10)
         for row in rows:
             self.assertEqual(row[2], SpacecraftID.LANDSAT_8.name)
@@ -124,11 +124,11 @@ class TestMetaDataSQL(unittest.TestCase):
 
 class TestStorage(unittest.TestCase):
     def test_storage_create(self):
-        metadata = MetadataService()
+        metadataService = MetadataService()
         d_end = date(2016, 6, 24)
         d_start = date(2015, 6, 24)
         bounding_box = (-115.927734375, 34.52466147177172, -78.31054687499999, 44.84029065139799)
-        rows = metadata.search(SpacecraftID.LANDSAT_8, start_date=d_start, end_date=d_end, bounding_box=bounding_box, limit=1)
+        rows = metadataService.search(SpacecraftID.LANDSAT_8, start_date=d_start, end_date=d_end, bounding_box=bounding_box, limit=1)
         path = rows[0][17]
         gsurl = urlparse(path)
         storage = Storage(gsurl[1])
@@ -138,20 +138,20 @@ class TestStorage(unittest.TestCase):
 
 class TestLandsat(unittest.TestCase):
     def test_get_file(self):
-        metadata = MetadataService()
+        metadataService = MetadataService()
         d_end = date(2016, 6, 24)
         d_start = date(2015, 6, 24)
         bounding_box = (-115.927734375, 34.52466147177172, -78.31054687499999, 44.84029065139799)
-        rows = metadata.search(SpacecraftID.LANDSAT_8, start_date=d_start, end_date=d_end, bounding_box=bounding_box, limit=1)
+        rows = metadataService.search(SpacecraftID.LANDSAT_8, start_date=d_start, end_date=d_end, bounding_box=bounding_box, limit=1)
         landsat = Landsat('/data/imagery')
         #    'gs://gcp-public-data-landsat/LC08/PRE/037/036/LC80370362016082LGN00'
 
     def test_gdal_info(self):
-        metadata = MetadataService()
+        metadataService = MetadataService()
         d_end = date(2016, 6, 24)
         d_start = date(2015, 6, 24)
         bounding_box = (-115.927734375, 34.52466147177172, -78.31054687499999, 44.84029065139799)
-        rows = metadata.search(SpacecraftID.LANDSAT_8, start_date=d_start, end_date=d_end, bounding_box=bounding_box,
+        rows = metadataService.search(SpacecraftID.LANDSAT_8, start_date=d_start, end_date=d_end, bounding_box=bounding_box,
                                limit=1)
         path = rows[0][17]
         gsurl = urlparse(path)
@@ -161,19 +161,19 @@ class TestLandsat(unittest.TestCase):
         self.assertTrue(b_mounted)
 
     def test_vrt(self):
-        metadata = MetadataService()
+        metadataService = MetadataService()
         d_end = date(2016, 6, 24)
         d_start = date(2015, 6, 24)
         bounding_box = (-115.927734375, 34.52466147177172, -78.31054687499999, 44.84029065139799)
-        rows = metadata.search(SpacecraftID.LANDSAT_8, start_date=d_start, end_date=d_end, bounding_box=bounding_box,
+        rows = metadataService.search(SpacecraftID.LANDSAT_8, start_date=d_start, end_date=d_end, bounding_box=bounding_box,
                                limit=1)
-        path = rows[0][17]
-        gsurl = urlparse(path)
+        metadata = Metadata(rows[0])
+        gsurl = urlparse(metadata.base_url)
         storage = Storage(gsurl[1])
         base_path = '/imagery'
         b_mounted = storage.mount_sub_folder(gsurl[2], base_path)
         landsat = Landsat(base_path, gsurl[2])
-        vrt = landsat.get_vrt(None, None)
+        vrt = landsat.get_vrt(metadata, None)
         with open('test_1.vrt', 'r') as myfile:
             data = myfile.read()
             expected = etree.XML('<xml>%s</xml>' % data)
