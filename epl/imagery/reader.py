@@ -13,6 +13,36 @@ from subprocess import call
 # Imports the Google Cloud client library
 from google.cloud import bigquery
 
+# Failing Jupyter code
+# import datetime
+#
+# from lxml import etree
+# from osgeo import gdal
+# from urllib.parse import urlparse
+# from datetime import date
+# from epl.imagery.reader import MetadataService, Landsat, Storage, SpacecraftID, Metadata
+# metadataService = MetadataService()
+# d_end = date(2016, 6, 24)
+# d_start = date(2015, 6, 24)
+# bounding_box = (-115.927734375, 34.52466147177172, -78.31054687499999, 44.84029065139799)
+# rows = metadataService.search(SpacecraftID.LANDSAT_8, start_date=d_start, end_date=d_end, bounding_box=bounding_box,
+#                        limit=1)
+# base_mount_path = '/imagery'
+# metadata = Metadata(rows[0], base_mount_path)
+# gsurl = urlparse(metadata.base_url)
+# storage = Storage(gsurl[1])
+#
+# b_mounted = storage.mount_sub_folder(gsurl[2], base_mount_path)
+# landsat = Landsat(base_mount_path, gsurl[2])
+# vrt = landsat.get_vrt(metadata, [5,4,3])
+#
+# dataset = gdal.Open(vrt)
+# nda=dataset.ReadAsArray().transpose((1, 2, 0))
+# nda.shape
+# import matplotlib.pyplot as plt
+# %matplotlib inline
+# plt.figure(figsize=[16,16])
+# plt.imshow(nda)
 
 class SpacecraftID(Enum):
     LANDSAT_8 = 8
@@ -88,6 +118,7 @@ class Landsat:
         for band in band_numbers:
             file_path = metadata.full_mount_path + os.path.sep + metadata.scene_id + "_B{}.TIF".format(band)
             dataset = gdal.Open(file_path)
+            # TODO, check that this matters. I think maybe it doesn't
             max_x = dataset.RasterXSize if dataset.RasterXSize > max_x else max_x
             max_y = dataset.RasterYSize if dataset.RasterYSize > max_y else max_y
 
