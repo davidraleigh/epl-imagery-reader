@@ -132,8 +132,8 @@ class TestStorage(unittest.TestCase):
         path = rows[0][17]
         gsurl = urlparse(path)
         storage = Storage(gsurl[1])
-        base_path = '/imagery'
-        self.assertTrue(storage.mount_sub_folder(gsurl[2], base_path))
+        base_mount_path = '/imagery'
+        self.assertTrue(storage.mount_sub_folder(gsurl[2], base_mount_path))
 
 
 class TestLandsat(unittest.TestCase):
@@ -156,8 +156,8 @@ class TestLandsat(unittest.TestCase):
         path = rows[0][17]
         gsurl = urlparse(path)
         storage = Storage(gsurl[1])
-        base_path = '/imagery'
-        b_mounted = storage.mount_sub_folder(gsurl[2], base_path)
+        base_mount_path = '/imagery'
+        b_mounted = storage.mount_sub_folder(gsurl[2], base_mount_path)
         self.assertTrue(b_mounted)
 
     def test_vrt(self):
@@ -167,13 +167,14 @@ class TestLandsat(unittest.TestCase):
         bounding_box = (-115.927734375, 34.52466147177172, -78.31054687499999, 44.84029065139799)
         rows = metadataService.search(SpacecraftID.LANDSAT_8, start_date=d_start, end_date=d_end, bounding_box=bounding_box,
                                limit=1)
-        metadata = Metadata(rows[0])
+        base_mount_path = '/imagery'
+        metadata = Metadata(rows[0], base_mount_path)
         gsurl = urlparse(metadata.base_url)
         storage = Storage(gsurl[1])
-        base_path = '/imagery'
-        b_mounted = storage.mount_sub_folder(gsurl[2], base_path)
-        landsat = Landsat(base_path, gsurl[2])
-        vrt = landsat.get_vrt(metadata, None)
+
+        b_mounted = storage.mount_sub_folder(gsurl[2], base_mount_path)
+        landsat = Landsat(base_mount_path, gsurl[2])
+        vrt = landsat.get_vrt(metadata, [5,4,3])
         with open('test_1.vrt', 'r') as myfile:
             data = myfile.read()
             expected = etree.XML('<xml>%s</xml>' % data)

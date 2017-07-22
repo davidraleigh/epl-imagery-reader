@@ -3,6 +3,7 @@ import errno
 import threading
 import time
 
+from urllib.parse import urlparse
 from lxml import etree
 from enum import Enum
 from subprocess import call
@@ -36,47 +37,70 @@ class Landsat:
         if self.storage.mount_sub_folder(bucket_sub_folder, self.base_mount_path) is False:
             return None
 
+    def get_raster_band_elem(self, vrt_dataset, data_type, band_number, file_path, x_size, y_size, block_size):
+        elem_raster_band = etree.SubElement(vrt_dataset, "VRTRasterBand")
+
+        elem_raster_band.set("dataType", data_type)
+        elem_raster_band.set("band", str(band_number))
+
+        elem_simple_source = etree.SubElement(elem_raster_band, "SimpleSource")
+
+        elem_source_filename = etree.SubElement(elem_simple_source, "SourceFileName")
+        elem_source_filename.set("relativeToVRT", "0")
+        elem_source_filename.text = file_path
+
+        elem_source_props = etree.SubElement(elem_simple_source, "SourceProperties")
+        elem_source_props.set("RasterXSize", str(x_size))
+        elem_source_props.set("RasterYSize", str(y_size))
+        elem_source_props.set("DataType", data_type)
+        elem_source_props.set("BlockXSize", str(block_size))
+        elem_source_props.set("BlockYSize", str(block_size))
+
     def get_vrt(self, metadata, band_numbers):
         vrt_dataset = etree.Element("VRTDataset")
         vrt_dataset.set("rasterXSize", str(metadata.rasterXSize))
         vrt_dataset.set("rasterYSize", str(metadata.rasterYSize))
+
         etree.SubElement(vrt_dataset, "SRS").text = 'PROJCS["WGS 84 / UTM zone 13N",GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563,AUTHORITY["EPSG","7030"]],AUTHORITY["EPSG","6326"]],PRIMEM["Greenwich",0,AUTHORITY["EPSG","8901"]],UNIT["degree",0.0174532925199433,AUTHORITY["EPSG","9122"]],AUTHORITY["EPSG","4326"]],PROJECTION["Transverse_Mercator"],PARAMETER["latitude_of_origin",0],PARAMETER["central_meridian",-105],PARAMETER["scale_factor",0.9996],PARAMETER["false_easting",500000],PARAMETER["false_northing",0],UNIT["metre",1,AUTHORITY["EPSG","9001"]],AXIS["Easting",EAST],AXIS["Northing",NORTH],AUTHORITY["EPSG","32613"]]'
         etree.SubElement(vrt_dataset, "GeoTransform").text = ",".join(map(str, [4.4968500000000000e+05,  3.0000000000000000e+01,  0.0000000000000000e+00,  4.5822150000000000e+06,  0.0000000000000000e+00, -3.0000000000000000e+01]))
-        elem_raster_band = etree.SubElement(vrt_dataset, "VRTRasterBand")
-        
-        vrt = etree.tostring(vrt_dataset)
-        vrt = """
-<VRTDataset rasterXSize="7711" rasterYSize="7851">
-  <SRS>PROJCS["WGS 84 / UTM zone 13N",GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563,AUTHORITY["EPSG","7030"]],AUTHORITY["EPSG","6326"]],PRIMEM["Greenwich",0,AUTHORITY["EPSG","8901"]],UNIT["degree",0.0174532925199433,AUTHORITY["EPSG","9122"]],AUTHORITY["EPSG","4326"]],PROJECTION["Transverse_Mercator"],PARAMETER["latitude_of_origin",0],PARAMETER["central_meridian",-105],PARAMETER["scale_factor",0.9996],PARAMETER["false_easting",500000],PARAMETER["false_northing",0],UNIT["metre",1,AUTHORITY["EPSG","9001"]],AXIS["Easting",EAST],AXIS["Northing",NORTH],AUTHORITY["EPSG","32613"]]</SRS>
-  <GeoTransform>  4.4968500000000000e+05,  3.0000000000000000e+01,  0.0000000000000000e+00,  4.5822150000000000e+06,  0.0000000000000000e+00, -3.0000000000000000e+01</GeoTransform>
-  <VRTRasterBand dataType="UInt16" band="1">
-    <SimpleSource>
-      <SourceFilename relativeToVRT="0">LC80330322015195LGN00_B5.TIF</SourceFilename>
-      <SourceBand>1</SourceBand>
-      <SourceProperties RasterXSize="7711" RasterYSize="7851" DataType="UInt16" BlockXSize="256" BlockYSize="256" />
-      <SrcRect xOff="0" yOff="0" xSize="7711" ySize="7851" />
-      <DstRect xOff="0" yOff="0" xSize="7711" ySize="7851" />
-    </SimpleSource>
-  </VRTRasterBand>
-  <VRTRasterBand dataType="UInt16" band="2">
-    <SimpleSource>
-      <SourceFilename relativeToVRT="0">LC80330322015195LGN00_B4.TIF</SourceFilename>
-      <SourceBand>1</SourceBand>
-      <SourceProperties RasterXSize="7711" RasterYSize="7851" DataType="UInt16" BlockXSize="256" BlockYSize="256" />
-      <SrcRect xOff="0" yOff="0" xSize="7711" ySize="7851" />
-      <DstRect xOff="0" yOff="0" xSize="7711" ySize="7851" />
-    </SimpleSource>
-  </VRTRasterBand>
-  <VRTRasterBand dataType="UInt16" band="3">
-    <SimpleSource>
-      <SourceFilename relativeToVRT="0">LC80330322015195LGN00_B3.TIF</SourceFilename>
-      <SourceBand>1</SourceBand>
-      <SourceProperties RasterXSize="7711" RasterYSize="7851" DataType="UInt16" BlockXSize="256" BlockYSize="256" />
-      <SrcRect xOff="0" yOff="0" xSize="7711" ySize="7851" />
-      <DstRect xOff="0" yOff="0" xSize="7711" ySize="7851" />
-    </SimpleSource>
-  </VRTRasterBand>
-</VRTDataset>"""
+
+        for band in band_numbers:
+            file_path = metadata.full_mount_path + os.path.sep + metadata.scene_id + "_B{}.TIF".format(band)
+            self.get_raster_band_elem(vrt_dataset, "UInt16", band, file_path, metadata.rasterXSize, metadata.rasterYSize, 256)
+
+        vrt = etree.tostring(vrt_dataset, pretty_print=True)
+#         vrt = """
+# <VRTDataset rasterXSize="7711" rasterYSize="7851">
+#   <SRS>PROJCS["WGS 84 / UTM zone 13N",GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563,AUTHORITY["EPSG","7030"]],AUTHORITY["EPSG","6326"]],PRIMEM["Greenwich",0,AUTHORITY["EPSG","8901"]],UNIT["degree",0.0174532925199433,AUTHORITY["EPSG","9122"]],AUTHORITY["EPSG","4326"]],PROJECTION["Transverse_Mercator"],PARAMETER["latitude_of_origin",0],PARAMETER["central_meridian",-105],PARAMETER["scale_factor",0.9996],PARAMETER["false_easting",500000],PARAMETER["false_northing",0],UNIT["metre",1,AUTHORITY["EPSG","9001"]],AXIS["Easting",EAST],AXIS["Northing",NORTH],AUTHORITY["EPSG","32613"]]</SRS>
+#   <GeoTransform>  4.4968500000000000e+05,  3.0000000000000000e+01,  0.0000000000000000e+00,  4.5822150000000000e+06,  0.0000000000000000e+00, -3.0000000000000000e+01</GeoTransform>
+#   <VRTRasterBand dataType="UInt16" band="1">
+#     <SimpleSource>
+#       <SourceFilename relativeToVRT="0">LC80330322015195LGN00_B5.TIF</SourceFilename>
+#       <SourceBand>1</SourceBand>
+#       <SourceProperties RasterXSize="7711" RasterYSize="7851" DataType="UInt16" BlockXSize="256" BlockYSize="256" />
+#       <SrcRect xOff="0" yOff="0" xSize="7711" ySize="7851" />
+#       <DstRect xOff="0" yOff="0" xSize="7711" ySize="7851" />
+#     </SimpleSource>
+#   </VRTRasterBand>
+#   <VRTRasterBand dataType="UInt16" band="2">
+#     <SimpleSource>
+#       <SourceFilename relativeToVRT="0">LC80330322015195LGN00_B4.TIF</SourceFilename>
+#       <SourceBand>1</SourceBand>
+#       <SourceProperties RasterXSize="7711" RasterYSize="7851" DataType="UInt16" BlockXSize="256" BlockYSize="256" />
+#       <SrcRect xOff="0" yOff="0" xSize="7711" ySize="7851" />
+#       <DstRect xOff="0" yOff="0" xSize="7711" ySize="7851" />
+#     </SimpleSource>
+#   </VRTRasterBand>
+#   <VRTRasterBand dataType="UInt16" band="3">
+#     <SimpleSource>
+#       <SourceFilename relativeToVRT="0">LC80330322015195LGN00_B3.TIF</SourceFilename>
+#       <SourceBand>1</SourceBand>
+#       <SourceProperties RasterXSize="7711" RasterYSize="7851" DataType="UInt16" BlockXSize="256" BlockYSize="256" />
+#       <SrcRect xOff="0" yOff="0" xSize="7711" ySize="7851" />
+#       <DstRect xOff="0" yOff="0" xSize="7711" ySize="7851" />
+#     </SimpleSource>
+#   </VRTRasterBand>
+# </VRTDataset>"""
         return vrt
 
 class Sentinel2:
@@ -84,7 +108,7 @@ class Sentinel2:
 
 
 class Metadata:
-    def __init__(self, row, base_path=None):
+    def __init__(self, row, base_mount_path=None):
         self.scene_id = row[0]  # STRING	REQUIRED   Unique identifier for a particular Landsat image downlinked to a particular ground station.
         self.product_id = row[1]  # STRING	NULLABLE Unique identifier for a particular scene processed by the USGS at a particular time, or null for pre-collection data.
         self.spacecraft_id = row[2]  # STRING	NULLABLE The spacecraft that acquired this scene: one of 'LANDSAT_4' through 'LANDSAT_8'.
@@ -105,6 +129,8 @@ class Metadata:
         self.base_url = row[17]  # STRING	NULLABLE The base URL for this scene in Cloud Storage.
         self.rasterXSize = 0
         self.rasterYSize = 0
+        gsurl = urlparse(self.base_url)
+        self.full_mount_path = base_mount_path.rstrip("\/") + os.path.sep + gsurl[2].strip("\/")
 
 
 
