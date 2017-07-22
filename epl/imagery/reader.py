@@ -37,15 +37,15 @@ class Landsat:
         if self.storage.mount_sub_folder(bucket_sub_folder, self.base_mount_path) is False:
             return None
 
-    def get_raster_band_elem(self, vrt_dataset, data_type, band_number, file_path, x_size, y_size, block_size):
+    def get_raster_band_elem(self, vrt_dataset, data_type, position_number, file_path, x_size, y_size, block_size):
         elem_raster_band = etree.SubElement(vrt_dataset, "VRTRasterBand")
 
         elem_raster_band.set("dataType", data_type)
-        elem_raster_band.set("band", str(band_number))
+        elem_raster_band.set("band", str(position_number))
 
         elem_simple_source = etree.SubElement(elem_raster_band, "SimpleSource")
 
-        elem_source_filename = etree.SubElement(elem_simple_source, "SourceFileName")
+        elem_source_filename = etree.SubElement(elem_simple_source, "SourceFilename")
         elem_source_filename.set("relativeToVRT", "0")
         elem_source_filename.text = file_path
 
@@ -53,8 +53,26 @@ class Landsat:
         elem_source_props.set("RasterXSize", str(x_size))
         elem_source_props.set("RasterYSize", str(y_size))
         elem_source_props.set("DataType", data_type)
+
+        # there may be a more efficient size than 256
         elem_source_props.set("BlockXSize", str(block_size))
         elem_source_props.set("BlockYSize", str(block_size))
+
+        # if the input had multiple bands this setting would be where you change that
+        # but the google landsat is one tif per band
+        etree.SubElement(elem_simple_source, "SourceBand").text = str(1)
+
+        elem_src_rect = etree.SubElement(elem_simple_source, "SrcRect")
+        elem_src_rect.set("xOff", str(0))
+        elem_src_rect.set("yOff", str(0))
+        elem_src_rect.set("xSize", str(x_size))
+        elem_src_rect.set("ySize", str(y_size))
+
+        elem_dst_rect = etree.SubElement(elem_simple_source, "DstRect")
+        elem_dst_rect.set("xOff", str(0))
+        elem_dst_rect.set("yOff", str(0))
+        elem_dst_rect.set("xSize", str(x_size))
+        elem_dst_rect.set("ySize", str(y_size))
 
     def get_vrt(self, metadata, band_numbers):
         vrt_dataset = etree.Element("VRTDataset")
@@ -62,13 +80,15 @@ class Landsat:
         vrt_dataset.set("rasterYSize", str(metadata.rasterYSize))
 
         etree.SubElement(vrt_dataset, "SRS").text = 'PROJCS["WGS 84 / UTM zone 13N",GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563,AUTHORITY["EPSG","7030"]],AUTHORITY["EPSG","6326"]],PRIMEM["Greenwich",0,AUTHORITY["EPSG","8901"]],UNIT["degree",0.0174532925199433,AUTHORITY["EPSG","9122"]],AUTHORITY["EPSG","4326"]],PROJECTION["Transverse_Mercator"],PARAMETER["latitude_of_origin",0],PARAMETER["central_meridian",-105],PARAMETER["scale_factor",0.9996],PARAMETER["false_easting",500000],PARAMETER["false_northing",0],UNIT["metre",1,AUTHORITY["EPSG","9001"]],AXIS["Easting",EAST],AXIS["Northing",NORTH],AUTHORITY["EPSG","32613"]]'
-        etree.SubElement(vrt_dataset, "GeoTransform").text = ",".join(map(str, [4.4968500000000000e+05,  3.0000000000000000e+01,  0.0000000000000000e+00,  4.5822150000000000e+06,  0.0000000000000000e+00, -3.0000000000000000e+01]))
-
+        "{:.2f}"
+        etree.SubElement(vrt_dataset, "GeoTransform").text = ",".join(map("  {:.16e}".format, [4.4968500000000000e+05,  3.0000000000000000e+01,  0.0000000000000000e+00,  4.5822150000000000e+06,  0.0000000000000000e+00, -3.0000000000000000e+01]))
+        position_number = 1
         for band in band_numbers:
             file_path = metadata.full_mount_path + os.path.sep + metadata.scene_id + "_B{}.TIF".format(band)
-            self.get_raster_band_elem(vrt_dataset, "UInt16", band, file_path, metadata.rasterXSize, metadata.rasterYSize, 256)
+            self.get_raster_band_elem(vrt_dataset, "UInt16", position_number, file_path, metadata.rasterXSize, metadata.rasterYSize, 256)
+            position_number += 1
 
-        vrt = etree.tostring(vrt_dataset, pretty_print=True)
+        vrt = etree.tostring(vrt_dataset)
 #         vrt = """
 # <VRTDataset rasterXSize="7711" rasterYSize="7851">
 #   <SRS>PROJCS["WGS 84 / UTM zone 13N",GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563,AUTHORITY["EPSG","7030"]],AUTHORITY["EPSG","6326"]],PRIMEM["Greenwich",0,AUTHORITY["EPSG","8901"]],UNIT["degree",0.0174532925199433,AUTHORITY["EPSG","9122"]],AUTHORITY["EPSG","4326"]],PROJECTION["Transverse_Mercator"],PARAMETER["latitude_of_origin",0],PARAMETER["central_meridian",-105],PARAMETER["scale_factor",0.9996],PARAMETER["false_easting",500000],PARAMETER["false_northing",0],UNIT["metre",1,AUTHORITY["EPSG","9001"]],AXIS["Easting",EAST],AXIS["Northing",NORTH],AUTHORITY["EPSG","32613"]]</SRS>
@@ -127,8 +147,8 @@ class Metadata:
         self.east_lon = row[15]  # FLOAT	NULLABLE The eastern longitude of the bounding box of this scene.
         self.total_size = row[16]  # INTEGER	NULLABLE The total size of this scene in bytes.
         self.base_url = row[17]  # STRING	NULLABLE The base URL for this scene in Cloud Storage.
-        self.rasterXSize = 0
-        self.rasterYSize = 0
+        self.rasterXSize = 7711
+        self.rasterYSize = 7851
         gsurl = urlparse(self.base_url)
         self.full_mount_path = base_mount_path.rstrip("\/") + os.path.sep + gsurl[2].strip("\/")
 

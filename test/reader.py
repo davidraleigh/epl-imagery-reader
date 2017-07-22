@@ -27,19 +27,22 @@ def xml_compare(x1, x2):
         if name not in x1.attrib:
             return False, 'x2 has an attribute x1 is missing: %s' % name
     if not text_compare(x1.text, x2.text):
-        return False, 'text: %r != %r' % (x1.text, x2.text)
+        return False, 'text: %r != %r, for tag %s' % (x1.text, x2.text, x1.tag)
     if not text_compare(x1.tail, x2.tail):
         return False, 'tail: %r != %r' % (x1.tail, x2.tail)
-    cl1 = x1.getchildren()
-    cl2 = x2.getchildren()
+    cl1 = sorted(x1.getchildren(), key=lambda x: x.tag)
+    cl2 = sorted(x2.getchildren(), key=lambda x: x.tag)
     if len(cl1) != len(cl2):
         return False, 'children length differs, %i != %i' % (len(cl1), len(cl2))
     i = 0
     for c1, c2 in zip(cl1, cl2):
         i += 1
-        if not xml_compare(c1, c2):
-            return False, 'children %i do not match: %s' % (i, c1.tag)
-    return True
+        result, message = xml_compare(c1, c2)
+        # if not xml_compare(c1, c2):
+        if not result:
+            return False, 'children %i do not match: %s\n%s' % (i, c1.tag, message)
+    return True, "no errors"
+
 
 class TestMetaDataSQL(unittest.TestCase):
     def test_start_date(self):
@@ -159,8 +162,8 @@ class TestLandsat(unittest.TestCase):
         vrt = landsat.get_vrt(metadata, [5,4,3])
         with open('test_1.vrt', 'r') as myfile:
             data = myfile.read()
-            expected = etree.XML('<xml>%s</xml>' % data)
-            actual = etree.XML('<xml>%s</xml>' % vrt)
+            expected = etree.XML(data)
+            actual = etree.XML(vrt)
             result, message = xml_compare(expected, actual)
             self.assertTrue(result, message)
 
