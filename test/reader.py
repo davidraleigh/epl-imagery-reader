@@ -17,46 +17,28 @@ def text_compare(t1, t2):
 
 
 # https://bitbucket.org/ianb/formencode/src/tip/formencode/doctest_xml_compare.py?fileviewer=file-view-default#cl-70
-def xml_compare(x1, x2, reporter=None):
+def xml_compare(x1, x2):
     if x1.tag != x2.tag:
-        if reporter:
-            reporter('Tags do not match: %s and %s' % (x1.tag, x2.tag))
-        return False
+        return False, 'Tags do not match: %s and %s' % (x1.tag, x2.tag)
     for name, value in x1.attrib.items():
         if x2.attrib.get(name) != value:
-            if reporter:
-                reporter('Attributes do not match: %s=%r, %s=%r'
-                         % (name, value, name, x2.attrib.get(name)))
-            return False
+            return False, 'Attributes do not match: %s=%r, %s=%r' % (name, value, name, x2.attrib.get(name))
     for name in x2.attrib.keys():
         if name not in x1.attrib:
-            if reporter:
-                reporter('x2 has an attribute x1 is missing: %s'
-                         % name)
-            return False
+            return False, 'x2 has an attribute x1 is missing: %s' % name
     if not text_compare(x1.text, x2.text):
-        if reporter:
-            reporter('text: %r != %r' % (x1.text, x2.text))
-        return False
+        return False, 'text: %r != %r' % (x1.text, x2.text)
     if not text_compare(x1.tail, x2.tail):
-        if reporter:
-            reporter('tail: %r != %r' % (x1.tail, x2.tail))
-        return False
+        return False, 'tail: %r != %r' % (x1.tail, x2.tail)
     cl1 = x1.getchildren()
     cl2 = x2.getchildren()
     if len(cl1) != len(cl2):
-        if reporter:
-            reporter('children length differs, %i != %i'
-                     % (len(cl1), len(cl2)))
-        return False
+        return False, 'children length differs, %i != %i' % (len(cl1), len(cl2))
     i = 0
     for c1, c2 in zip(cl1, cl2):
         i += 1
-        if not xml_compare(c1, c2, reporter=reporter):
-            if reporter:
-                reporter('children %i do not match: %s'
-                         % (i, c1.tag))
-            return False
+        if not xml_compare(c1, c2):
+            return False, 'children %i do not match: %s' % (i, c1.tag)
     return True
 
 class TestMetaDataSQL(unittest.TestCase):
@@ -179,7 +161,8 @@ class TestLandsat(unittest.TestCase):
             data = myfile.read()
             expected = etree.XML('<xml>%s</xml>' % data)
             actual = etree.XML('<xml>%s</xml>' % vrt)
-            self.assertTrue(xml_compare(expected, actual, reporter=None))
+            result, message = xml_compare(expected, actual)
+            self.assertTrue(result, message)
 
 
 
