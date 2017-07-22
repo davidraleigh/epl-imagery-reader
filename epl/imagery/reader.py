@@ -81,7 +81,6 @@ class Landsat:
     def get_vrt(self, metadata, band_numbers):
         vrt_dataset = etree.Element("VRTDataset")
 
-        etree.SubElement(vrt_dataset, "GeoTransform").text = ",".join(map("  {:.16e}".format, [4.4968500000000000e+05,  3.0000000000000000e+01,  0.0000000000000000e+00,  4.5822150000000000e+06,  0.0000000000000000e+00, -3.0000000000000000e+01]))
         position_number = 1
         max_x = sys.float_info.min
         max_y = sys.float_info.min
@@ -91,12 +90,14 @@ class Landsat:
             dataset = gdal.Open(file_path)
             max_x = dataset.RasterXSize if dataset.RasterXSize > max_x else max_x
             max_y = dataset.RasterYSize if dataset.RasterYSize > max_y else max_y
+
             self.get_raster_band_elem(vrt_dataset, "UInt16", position_number, file_path, dataset.RasterXSize, dataset.RasterYSize, 256)
             position_number += 1
 
         vrt_dataset.set("rasterXSize", str(max_x))
         vrt_dataset.set("rasterYSize", str(max_y))
         etree.SubElement(vrt_dataset, "SRS").text = dataset.GetProjection()
+        etree.SubElement(vrt_dataset, "GeoTransform").text = ",".join(map("  {:.16e}".format, dataset.GetGeoTransform()))
 
         return etree.tostring(vrt_dataset)
 
