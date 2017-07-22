@@ -167,6 +167,19 @@ class TestLandsat(unittest.TestCase):
             result, message = xml_compare(expected, actual)
             self.assertTrue(result, message)
 
+        dataset = gdal.Open(vrt)
+        self.assertIsNotNone(dataset)
+
+        ds_band_1 = dataset.GetRasterBand(1)
+        self.assertIsNotNone(ds_band_1)
+        self.assertEqual(ds_band_1.XSize, 7631)
+        ds_band_2 = dataset.GetRasterBand(2)
+        self.assertIsNotNone(ds_band_2)
+        self.assertEqual(ds_band_2.YSize, 7771)
+        ds_band_3 = dataset.GetRasterBand(3)
+        self.assertIsNotNone(ds_band_3)
+        self.assertEqual(ds_band_3.YSize, 7771)
+
 
 
         # src_ds = gdal.Open(input_file)
