@@ -246,7 +246,15 @@ LIMIT 1"""
         query.run()
         self.m_danger_east_lon = query.rows[0][0]
 
-    def search(self, satellite_id, bounding_box=None, start_date=None, end_date=None, sort_by=None, limit=10, sql_filters=None):
+    def search(
+            self,
+            satellite_id,
+            bounding_box=None,
+            start_date=None,
+            end_date=None,
+            sort_by=None,
+            limit=10,
+            sql_filters=None):
         # # Perform a synchronous query.
         query_builder = 'SELECT * FROM [bigquery-public-data:cloud_storage_geo_index.landsat_index] ' \
                         'WHERE spacecraft_id="{}"'.format(satellite_id.name)
@@ -278,7 +286,7 @@ LIMIT 1"""
 
         if sql_filters is not None:
             for sql_filter in sql_filters:
-                print(sql_filter)
+                query_builder += ' AND {}'.format(sql_filter)
 
         # TODO sort by area
         """
