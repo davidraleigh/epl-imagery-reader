@@ -71,8 +71,20 @@ class Landsat:
             return None
 
     @staticmethod
-    def get_raster_band_elem(vrt_dataset, data_type, position_number, file_path, x_size, y_size, block_size):
+    def get_raster_band_elem(
+            vrt_dataset,
+            data_type,
+            position_number,
+            file_path,
+            x_size,
+            y_size,
+            block_size,
+            color_interp=None):
+
         elem_raster_band = etree.SubElement(vrt_dataset, "VRTRasterBand")
+
+        if color_interp is not None:
+            etree.SubElement(elem_raster_band, "ColorInterp").text = color_interp
 
         elem_raster_band.set("dataType", data_type)
         elem_raster_band.set("band", str(position_number))
@@ -122,7 +134,24 @@ class Landsat:
             max_x = dataset.RasterXSize if dataset.RasterXSize > max_x else max_x
             max_y = dataset.RasterYSize if dataset.RasterYSize > max_y else max_y
 
-            self.get_raster_band_elem(vrt_dataset, "UInt16", position_number, file_path, dataset.RasterXSize, dataset.RasterYSize, 256)
+            color_interp = None
+            if band == 4:
+                color_interp = "Red"
+            elif band == 3:
+                color_interp = "Green"
+            elif band == 2:
+                color_interp = "Blue"
+
+            self.get_raster_band_elem(
+                vrt_dataset,
+                "UInt16",
+                position_number,
+                file_path,
+                dataset.RasterXSize,
+                dataset.RasterYSize,
+                256,
+                color_interp=color_interp)
+
             position_number += 1
 
         vrt_dataset.set("rasterXSize", str(max_x))
