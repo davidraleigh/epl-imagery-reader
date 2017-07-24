@@ -132,6 +132,18 @@ class Landsat:
 
         return etree.tostring(vrt_dataset)
 
+    def get_ndarray(self, scales, band_numbers, metadata):
+        vrt = self.get_vrt(metadata, band_numbers)
+        # http://gdal.org/python/
+        # http://gdal.org/python/osgeo.gdal-module.html#TranslateOptions
+        translateOptions = gdal.TranslateOptions(scaleParams=[[0, 4000], [0, 4000], [0, 4000]])
+        vrt_projected = gdal.Translate('', vrt, translateOptions)
+        dataset = gdal.Open(vrt_projected)
+        nda = dataset.ReadAsArray().transpose((1, 2, 0))
+        return nda
+
+
+
 
 class Sentinel2:
     bucket_name = ""
