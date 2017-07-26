@@ -13,33 +13,41 @@ from subprocess import call
 # Imports the Google Cloud client library
 from google.cloud import bigquery
 
-# Failing Jupyter code
-# import datetime
-#
+import tempfile
+
+# import matplotlib.pyplot as plt
+# import numpy as np
 # from lxml import etree
 # from osgeo import gdal
+# from osgeo import gdal_array
+
 # from urllib.parse import urlparse
 # from datetime import date
 # from epl.imagery.reader import MetadataService, Landsat, Storage, SpacecraftID, Metadata
+
+# gdal.UseExceptions()
 # metadataService = MetadataService()
-# d_end = date(2016, 6, 24)
-# d_start = date(2015, 6, 24)
-# bounding_box = (-115.927734375, 34.52466147177172, -78.31054687499999, 44.84029065139799)
-# rows = metadataService.search(SpacecraftID.LANDSAT_8, start_date=d_start, end_date=d_end, bounding_box=bounding_box,
-#                        limit=1)
+
+# utah_box = (-112.66342163085938, 37.738141282210385, -111.79824829101562, 38.44821130413263)
+# d_start = date(2016, 7, 20)
+# d_end = date(2016, 7, 28)
+
+
+# # # bounding_box = (-115.927734375, 34.52466147177172, -78.31054687499999, 44.84029065139799)
+# rows = metadataService.search(SpacecraftID.LANDSAT_8, start_date=d_start, end_date=d_end, bounding_box=utah_box,
+#                         limit=10, sql_filters=["cloud_cover<=5"])
+
 # base_mount_path = '/imagery'
 # metadata = Metadata(rows[0], base_mount_path)
 # gsurl = urlparse(metadata.base_url)
 # storage = Storage(gsurl[1])
-#
+
 # b_mounted = storage.mount_sub_folder(gsurl[2], base_mount_path)
 # landsat = Landsat(base_mount_path, gsurl[2])
-# vrt = landsat.get_vrt(metadata, [5,4,3])
-#
-# dataset = gdal.Open(vrt)
-# nda=dataset.ReadAsArray().transpose((1, 2, 0))
-# nda.shape
-# import matplotlib.pyplot as plt
+
+# band_numbers = [4, 3, 2]
+# nda = landsat.get_ndarray(band_numbers, metadata)
+
 # %matplotlib inline
 # plt.figure(figsize=[16,16])
 # plt.imshow(nda)
@@ -120,7 +128,7 @@ class Landsat:
         elem_dst_rect.set("xSize", str(x_size))
         elem_dst_rect.set("ySize", str(y_size))
 
-    def get_vrt(self, metadata, band_numbers):
+    def get_vrt(self, metadata, band_numbers, translate_args=None):
         vrt_dataset = etree.Element("VRTDataset")
 
         position_number = 1
@@ -161,13 +169,15 @@ class Landsat:
 
         return etree.tostring(vrt_dataset)
 
-    def get_ndarray(self, scales, band_numbers, metadata):
+    def get_ndarray(self, band_numbers, metadata):
         vrt = self.get_vrt(metadata, band_numbers)
         # http://gdal.org/python/
         # http://gdal.org/python/osgeo.gdal-module.html#TranslateOptions
-        translateOptions = gdal.TranslateOptions(scaleParams=[[0, 4000], [0, 4000], [0, 4000]])
-        vrt_projected = gdal.Translate('', vrt, translateOptions)
-        dataset = gdal.Open(vrt_projected)
+        # vrt_projected = gdal.Translate('', vrt, of="VRT", scaleParams=[], ot="Byte")
+        # assumes input is unsigned int and output it Bytes and resolution is 60 meters
+        dataset = gdal.Translate('', str(vrt), format="VRT",
+                                 scaleParams=[[0.0, 65535, 0, 255], [0.0, 65535, 0, 255], [0.0, 65535, 0, 255]],
+                                 xRes=60, yRes=60, outputType=gdal.GDT_Byte, noData=0)
         nda = dataset.ReadAsArray().transpose((1, 2, 0))
         return nda
 
