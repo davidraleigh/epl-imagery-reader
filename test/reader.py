@@ -26,7 +26,7 @@ def text_compare(t1, t2, compare_as_float=False):
 
 
 # https://bitbucket.org/ianb/formencode/src/tip/formencode/doctest_xml_compare.py?fileviewer=file-view-default#cl-70
-def xml_compare(x1, x2, test_obj, float_text_tags={}):
+def xml_compare(x1, x2, float_text_tags={}):
     if x1.tag != x2.tag:
         return False, 'Tags do not match: %s and %s' % (x1.tag, x2.tag)
     for name, value in x1.attrib.items():
@@ -190,16 +190,19 @@ class TestLandsat(unittest.TestCase):
         d_end = date(2016, 6, 24)
         d_start = date(2015, 6, 24)
         bounding_box = (-115.927734375, 34.52466147177172, -78.31054687499999, 44.84029065139799)
+        sql_filters = ['scene_id="LC80400312016103LGN00"']
         rows = metadata_service.search(SpacecraftID.LANDSAT_8, start_date=d_start, end_date=d_end, bounding_box=bounding_box,
-                               limit=1)
+                               limit=1, sql_filters=sql_filters)
+
+
         base_mount_path = '/imagery'
         metadata = Metadata(rows[0], base_mount_path)
         gsurl = urlparse(metadata.base_url)
         storage = Storage(gsurl[1])
 
         b_mounted = storage.mount_sub_folder(gsurl[2], base_mount_path)
-        landsat = Landsat(base_mount_path, gsurl[2])
-        vrt = landsat.get_vrt(metadata, [5,4,3])
+        landsat = Landsat(base_mount_path)#, gsurl[2])
+        vrt = landsat.get_vrt(metadata, [4, 3, 2])
         with open('test_1.vrt', 'r') as myfile:
             data = myfile.read()
             expected = etree.XML(data)
@@ -263,30 +266,30 @@ class TestLandsat(unittest.TestCase):
         #     print
         #     "[ COLOR ENTRY RGB ] = ", ctable.GetColorEntryAsRGB(i, entry)
 
-    def test_translate_vrt(self):
-        #                                                          LC80390332016208LGN00
-        # gdalbuildvrt -separate rgb.vrt /imagery/LC08/PRE/039/033/LC80390332016208LGN00/LC80390332016208LGN00_B4.TIF /imagery/LC08/PRE/039/033/LC80390332016208LGN00/LC80390332016208LGN00_B3.TIF /imagery/LC08/PRE/039/033/LC80390332016208LGN00/LC80390332016208LGN00_B2.TIF
-        # gdal_translate -of VRT -ot Byte -scale -tr 60 60 rgb.vrt rgb_byte_scaled.vrt
-
-        self.assertTrue(True)
-        sql_filters = ['scene_id="LC80390332016208LGN00"']
-        metadata_service = MetadataService()
-        rows = metadata_service.search(SpacecraftID.LANDSAT_8, sql_filters=sql_filters)
-
-        base_mount_path = '/imagery'
-        metadata = Metadata(rows[0], base_mount_path)
-        gsurl = urlparse(metadata.base_url)
-        storage = Storage(gsurl[1])
-
-        b_mounted = storage.mount_sub_folder(gsurl[2], base_mount_path)
-        landsat = Landsat(base_mount_path, gsurl[2])
-        vrt = landsat.get_vrt(metadata, [5, 4, 3])
-
-        with open('gdalbuildvrt_LC80390332016208LGN00.vrt', 'r') as myfile:
-            data = myfile.read()
-            expected = etree.XML(data)
-            actual = etree.XML(vrt)
-            result, message = xml_compare(expected, actual)
-            self.assertTrue(result, message)
+    # def test_translate_vrt(self):
+    #     #                                                          LC80390332016208LGN00
+    #     # gdalbuildvrt -separate rgb.vrt /imagery/LC08/PRE/039/033/LC80390332016208LGN00/LC80390332016208LGN00_B4.TIF /imagery/LC08/PRE/039/033/LC80390332016208LGN00/LC80390332016208LGN00_B3.TIF /imagery/LC08/PRE/039/033/LC80390332016208LGN00/LC80390332016208LGN00_B2.TIF
+    #     # gdal_translate -of VRT -ot Byte -scale -tr 60 60 rgb.vrt rgb_byte_scaled.vrt
+    #
+    #     self.assertTrue(True)
+    #     sql_filters = ['scene_id="LC80390332016208LGN00"']
+    #     metadata_service = MetadataService()
+    #     rows = metadata_service.search(SpacecraftID.LANDSAT_8, sql_filters=sql_filters)
+    #
+    #     base_mount_path = '/imagery'
+    #     metadata = Metadata(rows[0], base_mount_path)
+    #     gsurl = urlparse(metadata.base_url)
+    #     storage = Storage(gsurl[1])
+    #
+    #     b_mounted = storage.mount_sub_folder(gsurl[2], base_mount_path)
+    #     landsat = Landsat(base_mount_path, gsurl[2])
+    #     vrt = landsat.get_vrt(metadata, [5, 4, 3])
+    #
+    #     with open('gdalbuildvrt_LC80390332016208LGN00.vrt', 'r') as myfile:
+    #         data = myfile.read()
+    #         expected = etree.XML(data)
+    #         actual = etree.XML(vrt)
+    #         result, message = xml_compare(expected, actual)
+    #         self.assertTrue(result, message)
 
 

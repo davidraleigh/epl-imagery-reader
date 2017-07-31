@@ -1,7 +1,5 @@
 import os
 import errno
-import threading
-import time
 import sys
 
 from osgeo import gdal
@@ -12,45 +10,6 @@ from subprocess import call
 
 # Imports the Google Cloud client library
 from google.cloud import bigquery
-
-import tempfile
-
-# import matplotlib.pyplot as plt
-# import numpy as np
-# from lxml import etree
-# from osgeo import gdal
-# from osgeo import gdal_array
-
-# from urllib.parse import urlparse
-# from datetime import date
-# from epl.imagery.reader import MetadataService, Landsat, Storage, SpacecraftID, Metadata
-
-# gdal.UseExceptions()
-# metadataService = MetadataService()
-
-# utah_box = (-112.66342163085938, 37.738141282210385, -111.79824829101562, 38.44821130413263)
-# d_start = date(2016, 7, 20)
-# d_end = date(2016, 7, 28)
-
-
-# # # bounding_box = (-115.927734375, 34.52466147177172, -78.31054687499999, 44.84029065139799)
-# rows = metadataService.search(SpacecraftID.LANDSAT_8, start_date=d_start, end_date=d_end, bounding_box=utah_box,
-#                         limit=10, sql_filters=["cloud_cover<=5"])
-
-# base_mount_path = '/imagery'
-# metadata = Metadata(rows[0], base_mount_path)
-# gsurl = urlparse(metadata.base_url)
-# storage = Storage(gsurl[1])
-
-# b_mounted = storage.mount_sub_folder(gsurl[2], base_mount_path)
-# landsat = Landsat(base_mount_path, gsurl[2])
-
-# band_numbers = [4, 3, 2]
-# nda = landsat.get_ndarray(band_numbers, metadata)
-
-# %matplotlib inline
-# plt.figure(figsize=[16,16])
-# plt.imshow(nda)
 
 class SpacecraftID(Enum):
     LANDSAT_8 = 8
@@ -67,13 +26,13 @@ class Landsat:
     base_mount_path = ""
     storage = None
 
-    def __init__(self, base_mount_path, bucket_name=None):
+    # def __init__(self, base_mount_path, bucket_name="gcp-public-data-landsat"):
+    def __init__(self, base_mount_path):
         self.bucket_name = "gcp-public-data-landsat"
         self.base_mount_path = base_mount_path
         self.storage = Storage(self.bucket_name)
 
     def fetch_imagery_array(self, bucket_sub_folder, band_numbers):
-
         # TODO
         if self.storage.mount_sub_folder(bucket_sub_folder, self.base_mount_path) is False:
             return None
