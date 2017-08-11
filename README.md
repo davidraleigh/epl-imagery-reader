@@ -5,6 +5,7 @@ Landsat Reader
 ## Sample
 
 ```python
+
 import matplotlib.pyplot as plt
 from osgeo import gdal
 
@@ -30,7 +31,7 @@ gsurl = urlparse(metadata.base_url)
 storage = Storage(gsurl[1])
 
 b_mounted = storage.mount_sub_folder(gsurl[2], base_mount_path)
-landsat = Landsat(base_mount_path, gsurl[2])
+landsat = Landsat(base_mount_path)
 
 band_numbers = [4, 3, 2]
 nda = landsat.get_ndarray(band_numbers, metadata)
