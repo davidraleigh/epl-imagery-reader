@@ -1,7 +1,7 @@
 import unittest
 import datetime
 
-from lxml import etree
+# from lxml import etree
 from osgeo import gdal
 from urllib.parse import urlparse
 from datetime import date
@@ -59,7 +59,6 @@ class TestMetaDataSQL(unittest.TestCase):
         metadata_service = MetadataService()
         rows = metadata_service.search(SpacecraftID.LANDSAT_8, sql_filters=sql_filters)
         self.assertEqual(len(rows), 1)
-
 
     def test_start_date(self):
         # gs://gcp-public-data-landsat/LC08/PRE/044/034/LC80440342016259LGN00/
@@ -223,7 +222,15 @@ class TestLandsat(unittest.TestCase):
         self.assertIsNotNone(ds_band_3)
         self.assertEqual(ds_band_3.YSize, 7771)
 
-
+    def test_pixel_function_vrt_1(self):
+        base_mount_path = '/imagery'
+        metadata_row = ['LC80390332016208LGN00', '', 'LANDSAT_8', 'OLI_TIRS', '2016-07-26', '2016-07-26T18:14:46.9465460Z', 'PRE', 'N/A', 'L1T', 39, 33, 1.69, 39.96962, 37.81744, -115.27267, -112.56732, 1070517542, 'gs://gcp-public-data-landsat/LC08/PRE/039/033/LC80390332016208LGN00']
+        metadata = Metadata(metadata_row, base_mount_path)
+        gsurl = urlparse(metadata.base_url)
+        storage = Storage(gsurl[1])
+        landsat = Landsat(base_mount_path)  # , gsurl[2])
+        vrt = landsat.get_vrt(metadata, [4, 3, 2])
+        self.assertTrue(True)
 
         # src_ds = gdal.Open(input_file)
         # if src_ds is None:

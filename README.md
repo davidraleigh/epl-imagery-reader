@@ -2,6 +2,15 @@
 
 Landsat Reader
 
+## Exposing a single Jupyter Notebook using kubernetes
+```bash
+gcloud container clusters create jupytercluster --machine-type n1-standard-4 --num-nodes 3 --zone us-west1-c --scopes https://www.googleapis.com/auth/projecthosting,storage-rw,bigquery
+gcloud container clusters get-credentials jupytercluster --zone us-west1-c
+kubectl create -f deploy.yaml
+kubectl expose deployment gcp-imagery-deploy --type="LoadBalancer"
+kubectl get service gcp-imagery-deploy
+```
+
 ## Sample
 
 ```python
