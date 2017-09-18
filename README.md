@@ -2,6 +2,21 @@
 
 Landsat Reader
 
+## Build, Run and Debug Jupyter Notebook
+
+Based off of this documentation:
+https://davidraleigh.github.io/2017/06/27/Debugging-a-Remote-Docker-Container-with-PyCharm.html
+
+```bash
+cd ~/gcp-imagery-reader/
+sudo docker build -t us.gcr.io/echoparklabs/imagery-reader .
+cd ~/remote-debug-docker/
+sudo docker tag us.gcr.io/echoparklabs/imagery-reader test-image
+sudo docker build -t debug-image .
+
+sudo docker run -p 52022:22 -p 80:8888 -it --privileged --name=temp-python-debug debug-image
+```
+
 ## Exposing a single Jupyter Notebook using kubernetes
 ```bash
 gcloud container clusters create jupytercluster --machine-type n1-standard-4 --num-nodes 3 --zone us-west1-c --scopes https://www.googleapis.com/auth/projecthosting,storage-rw,bigquery
