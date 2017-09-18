@@ -1,7 +1,7 @@
 import unittest
 import datetime
 
-# from lxml import etree
+from lxml import etree
 from osgeo import gdal
 from urllib.parse import urlparse
 from datetime import date
