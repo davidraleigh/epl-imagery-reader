@@ -95,7 +95,12 @@ class Landsat:
         max_y = sys.float_info.min
 
         for band in band_numbers:
-            file_path = metadata.full_mount_path + os.path.sep + metadata.scene_id + "_B{}.TIF".format(band)
+            # TODO more elegant please
+            if not metadata.product_id:
+                file_path = metadata.full_mount_path + os.path.sep + metadata.scene_id + "_B{}.TIF".format(band)
+            else:
+                file_path = metadata.full_mount_path + os.path.sep + metadata.product_id + "_B{}.TIF".format(band)
+
             dataset = gdal.Open(file_path)
             # TODO, check that this matters. I think maybe it doesn't
             max_x = dataset.RasterXSize if dataset.RasterXSize > max_x else max_x

@@ -7,6 +7,8 @@ from urllib.parse import urlparse
 from datetime import date
 from epl.imagery.reader import MetadataService, Landsat, Storage, SpacecraftID, Metadata
 
+from shapely.wkt import loads
+
 
 def text_compare(t1, t2, compare_as_float=False):
     if not t1 and not t2:
@@ -96,8 +98,8 @@ class TestMetaDataSQL(unittest.TestCase):
     def test_1_year(self):
         # gs://gcp-public-data-landsat/LC08/PRE/044/034/LC80440342016259LGN00/
         metadata_service = MetadataService()
-        d_end = date(2016, 6, 24)
         d_start = date(2015, 6, 24)
+        d_end = date(2016, 6, 24)
         rows = metadata_service.search(SpacecraftID.LANDSAT_8, start_date=d_start, end_date=d_end)
         self.assertEqual(len(rows), 10)
         for row in rows:
@@ -108,8 +110,8 @@ class TestMetaDataSQL(unittest.TestCase):
 
     def test_bounding_box_1(self):
         metadata_service = MetadataService()
-        d_end = date(2016, 6, 24)
         d_start = date(2015, 6, 24)
+        d_end = date(2016, 6, 24)
         bounding_box = (-115.927734375, 34.52466147177172, -78.31054687499999, 44.84029065139799)
         rows = metadata_service.search(SpacecraftID.LANDSAT_8, start_date=d_start, end_date=d_end, bounding_box=bounding_box)
         self.assertEqual(len(rows), 10)
@@ -124,8 +126,8 @@ class TestMetaDataSQL(unittest.TestCase):
     def test_cloud_cover(self):
         metadata_service = MetadataService()
         sql_filters = ['cloud_cover=0']
-        d_end = date(2016, 6, 24)
         d_start = date(2015, 6, 24)
+        d_end = date(2016, 6, 24)
         bounding_box = (-115.927734375, 34.52466147177172, -78.31054687499999, 44.84029065139799)
         rows = metadata_service.search(
             SpacecraftID.LANDSAT_8,
@@ -145,12 +147,54 @@ class TestMetaDataSQL(unittest.TestCase):
             self.assertTrue(
                 (bounding_box[1] < row[12] < bounding_box[3]) or (bounding_box[1] < row[13] < bounding_box[3]))
 
+    def test_australia(self):
+        # 5th Place: Lake Eyre Landsat 5 Acquired August 5, 2006
+        wkt = "POLYGON((136.2469482421875 -27.57843813308233,138.6639404296875 -27.57843813308233,138.6639404296875 -29.82351878748485,136.2469482421875 -29.82351878748485,136.2469482421875 -27.57843813308233))"
+        polygon = loads(wkt)
 
+
+        metadata_service = MetadataService()
+        # sql_filters = ['cloud_cover=0']
+        d_start = date(2006, 8, 4)
+        d_end = date(2006, 8, 7)
+        bounding_box = polygon.bounds
+        rows = metadata_service.search(
+            SpacecraftID.LANDSAT_5,
+            start_date=d_start,
+            end_date=d_end,
+            bounding_box=bounding_box)
+
+        self.assertEqual(len(rows), 3)
+
+        # mounted directory in docker container
+        base_mount_path = '/imagery'
+
+        # data structure that contains all fields from Google's Landsat BigQuery Database
+        metadata = Metadata(rows[2], base_mount_path)
+        # print(metadata.__dict__)
+
+        # break down gs url into pieces required for gcs-fuse
+        gsurl = urlparse(metadata.base_url)
+
+        # mounting Google Storage bucket with gcs-fuse
+        storage = Storage(gsurl[1])
+        b_mounted = storage.mount_sub_folder(gsurl[2], base_mount_path)
+
+        # print(gsurl[1])
+        # print(gsurl[2])
+        # GDAL helper functions for generating VRT
+        landsat = Landsat(base_mount_path)
+
+        # get a numpy.ndarray from bands for specified imagery
+        band_numbers = [3, 2, 1]
+        nda = landsat.get_ndarray(band_numbers, metadata)
+        self.assertEqual((3581, 4041, 3), nda.shape)
+        # print(nda.shape)
 class TestStorage(unittest.TestCase):
     def test_storage_create(self):
         metadata_service = MetadataService()
-        d_end = date(2016, 6, 24)
         d_start = date(2015, 6, 24)
+        d_end = date(2016, 6, 24)
         bounding_box = (-115.927734375, 34.52466147177172, -78.31054687499999, 44.84029065139799)
         rows = metadata_service.search(SpacecraftID.LANDSAT_8, start_date=d_start, end_date=d_end, bounding_box=bounding_box, limit=1)
         path = rows[0][17]
@@ -163,8 +207,8 @@ class TestStorage(unittest.TestCase):
 class TestLandsat(unittest.TestCase):
     def test_get_file(self):
         metadata_service = MetadataService()
-        d_end = date(2016, 6, 24)
         d_start = date(2015, 6, 24)
+        d_end = date(2016, 6, 24)
         bounding_box = (-115.927734375, 34.52466147177172, -78.31054687499999, 44.84029065139799)
         rows = metadata_service.search(SpacecraftID.LANDSAT_8, start_date=d_start, end_date=d_end, bounding_box=bounding_box, limit=1)
         landsat = Landsat('/data/imagery')
@@ -172,8 +216,8 @@ class TestLandsat(unittest.TestCase):
 
     def test_gdal_info(self):
         metadata_service = MetadataService()
-        d_end = date(2016, 6, 24)
         d_start = date(2015, 6, 24)
+        d_end = date(2016, 6, 24)
         bounding_box = (-115.927734375, 34.52466147177172, -78.31054687499999, 44.84029065139799)
         rows = metadata_service.search(SpacecraftID.LANDSAT_8, start_date=d_start, end_date=d_end, bounding_box=bounding_box,
                                limit=1)
@@ -186,8 +230,8 @@ class TestLandsat(unittest.TestCase):
 
     def test_vrt(self):
         metadata_service = MetadataService()
-        d_end = date(2016, 6, 24)
         d_start = date(2015, 6, 24)
+        d_end = date(2016, 6, 24)
         bounding_box = (-115.927734375, 34.52466147177172, -78.31054687499999, 44.84029065139799)
         sql_filters = ['scene_id="LC80400312016103LGN00"']
         rows = metadata_service.search(SpacecraftID.LANDSAT_8, start_date=d_start, end_date=d_end, bounding_box=bounding_box,
@@ -222,16 +266,40 @@ class TestLandsat(unittest.TestCase):
         self.assertIsNotNone(ds_band_3)
         self.assertEqual(ds_band_3.YSize, 7771)
 
-    # def test_pixel_function_vrt_1(self):
-    #     base_mount_path = '/imagery'
-    #     metadata_row = ['LC80390332016208LGN00', '', 'LANDSAT_8', 'OLI_TIRS', '2016-07-26', '2016-07-26T18:14:46.9465460Z', 'PRE', 'N/A', 'L1T', 39, 33, 1.69, 39.96962, 37.81744, -115.27267, -112.56732, 1070517542, 'gs://gcp-public-data-landsat/LC08/PRE/039/033/LC80390332016208LGN00']
-    #     metadata = Metadata(metadata_row, base_mount_path)
-    #     gsurl = urlparse(metadata.base_url)
-    #     storage = Storage(gsurl[1])
-    #     landsat = Landsat(base_mount_path)  # , gsurl[2])
-    #     vrt = landsat.get_vrt(metadata, [4, 3, 2])
-    #     self.assertTrue(True)
 
+
+    def test_pixel_function_vrt_1(self):
+        utah_box = (-112.66342163085938, 37.738141282210385, -111.79824829101562, 38.44821130413263)
+        d_start = date(2016, 7, 20)
+        d_end = date(2016, 7, 28)
+
+        metadataService = MetadataService()
+        rows = metadataService.search(SpacecraftID.LANDSAT_8, start_date=d_start, end_date=d_end, bounding_box=utah_box,
+                                      limit=10, sql_filters=['collection_number=="PRE"', "cloud_cover<=5"])
+        self.assertEqual(len(rows), 1)
+        base_mount_path = '/imagery'
+    #     metadata_row = ['LC80390332016208LGN00', '', 'LANDSAT_8', 'OLI_TIRS', '2016-07-26', '2016-07-26T18:14:46.9465460Z', 'PRE', 'N/A', 'L1T', 39, 33, 1.69, 39.96962, 37.81744, -115.27267, -112.56732, 1070517542, 'gs://gcp-public-data-landsat/LC08/PRE/039/033/LC80390332016208LGN00']
+        metadata = Metadata(rows[0], base_mount_path)
+        # break down gs url into pieces required for gcs-fuse
+        gsurl = urlparse(metadata.base_url)
+
+        # mounting Google Storage bucket with gcs-fuse
+        storage = Storage(gsurl[1])
+        b_mounted = storage.mount_sub_folder(gsurl[2], base_mount_path)
+        self.assertTrue(b_mounted)
+
+        storage = Storage(gsurl[1])
+        # GDAL helper functions for generating VRT
+        landsat = Landsat(base_mount_path)
+
+        # get a numpy.ndarray from bands for specified imagery
+        band_numbers = [4, 3, 2]
+        nda = landsat.get_ndarray(band_numbers, metadata)
+
+        landsat = Landsat(base_mount_path)  # , gsurl[2])
+        vrt = landsat.get_vrt(metadata, [4, 3, 2])
+    #     self.assertTrue(True)
+        self.assertEqual(nda.shape, (3861, 3786, 3))
         # src_ds = gdal.Open(input_file)
         # if src_ds is None:
         #     print

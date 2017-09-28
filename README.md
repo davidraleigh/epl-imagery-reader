@@ -1,4 +1,4 @@
-#Echo Park Labs Imagery Demo
+# Echo Park Labs Imagery Demo
 
 Landsat Reader
 
@@ -66,7 +66,7 @@ plt.imshow(nda)
 
 ```
 
-###Bounding Box Problem
+### Bounding Box Problem
 There are some bounding boxes that cross the date line. A hack is to create a maximum `west_lon` value that will force a more complicated query. Same goes for the minimum `east_lon` that forces a complex query. Here's how you can currently check what the maximum `west_lon` is:
 ```sql
 SELECT west_lon
