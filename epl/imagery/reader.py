@@ -124,7 +124,7 @@ class Landsat(Imagery):
         if self.storage.mount_sub_folder(self.__metadata) is False:
             return None
 
-        return self.get_ndarray(band_numbers, self.__metadata, scaleParams)
+        return self.__get_ndarray(band_numbers, self.__metadata, scaleParams)
 
 
     @staticmethod
@@ -217,7 +217,7 @@ class Landsat(Imagery):
 
         return etree.tostring(vrt_dataset)
 
-    def get_ndarray(self, band_numbers, metadata, scaleParams):
+    def __get_ndarray(self, band_numbers, metadata, scaleParams):
         vrt = self.get_vrt(metadata, band_numbers)
         # http://gdal.org/python/
         # http://gdal.org/python/osgeo.gdal-module.html#TranslateOptions
