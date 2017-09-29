@@ -5,7 +5,7 @@ from lxml import etree
 from osgeo import gdal
 from urllib.parse import urlparse
 from datetime import date
-from epl.imagery.reader import MetadataService, Landsat, Storage, SpacecraftID, Metadata
+from epl.imagery.reader import MetadataService, Landsat, Storage, SpacecraftID, Metadata, BandMap
 
 from shapely.wkt import loads
 
@@ -190,6 +190,8 @@ class TestMetaDataSQL(unittest.TestCase):
         nda = landsat.get_ndarray(band_numbers, metadata)
         self.assertEqual((3581, 4041, 3), nda.shape)
         # print(nda.shape)
+
+
 class TestStorage(unittest.TestCase):
     def test_storage_create(self):
         metadata_service = MetadataService()
@@ -202,6 +204,78 @@ class TestStorage(unittest.TestCase):
         storage = Storage(gsurl[1])
         base_mount_path = '/imagery'
         self.assertTrue(storage.mount_sub_folder(gsurl[2], base_mount_path))
+
+
+class TestBandMap(unittest.TestCase):
+    def test_landsat_5(self):
+        band_map = BandMap(SpacecraftID.LANDSAT_5)
+        self.assertEqual(band_map.get_band_number("Blue"), 1)
+        self.assertEqual(band_map.get_band_number("SWIR2"), 7)
+        self.assertEqual(band_map.get_band_number("Thermal"), 6)
+
+        self.assertEqual(band_map.get_band_name(1), "Blue")
+        self.assertEqual(band_map.get_band_name(7), "SWIR2")
+        self.assertEqual(band_map.get_band_name(6), "Thermal")
+
+        for idx, val in enumerate(["Blue", "Green", "Red", "NIR", "SWIR1"]):
+            self.assertEqual(band_map.get_band_name(idx + 1), val)
+            self.assertEqual(band_map.get_band_number(val), idx + 1)
+
+    def test_landsat_5_exceptions(self):
+        band_map = BandMap(SpacecraftID.LANDSAT_5)
+        self.assertRaises(KeyError, lambda: band_map.get_band_number("Cirrus"))
+        self.assertRaises(KeyError, lambda: band_map.get_band_number("Panchromatic"))
+        self.assertRaises(KeyError, lambda: band_map.get_band_name(8))
+
+    def test_landsat_7(self):
+        band_map = BandMap(SpacecraftID.LANDSAT_7)
+        self.assertEqual(band_map.get_band_number("Blue"), 1)
+        self.assertEqual(band_map.get_band_number("SWIR1"), 5)
+        self.assertEqual(band_map.get_band_number("Thermal"), 6)
+
+        self.assertEqual(band_map.get_band_name(1), "Blue")
+        self.assertEqual(band_map.get_band_name(5), "SWIR1")
+        self.assertEqual(band_map.get_band_name(6), "Thermal")
+        self.assertEqual(band_map.get_band_number("SWIR2"), 7)
+        self.assertEqual(band_map.get_band_name(7), "SWIR2")
+
+        for idx, val in enumerate(["Blue", "Green", "Red", "NIR", "SWIR1"]):
+            self.assertEqual(band_map.get_band_name(idx + 1), val)
+            self.assertEqual(band_map.get_band_number(val), idx + 1)
+
+    def test_landsat_7_exceptions(self):
+        band_map = BandMap(SpacecraftID.LANDSAT_7)
+        self.assertRaises(KeyError, lambda: band_map.get_band_number("Cirrus"))
+        self.assertRaises(KeyError, lambda: band_map.get_band_number("TIRS1"))
+        self.assertRaises(KeyError, lambda: band_map.get_band_name(9))
+
+    def test_landsat_8(self):
+        band_map = BandMap(SpacecraftID.LANDSAT_8)
+        self.assertEqual(band_map.get_band_number("Blue"), 2)
+        self.assertEqual(band_map.get_band_number("SWIR1"), 6)
+
+        self.assertEqual(band_map.get_band_name(2), "Blue")
+        self.assertEqual(band_map.get_band_name(6), "SWIR1")
+
+        self.assertEqual(band_map.get_band_number("SWIR2"), 7)
+        self.assertEqual(band_map.get_band_name(7), "SWIR2")
+
+        for idx, val in enumerate(["Blue", "Green", "Red", "NIR", "SWIR1"]):
+            self.assertEqual(band_map.get_band_name(idx + 2), val)
+            self.assertEqual(band_map.get_band_number(val), idx + 2)
+
+        self.assertEqual(band_map.get_band_number("Cirrus"), 9)
+        self.assertEqual(band_map.get_band_number("TIRS1"), 10)
+        self.assertEqual(band_map.get_band_number("TIRS2"), 11)
+
+        self.assertEqual(band_map.get_band_name(9), "Cirrus")
+        self.assertEqual(band_map.get_band_name(10), "TIRS1")
+        self.assertEqual(band_map.get_band_name(11), "TIRS2")
+
+    def test_landsat_8_exceptions(self):
+        band_map = BandMap(SpacecraftID.LANDSAT_8)
+        self.assertRaises(KeyError, lambda: band_map.get_band_number("Thermal"))
+        self.assertRaises(KeyError, lambda: band_map.get_band_name(12))
 
 
 class TestLandsat(unittest.TestCase):
@@ -265,7 +339,6 @@ class TestLandsat(unittest.TestCase):
         ds_band_3 = dataset.GetRasterBand(3)
         self.assertIsNotNone(ds_band_3)
         self.assertEqual(ds_band_3.YSize, 7771)
-
 
 
     def test_pixel_function_vrt_1(self):

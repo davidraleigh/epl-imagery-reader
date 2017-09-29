@@ -11,26 +11,110 @@ from subprocess import call
 # Imports the Google Cloud client library
 from google.cloud import bigquery
 
+
 class SpacecraftID(Enum):
-    LANDSAT_8 = 8
-    LANDSAT_7 = 7
-    LANDSAT_5 = 5
-    LANDSAT_4 = 4
     LANDSAT_1 = 1
-    LANDSAT_3 = 3
     LANDSAT_2 = 2
+    LANDSAT_3 = 3
+    LANDSAT_4 = 4
+    LANDSAT_5 = 5
+    LANDSAT_7 = 7
+    LANDSAT_8 = 8
 
 
-class Landsat:
+class BandMap:
+    """
+    Landsat 4-5
+    Band 1 - Blue	0.45-0.52	30
+    Band 2 - Green	0.52-0.60	30
+    Band 3 - Red	0.63-0.69	30
+    Band 4 - Near Infrared (NIR)	0.76-0.90	30
+    Band 5  - Shortwave Infrared (SWIR) 1	1.55-1.75	30
+    Band 6 - Thermal	10.40-12.50	120* (30)
+    Band 7 - Shortwave Infrared (SWIR) 2	2.08-2.35	30
+    """
+
+    """
+    Landsat 7
+    Band 1 - Blue	0.45-0.52	30
+    Band 2 - Green	0.52-0.60	30
+    Band 3 - Red	0.63-0.69	30
+    Band 4 - Near Infrared (NIR)	0.77-0.90	30
+    Band 5 - Shortwave Infrared (SWIR) 1	1.55-1.75	30
+    Band 6 - Thermal	10.40-12.50	60 * (30)
+    Band 7 - Shortwave Infrared (SWIR) 2	2.09-2.35	30
+    Band 8 - Panchromatic	.52-.90	15
+    """
+
+    """
+    Landsat 8
+    Band 1 - Ultra Blue (coastal/aerosol)	0.435 - 0.451	30
+    Band 2 - Blue	0.452 - 0.512	30
+    Band 3 - Green	0.533 - 0.590	30
+    Band 4 - Red	0.636 - 0.673	30
+    Band 5 - Near Infrared (NIR)	0.851 - 0.879	30
+    Band 6 - Shortwave Infrared (SWIR) 1	1.566 - 1.651	30
+    Band 7 - Shortwave Infrared (SWIR) 2	2.107 - 2.294	30
+    Band 8 - Panchromatic	0.503 - 0.676	15
+    Band 9 - Cirrus	1.363 - 1.384	30
+    Band 10 - Thermal Infrared (TIRS) 1	10.60 - 11.19	100 * (30)
+    Band 11 - Thermal Infrared (TIRS) 2	11.50 - 12.51	100 * (30)
+    """
+
+    __band_names = None
+    __band_numbers = None
+    __band_set_1 = ["Blue", "Green", "Red", "NIR", "SWIR1"]
+    __band_set_2 = ["SWIR2", "Panchromatic", "Cirrus", "TIRS1", "TIRS2"]
+
+    def __init__(self, spacecraft_id):
+        self.__band_names = {}
+        self.__band_numbers = {}
+        index = 1
+        if spacecraft_id.value > 7:
+            self.__band_names[index] = "UltraBlue"
+            self.__band_numbers[self.__band_names[index]] = index
+            index = 2
+
+        for i in range(0, len(self.__band_set_1)):
+            self.__band_names[index + i] = self.__band_set_1[i]
+            self.__band_numbers[self.__band_names[index + i]] = index + i
+
+        index = index + len(self.__band_set_1)
+        if spacecraft_id.value < 8:
+            self.__band_names[index] = "Thermal"
+            self.__band_numbers[self.__band_names[index]] = index
+            index += 1
+
+        for i in range(0, len(self.__band_set_2)):
+            if (spacecraft_id.value < 7 and i > 0) or (spacecraft_id.value < 8 and i > 1):
+                break
+            self.__band_names[index + i] = self.__band_set_2[i]
+            self.__band_numbers[self.__band_names[index + i]] = index + i
+
+    def get_band_name(self, band_number):
+        return self.__band_names[band_number]
+
+    def get_band_number(self, band_name):
+        return self.__band_numbers[band_name]
+
+
+class Imagery:
     bucket_name = ""
     base_mount_path = ""
     storage = None
 
     # def __init__(self, base_mount_path, bucket_name="gcp-public-data-landsat"):
-    def __init__(self, base_mount_path):
-        self.bucket_name = "gcp-public-data-landsat"
+    def __init__(self, base_mount_path, bucket_name):
+        self.bucket_name = bucket_name
         self.base_mount_path = base_mount_path
         self.storage = Storage(self.bucket_name)
+
+
+class Landsat(Imagery):
+    # def __init__(self, base_mount_path, bucket_name="gcp-public-data-landsat"):
+    def __init__(self, base_mount_path):
+        bucket_name = "gcp-public-data-landsat"
+        super().__init__(base_mount_path, bucket_name)
 
     def fetch_imagery_array(self, bucket_sub_folder, band_numbers):
         # TODO
@@ -87,6 +171,52 @@ class Landsat:
         elem_dst_rect.set("xSize", str(x_size))
         elem_dst_rect.set("ySize", str(y_size))
 
+    @staticmethod
+    def __color_interp(spacecraft_id):
+        """
+        Get the color interpretation for the spacecraft id
+        :param spacecraft_id:
+        :return:
+        """
+
+        """
+        Landsat 4-5
+        Band 1 - Blue	0.45-0.52	30
+        Band 2 - Green	0.52-0.60	30
+        Band 3 - Red	0.63-0.69	30
+        Band 4 - Near Infrared (NIR)	0.76-0.90	30
+        Band 5  - Shortwave Infrared (SWIR) 1	1.55-1.75	30
+        Band 6 - Thermal	10.40-12.50	120* (30)
+        Band 7 - Shortwave Infrared (SWIR) 2	2.08-2.35	30
+        """
+
+        """
+        Landsat 7
+        Band 1 - Blue	0.45-0.52	30
+        Band 2 - Green	0.52-0.60	30
+        Band 3 - Red	0.63-0.69	30
+        Band 4 - Near Infrared (NIR)	0.77-0.90	30
+        Band 5 - Shortwave Infrared (SWIR) 1	1.55-1.75	30
+        Band 6 - Thermal	10.40-12.50	60 * (30)
+        Band 7 - Shortwave Infrared (SWIR) 2	2.09-2.35	30
+        Band 8 - Panchromatic	.52-.90	15
+        """
+
+        """
+        Landsat 8
+        Band 1 - Ultra Blue (coastal/aerosol)	0.435 - 0.451	30
+        Band 2 - Blue	0.452 - 0.512	30
+        Band 3 - Green	0.533 - 0.590	30
+        Band 4 - Red	0.636 - 0.673	30
+        Band 5 - Near Infrared (NIR)	0.851 - 0.879	30
+        Band 6 - Shortwave Infrared (SWIR) 1	1.566 - 1.651	30
+        Band 7 - Shortwave Infrared (SWIR) 2	2.107 - 2.294	30
+        Band 8 - Panchromatic	0.503 - 0.676	15
+        Band 9 - Cirrus	1.363 - 1.384	30
+        Band 10 - Thermal Infrared (TIRS) 1	10.60 - 11.19	100 * (30)
+        Band 11 - Thermal Infrared (TIRS) 2	11.50 - 12.51	100 * (30)
+        """
+
     def get_vrt(self, metadata, band_numbers, translate_args=None):
         vrt_dataset = etree.Element("VRTDataset")
 
@@ -140,12 +270,10 @@ class Landsat:
         # vrt_projected = gdal.Translate('', vrt, of="VRT", scaleParams=[], ot="Byte")
         # assumes input is unsigned int and output it Bytes and resolution is 60 meters
         dataset = gdal.Translate('', str(vrt), format="VRT",
-                                 scaleParams=[[0.0, 65535, 0, 255], [0.0, 65535, 0, 255], [0.0, 65535, 0, 255]],
+                                 scaleParams=[[0.0, 65535], [0.0, 65535], [0.0, 65535]],
                                  xRes=60, yRes=60, outputType=gdal.GDT_Byte, noData=0)
         nda = dataset.ReadAsArray().transpose((1, 2, 0))
         return nda
-
-
 
 
 class Sentinel2:
@@ -156,7 +284,7 @@ class Metadata:
     def __init__(self, row, base_mount_path=None):
         self.scene_id = row[0]  # STRING	REQUIRED   Unique identifier for a particular Landsat image downlinked to a particular ground station.
         self.product_id = row[1]  # STRING	NULLABLE Unique identifier for a particular scene processed by the USGS at a particular time, or null for pre-collection data.
-        self.spacecraft_id = row[2]  # STRING	NULLABLE The spacecraft that acquired this scene: one of 'LANDSAT_4' through 'LANDSAT_8'.
+        self.spacecraft_id = SpacecraftID[row[2].upper()]  # SpacecraftID REQUIRED The spacecraft that acquired this scene: one of 'LANDSAT_4' through 'LANDSAT_8'.
         self.sensor_id = row[3]  # STRING	NULLABLE The type of spacecraft sensor that acquired this scene: 'TM' for the Thematic Mapper, 'ETM' for the Enhanced Thematic Mapper+, or 'OLI/TIRS' for the Operational Land Imager and Thermal Infrared Sensor.
         self.date_acquired = row[4]  # STRING	NULLABLE The date on which this scene was acquired (UTC).
         self.sensing_time = row[5]  # STRING	NULLABLE The approximate time at which this scene was acquired (UTC).
