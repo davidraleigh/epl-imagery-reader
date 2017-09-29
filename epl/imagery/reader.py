@@ -119,13 +119,12 @@ class Landsat(Imagery):
         super().__init__(bucket_name)
         self.__band_map = BandMap(metadata.spacecraft_id)
 
-
-    def fetch_imagery_array(self, bucket_sub_folder, band_numbers):
+    def fetch_imagery_array(self, band_numbers, scaleParams):
         # TODO
-        if self.storage.mount_sub_folder(bucket_sub_folder, self.__metadata.base_mount_path) is False:
+        if self.storage.mount_sub_folder(self.__metadata.base_mount_path) is False:
             return None
 
-        return self.get_ndarray(band_numbers, self.__metadata)
+        return self.get_ndarray(band_numbers, self.__metadata, scaleParams)
 
 
     @staticmethod
@@ -218,14 +217,14 @@ class Landsat(Imagery):
 
         return etree.tostring(vrt_dataset)
 
-    def get_ndarray(self, band_numbers, metadata):
+    def get_ndarray(self, band_numbers, metadata, scaleParams):
         vrt = self.get_vrt(metadata, band_numbers)
         # http://gdal.org/python/
         # http://gdal.org/python/osgeo.gdal-module.html#TranslateOptions
         # vrt_projected = gdal.Translate('', vrt, of="VRT", scaleParams=[], ot="Byte")
         # assumes input is unsigned int and output it Bytes and resolution is 60 meters
         dataset = gdal.Translate('', str(vrt), format="VRT",
-                                 scaleParams=[[0.0, 65535], [0.0, 65535], [0.0, 65535]],
+                                 scaleParams=scaleParams,
                                  xRes=60, yRes=60, outputType=gdal.GDT_Byte, noData=0)
         nda = dataset.ReadAsArray().transpose((1, 2, 0))
         return nda

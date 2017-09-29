@@ -187,7 +187,8 @@ class TestMetaDataSQL(unittest.TestCase):
 
         # get a numpy.ndarray from bands for specified imagery
         band_numbers = [3, 2, 1]
-        nda = landsat.get_ndarray(band_numbers, metadata)
+        scaleParams = [[0.0, 65535], [0.0, 65535], [0.0, 65535]]
+        nda = landsat.get_ndarray(band_numbers, metadata, scaleParams)
         self.assertEqual((3581, 4041, 3), nda.shape)
         # print(nda.shape)
 
@@ -371,7 +372,8 @@ class TestLandsat(unittest.TestCase):
 
         # get a numpy.ndarray from bands for specified imagery
         band_numbers = [4, 3, 2]
-        nda = landsat.get_ndarray(band_numbers, metadata)
+        scaleParams = [[0.0, 65535], [0.0, 65535], [0.0, 65535]]
+        nda = landsat.get_ndarray(band_numbers, metadata, scaleParams)
 
         # landsat = Landsat(base_mount_path)  # , gsurl[2])
         vrt = landsat.get_vrt(metadata, [4, 3, 2])
