@@ -121,7 +121,7 @@ class Landsat(Imagery):
 
     def fetch_imagery_array(self, band_numbers, scaleParams):
         # TODO
-        if self.storage.mount_sub_folder(self.__metadata.base_mount_path) is False:
+        if self.storage.mount_sub_folder(self.__metadata) is False:
             return None
 
         return self.get_ndarray(band_numbers, self.__metadata, scaleParams)
@@ -387,24 +387,23 @@ class Storage:
     def __init__(self, bucket_name):
         self.bucket = bucket_name
         self.mounted_sub_folders = {}
-        self.base_path = None
 
-    def mount_sub_folder(self, full_mount_path):
+    def mount_sub_folder(self, metadata):
         # execute mount command
         # gcsfuse --only-dir LC08/PRE/044/034/LC80440342016259LGN00 gcp-public-data-landsat /landsat
 
         # full_mount_path = base_path.rstrip("\/") + os.path.sep + bucket_sub_folder.strip("\/")
         # subprocess.run("exit 1", shell=True, check=True)
         # subprocess.run(["ls", "-l", "/dev/null"], stdout=subprocess.PIPE)
-        if full_mount_path in self.mounted_sub_folders:
+        if metadata.full_mount_path in self.mounted_sub_folders:
             return True
 
         try:
-            if not os.path.isdir(full_mount_path):
-                os.makedirs(full_mount_path)
+            if not os.path.isdir(metadata.full_mount_path):
+                os.makedirs(metadata.full_mount_path)
             else:
                 # check to see if directory is already mounted if so maybe just return True?
-                if len(os.listdir(full_mount_path)) > 0:
+                if len(os.listdir(metadata.full_mount_path)) > 0:
                     return True
                 # hard to know what to do if it's mounted and it's empty...
                 # TODO make a test for that case
@@ -413,12 +412,12 @@ class Storage:
             if exception.errno != errno.EEXIST:
                 raise
 
-        val = call(["gcsfuse", "--only-dir", bucket_sub_folder.lstrip("\/"), self.bucket, full_mount_path])
+        val = call(["gcsfuse", "--only-dir", metadata.full_mount_path.lstrip(metadata.base_mount_path).lstrip("\/"), self.bucket, metadata.full_mount_path])
         # TODO return error message if necessary
         if val != 0:
             return False
 
-        self.mounted_sub_folders[full_mount_path] = True
+        self.mounted_sub_folders[metadata.full_mount_path] = True
         return True
 
 

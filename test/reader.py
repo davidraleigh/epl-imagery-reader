@@ -206,7 +206,7 @@ class TestStorage(unittest.TestCase):
         base_mount_path = '/imagery'
 
         metadata = Metadata(rows[0], base_mount_path)
-        self.assertTrue(storage.mount_sub_folder(metadata.full_mount_path))
+        self.assertTrue(storage.mount_sub_folder(metadata))
 
 
 class TestBandMap(unittest.TestCase):
@@ -304,7 +304,7 @@ class TestLandsat(unittest.TestCase):
         storage = Storage(gsurl[1])
         base_mount_path = '/imagery'
         metadata = Metadata(rows[0], base_mount_path)
-        b_mounted = storage.mount_sub_folder(metadata.full_mount_path)
+        b_mounted = storage.mount_sub_folder(metadata)
         self.assertTrue(b_mounted)
 
     def test_vrt(self):
