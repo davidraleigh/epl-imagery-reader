@@ -118,6 +118,7 @@ class Landsat(Imagery):
         bucket_name = "gcp-public-data-landsat"
         super().__init__(bucket_name)
         self.__band_map = BandMap(metadata.spacecraft_id)
+        self.__metadata = metadata
 
     def fetch_imagery_array(self, band_numbers, scaleParams):
         # TODO

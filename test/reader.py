@@ -323,7 +323,7 @@ class TestLandsat(unittest.TestCase):
         gsurl = urlparse(metadata.base_url)
         storage = Storage(gsurl[1])
 
-        b_mounted = storage.mount_sub_folder(gsurl[2], base_mount_path)
+        b_mounted = storage.mount_sub_folder(metadata)
         self.assertTrue(b_mounted)
         landsat = Landsat(metadata)#, gsurl[2])
         vrt = landsat.get_vrt(metadata, [4, 3, 2])
@@ -346,7 +346,6 @@ class TestLandsat(unittest.TestCase):
         ds_band_3 = dataset.GetRasterBand(3)
         self.assertIsNotNone(ds_band_3)
         self.assertEqual(ds_band_3.YSize, 7771)
-
 
     def test_pixel_function_vrt_1(self):
         utah_box = (-112.66342163085938, 37.738141282210385, -111.79824829101562, 38.44821130413263)
