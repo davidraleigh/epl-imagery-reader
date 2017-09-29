@@ -320,10 +320,11 @@ class TestLandsat(unittest.TestCase):
 
         base_mount_path = '/imagery'
         metadata = Metadata(rows[0], base_mount_path)
-        # gsurl = urlparse(metadata.base_url)
-        # storage = Storage(gsurl[1])
+        gsurl = urlparse(metadata.base_url)
+        storage = Storage(gsurl[1])
 
-        # b_mounted = storage.mount_sub_folder(gsurl[2], base_mount_path)
+        b_mounted = storage.mount_sub_folder(gsurl[2], base_mount_path)
+        self.assertTrue(b_mounted)
         landsat = Landsat(metadata)#, gsurl[2])
         vrt = landsat.get_vrt(metadata, [4, 3, 2])
         with open('test_1.vrt', 'r') as myfile:
