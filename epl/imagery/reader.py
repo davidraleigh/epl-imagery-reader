@@ -104,22 +104,29 @@ class Imagery:
     storage = None
 
     # def __init__(self, base_mount_path, bucket_name="gcp-public-data-landsat"):
-    def __init__(self, base_mount_path, bucket_name):
+    def __init__(self, bucket_name):
         self.bucket_name = bucket_name
-        self.base_mount_path = base_mount_path
         self.storage = Storage(self.bucket_name)
 
 
 class Landsat(Imagery):
     # def __init__(self, base_mount_path, bucket_name="gcp-public-data-landsat"):
-    def __init__(self, base_mount_path):
+    __band_map = None
+    __metadata = None
+
+    def __init__(self, metadata):
         bucket_name = "gcp-public-data-landsat"
-        super().__init__(base_mount_path, bucket_name)
+        super().__init__(bucket_name)
+        self.__band_map = BandMap(metadata.spacecraft_id)
+
 
     def fetch_imagery_array(self, bucket_sub_folder, band_numbers):
         # TODO
-        if self.storage.mount_sub_folder(bucket_sub_folder, self.base_mount_path) is False:
+        if self.storage.mount_sub_folder(bucket_sub_folder, self.__metadata.base_mount_path) is False:
             return None
+
+        return self.get_ndarray(band_numbers, self.__metadata)
+
 
     @staticmethod
     def get_raster_band_elem(
@@ -171,52 +178,6 @@ class Landsat(Imagery):
         elem_dst_rect.set("xSize", str(x_size))
         elem_dst_rect.set("ySize", str(y_size))
 
-    @staticmethod
-    def __color_interp(spacecraft_id):
-        """
-        Get the color interpretation for the spacecraft id
-        :param spacecraft_id:
-        :return:
-        """
-
-        """
-        Landsat 4-5
-        Band 1 - Blue	0.45-0.52	30
-        Band 2 - Green	0.52-0.60	30
-        Band 3 - Red	0.63-0.69	30
-        Band 4 - Near Infrared (NIR)	0.76-0.90	30
-        Band 5  - Shortwave Infrared (SWIR) 1	1.55-1.75	30
-        Band 6 - Thermal	10.40-12.50	120* (30)
-        Band 7 - Shortwave Infrared (SWIR) 2	2.08-2.35	30
-        """
-
-        """
-        Landsat 7
-        Band 1 - Blue	0.45-0.52	30
-        Band 2 - Green	0.52-0.60	30
-        Band 3 - Red	0.63-0.69	30
-        Band 4 - Near Infrared (NIR)	0.77-0.90	30
-        Band 5 - Shortwave Infrared (SWIR) 1	1.55-1.75	30
-        Band 6 - Thermal	10.40-12.50	60 * (30)
-        Band 7 - Shortwave Infrared (SWIR) 2	2.09-2.35	30
-        Band 8 - Panchromatic	.52-.90	15
-        """
-
-        """
-        Landsat 8
-        Band 1 - Ultra Blue (coastal/aerosol)	0.435 - 0.451	30
-        Band 2 - Blue	0.452 - 0.512	30
-        Band 3 - Green	0.533 - 0.590	30
-        Band 4 - Red	0.636 - 0.673	30
-        Band 5 - Near Infrared (NIR)	0.851 - 0.879	30
-        Band 6 - Shortwave Infrared (SWIR) 1	1.566 - 1.651	30
-        Band 7 - Shortwave Infrared (SWIR) 2	2.107 - 2.294	30
-        Band 8 - Panchromatic	0.503 - 0.676	15
-        Band 9 - Cirrus	1.363 - 1.384	30
-        Band 10 - Thermal Infrared (TIRS) 1	10.60 - 11.19	100 * (30)
-        Band 11 - Thermal Infrared (TIRS) 2	11.50 - 12.51	100 * (30)
-        """
-
     def get_vrt(self, metadata, band_numbers, translate_args=None):
         vrt_dataset = etree.Element("VRTDataset")
 
@@ -236,17 +197,11 @@ class Landsat(Imagery):
             max_x = dataset.RasterXSize if dataset.RasterXSize > max_x else max_x
             max_y = dataset.RasterYSize if dataset.RasterYSize > max_y else max_y
 
-            color_interp = None
-            if band == 4:
-                color_interp = "Red"
-            elif band == 3:
-                color_interp = "Green"
-            elif band == 2:
-                color_interp = "Blue"
+            color_interp = self.__band_map.get_band_name(band)
 
             self.get_raster_band_elem(
                 vrt_dataset,
-                "UInt16",
+                gdal.GetDataTypeName(dataset.GetRasterBand(1).DataType),
                 position_number,
                 file_path,
                 dataset.RasterXSize,
@@ -302,6 +257,7 @@ class Metadata:
         self.base_url = row[17]  # STRING	NULLABLE The base URL for this scene in Cloud Storage.
         gsurl = urlparse(self.base_url)
         self.full_mount_path = base_mount_path.rstrip("\/") + os.path.sep + gsurl[2].strip("\/")
+        self.base_mount_path = base_mount_path
 
 
 class MetadataService:
@@ -434,11 +390,11 @@ class Storage:
         self.mounted_sub_folders = {}
         self.base_path = None
 
-    def mount_sub_folder(self, bucket_sub_folder, base_path):
+    def mount_sub_folder(self, full_mount_path):
         # execute mount command
         # gcsfuse --only-dir LC08/PRE/044/034/LC80440342016259LGN00 gcp-public-data-landsat /landsat
 
-        full_mount_path = base_path.rstrip("\/") + os.path.sep + bucket_sub_folder.strip("\/")
+        # full_mount_path = base_path.rstrip("\/") + os.path.sep + bucket_sub_folder.strip("\/")
         # subprocess.run("exit 1", shell=True, check=True)
         # subprocess.run(["ls", "-l", "/dev/null"], stdout=subprocess.PIPE)
         if full_mount_path in self.mounted_sub_folders:

@@ -174,16 +174,16 @@ class TestMetaDataSQL(unittest.TestCase):
         # print(metadata.__dict__)
 
         # break down gs url into pieces required for gcs-fuse
-        gsurl = urlparse(metadata.base_url)
+        # gsurl = urlparse(metadata.base_url)
 
         # mounting Google Storage bucket with gcs-fuse
-        storage = Storage(gsurl[1])
-        b_mounted = storage.mount_sub_folder(gsurl[2], base_mount_path)
+        # storage = Storage(gsurl[1])
+        # b_mounted = storage.mount_sub_folder(gsurl[2], base_mount_path)
 
         # print(gsurl[1])
         # print(gsurl[2])
         # GDAL helper functions for generating VRT
-        landsat = Landsat(base_mount_path)
+        landsat = Landsat(metadata)
 
         # get a numpy.ndarray from bands for specified imagery
         band_numbers = [3, 2, 1]
@@ -203,7 +203,9 @@ class TestStorage(unittest.TestCase):
         gsurl = urlparse(path)
         storage = Storage(gsurl[1])
         base_mount_path = '/imagery'
-        self.assertTrue(storage.mount_sub_folder(gsurl[2], base_mount_path))
+
+        metadata = Metadata(rows[0], base_mount_path)
+        self.assertTrue(storage.mount_sub_folder(metadata.full_mount_path))
 
 
 class TestBandMap(unittest.TestCase):
@@ -285,7 +287,8 @@ class TestLandsat(unittest.TestCase):
         d_end = date(2016, 6, 24)
         bounding_box = (-115.927734375, 34.52466147177172, -78.31054687499999, 44.84029065139799)
         rows = metadata_service.search(SpacecraftID.LANDSAT_8, start_date=d_start, end_date=d_end, bounding_box=bounding_box, limit=1)
-        landsat = Landsat('/data/imagery')
+        metadata = Metadata(rows[0], '/data/imagery')
+        landsat = Landsat(metadata)
         #    'gs://gcp-public-data-landsat/LC08/PRE/037/036/LC80370362016082LGN00'
 
     def test_gdal_info(self):
@@ -299,7 +302,8 @@ class TestLandsat(unittest.TestCase):
         gsurl = urlparse(path)
         storage = Storage(gsurl[1])
         base_mount_path = '/imagery'
-        b_mounted = storage.mount_sub_folder(gsurl[2], base_mount_path)
+        metadata = Metadata(rows[0], base_mount_path)
+        b_mounted = storage.mount_sub_folder(metadata.full_mount_path)
         self.assertTrue(b_mounted)
 
     def test_vrt(self):
@@ -314,11 +318,11 @@ class TestLandsat(unittest.TestCase):
 
         base_mount_path = '/imagery'
         metadata = Metadata(rows[0], base_mount_path)
-        gsurl = urlparse(metadata.base_url)
-        storage = Storage(gsurl[1])
+        # gsurl = urlparse(metadata.base_url)
+        # storage = Storage(gsurl[1])
 
-        b_mounted = storage.mount_sub_folder(gsurl[2], base_mount_path)
-        landsat = Landsat(base_mount_path)#, gsurl[2])
+        # b_mounted = storage.mount_sub_folder(gsurl[2], base_mount_path)
+        landsat = Landsat(metadata)#, gsurl[2])
         vrt = landsat.get_vrt(metadata, [4, 3, 2])
         with open('test_1.vrt', 'r') as myfile:
             data = myfile.read()
@@ -354,22 +358,22 @@ class TestLandsat(unittest.TestCase):
     #     metadata_row = ['LC80390332016208LGN00', '', 'LANDSAT_8', 'OLI_TIRS', '2016-07-26', '2016-07-26T18:14:46.9465460Z', 'PRE', 'N/A', 'L1T', 39, 33, 1.69, 39.96962, 37.81744, -115.27267, -112.56732, 1070517542, 'gs://gcp-public-data-landsat/LC08/PRE/039/033/LC80390332016208LGN00']
         metadata = Metadata(rows[0], base_mount_path)
         # break down gs url into pieces required for gcs-fuse
-        gsurl = urlparse(metadata.base_url)
-
-        # mounting Google Storage bucket with gcs-fuse
-        storage = Storage(gsurl[1])
-        b_mounted = storage.mount_sub_folder(gsurl[2], base_mount_path)
-        self.assertTrue(b_mounted)
-
-        storage = Storage(gsurl[1])
+        # gsurl = urlparse(metadata.base_url)
+        #
+        # # mounting Google Storage bucket with gcs-fuse
+        # storage = Storage(gsurl[1])
+        # b_mounted = storage.mount_sub_folder(gsurl[2], base_mount_path)
+        # self.assertTrue(b_mounted)
+        #
+        # storage = Storage(gsurl[1])
         # GDAL helper functions for generating VRT
-        landsat = Landsat(base_mount_path)
+        landsat = Landsat(metadata)
 
         # get a numpy.ndarray from bands for specified imagery
         band_numbers = [4, 3, 2]
         nda = landsat.get_ndarray(band_numbers, metadata)
 
-        landsat = Landsat(base_mount_path)  # , gsurl[2])
+        # landsat = Landsat(base_mount_path)  # , gsurl[2])
         vrt = landsat.get_vrt(metadata, [4, 3, 2])
     #     self.assertTrue(True)
         self.assertEqual(nda.shape, (3861, 3786, 3))
