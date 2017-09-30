@@ -149,7 +149,10 @@ class TestMetaDataSQL(unittest.TestCase):
 
     def test_australia(self):
         # 5th Place: Lake Eyre Landsat 5 Acquired August 5, 2006
-        wkt = "POLYGON((136.2469482421875 -27.57843813308233,138.6639404296875 -27.57843813308233,138.6639404296875 -29.82351878748485,136.2469482421875 -29.82351878748485,136.2469482421875 -27.57843813308233))"
+        wkt = "POLYGON((136.2469482421875 -27.57843813308233,138.6639404296875 -27.57843813308233," \
+              "138.6639404296875 -29.82351878748485,136.2469482421875 -29.82351878748485,136." \
+              "2469482421875 -27.57843813308233))"
+
         polygon = loads(wkt)
 
 
@@ -352,12 +355,15 @@ class TestLandsat(unittest.TestCase):
         d_start = date(2016, 7, 20)
         d_end = date(2016, 7, 28)
 
-        metadataService = MetadataService()
-        rows = metadataService.search(SpacecraftID.LANDSAT_8, start_date=d_start, end_date=d_end, bounding_box=utah_box,
+        metadata_service = MetadataService()
+        rows = metadata_service.search(SpacecraftID.LANDSAT_8, start_date=d_start, end_date=d_end, bounding_box=utah_box,
                                       limit=10, sql_filters=['collection_number=="PRE"', "cloud_cover<=5"])
         self.assertEqual(len(rows), 1)
         base_mount_path = '/imagery'
-    #     metadata_row = ['LC80390332016208LGN00', '', 'LANDSAT_8', 'OLI_TIRS', '2016-07-26', '2016-07-26T18:14:46.9465460Z', 'PRE', 'N/A', 'L1T', 39, 33, 1.69, 39.96962, 37.81744, -115.27267, -112.56732, 1070517542, 'gs://gcp-public-data-landsat/LC08/PRE/039/033/LC80390332016208LGN00']
+        #     metadata_row = ['LC80390332016208LGN00', '', 'LANDSAT_8', 'OLI_TIRS', '2016-07-26',
+        # '2016-07-26T18:14:46.9465460Z', 'PRE', 'N/A', 'L1T', 39, 33, 1.69,
+        # 39.96962, 37.81744, -115.27267, -112.56732, 1070517542,
+        # 'gs://gcp-public-data-landsat/LC08/PRE/039/033/LC80390332016208LGN00']
         metadata = Metadata(rows[0], base_mount_path)
         # break down gs url into pieces required for gcs-fuse
         # gsurl = urlparse(metadata.base_url)
@@ -424,7 +430,11 @@ class TestLandsat(unittest.TestCase):
 
     # def test_translate_vrt(self):
     #     #                                                          LC80390332016208LGN00
-    #     # gdalbuildvrt -separate rgb.vrt /imagery/LC08/PRE/039/033/LC80390332016208LGN00/LC80390332016208LGN00_B4.TIF /imagery/LC08/PRE/039/033/LC80390332016208LGN00/LC80390332016208LGN00_B3.TIF /imagery/LC08/PRE/039/033/LC80390332016208LGN00/LC80390332016208LGN00_B2.TIF
+    """
+    gdalbuildvrt -separate rgb.vrt /imagery/LC08/PRE/039/033/LC80390332016208LGN00/LC80390332016208LGN00_B4.TIF \
+    /imagery/LC08/PRE/039/033/LC80390332016208LGN00/LC80390332016208LGN00_B3.TIF \
+    /imagery/LC08/PRE/039/033/LC80390332016208LGN00/LC80390332016208LGN00_B2.TIF
+    """
     #     # gdal_translate -of VRT -ot Byte -scale -tr 60 60 rgb.vrt rgb_byte_scaled.vrt
     #
     #     self.assertTrue(True)
