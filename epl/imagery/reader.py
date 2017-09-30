@@ -125,7 +125,7 @@ class Landsat(Imagery):
         if self.storage.mount_sub_folder(self.__metadata) is False:
             return None
 
-        return self.__get_ndarray(band_numbers, self.__metadata, scaleParams)
+        return self.__get_ndarray(band_numbers, scaleParams)
 
 
     @staticmethod
@@ -178,7 +178,7 @@ class Landsat(Imagery):
         elem_dst_rect.set("xSize", str(x_size))
         elem_dst_rect.set("ySize", str(y_size))
 
-    def get_vrt(self, metadata, band_numbers, translate_args=None):
+    def get_vrt(self, band_numbers, translate_args=None):
         vrt_dataset = etree.Element("VRTDataset")
 
         position_number = 1
@@ -187,10 +187,10 @@ class Landsat(Imagery):
 
         for band in band_numbers:
             # TODO more elegant please
-            if not metadata.product_id:
-                file_path = metadata.full_mount_path + os.path.sep + metadata.scene_id + "_B{}.TIF".format(band)
+            if not self.__metadata.product_id:
+                file_path = self.__metadata.full_mount_path + os.path.sep + self.__metadata.scene_id + "_B{}.TIF".format(band)
             else:
-                file_path = metadata.full_mount_path + os.path.sep + metadata.product_id + "_B{}.TIF".format(band)
+                file_path = self.__metadata.full_mount_path + os.path.sep + self.__metadata.product_id + "_B{}.TIF".format(band)
 
             dataset = gdal.Open(file_path)
             # TODO, check that this matters. I think maybe it doesn't
@@ -218,8 +218,8 @@ class Landsat(Imagery):
 
         return etree.tostring(vrt_dataset)
 
-    def __get_ndarray(self, band_numbers, metadata, scaleParams):
-        vrt = self.get_vrt(metadata, band_numbers)
+    def __get_ndarray(self, band_numbers, scaleParams):
+        vrt = self.get_vrt(band_numbers)
         # http://gdal.org/python/
         # http://gdal.org/python/osgeo.gdal-module.html#TranslateOptions
         # vrt_projected = gdal.Translate('', vrt, of="VRT", scaleParams=[], ot="Byte")

@@ -329,7 +329,7 @@ class TestLandsat(unittest.TestCase):
         b_mounted = storage.mount_sub_folder(metadata)
         self.assertTrue(b_mounted)
         landsat = Landsat(metadata)#, gsurl[2])
-        vrt = landsat.get_vrt(metadata, [4, 3, 2])
+        vrt = landsat.get_vrt([4, 3, 2])
         with open('test_1.vrt', 'r') as myfile:
             data = myfile.read()
             expected = etree.XML(data)
@@ -384,7 +384,7 @@ class TestLandsat(unittest.TestCase):
         # nda = landsat.__get_ndarray(band_numbers, metadata, scaleParams)
 
         # landsat = Landsat(base_mount_path)  # , gsurl[2])
-        vrt = landsat.get_vrt(metadata, [4, 3, 2])
+        vrt = landsat.get_vrt([4, 3, 2])
     #     self.assertTrue(True)
         self.assertEqual(nda.shape, (3861, 3786, 3))
         # src_ds = gdal.Open(input_file)
