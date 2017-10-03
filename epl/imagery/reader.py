@@ -120,13 +120,11 @@ class Landsat(Imagery):
         self.__band_map = BandMap(metadata.spacecraft_id)
         self.__metadata = metadata
 
-    def fetch_imagery_array(self, band_numbers, scaleParams):
-        # TODO
+    def fetch_imagery_array(self, band_numbers, scaleParams=None):
         if self.storage.mount_sub_folder(self.__metadata) is False:
             return None
 
         return self.__get_ndarray(band_numbers, scaleParams)
-
 
     @staticmethod
     def get_raster_band_elem(
@@ -218,7 +216,7 @@ class Landsat(Imagery):
 
         return etree.tostring(vrt_dataset)
 
-    def __get_ndarray(self, band_numbers, scaleParams):
+    def __get_ndarray(self, band_numbers, scaleParams=None):
         vrt = self.get_vrt(band_numbers)
         # http://gdal.org/python/
         # http://gdal.org/python/osgeo.gdal-module.html#TranslateOptions

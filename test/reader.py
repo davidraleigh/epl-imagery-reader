@@ -1,6 +1,7 @@
 import unittest
 import datetime
 
+from math import isclose
 from lxml import etree
 from osgeo import gdal
 from urllib.parse import urlparse
@@ -10,17 +11,23 @@ from epl.imagery.reader import MetadataService, Landsat, Storage, SpacecraftID, 
 from shapely.wkt import loads
 
 
-def text_compare(t1, t2, compare_as_float=False):
+def text_compare(t1, t2, tolerance=None):
     if not t1 and not t2:
         return True
     if t1 == '*' or t2 == '*':
         return True
-    if compare_as_float:
+    if tolerance:
         try:
-            t1_float = map(lambda x: float(x), t1.split(","))
-            t2_float = map(lambda x: float(x), t2.split(","))
+            t1_float = list(map(float, t1.split(",")))
+            t2_float = list(map(float, t2.split(",")))
             if len(t1_float) != len(t2_float):
                 return False
+
+            for idx, val_1 in enumerate(t1_float):
+                if not isclose(val_1, t2_float[idx], rel_tol=tolerance):
+                    return False
+
+            return True
 
         except:
             return False
@@ -28,7 +35,8 @@ def text_compare(t1, t2, compare_as_float=False):
 
 
 # https://bitbucket.org/ianb/formencode/src/tip/formencode/doctest_xml_compare.py?fileviewer=file-view-default#cl-70
-def xml_compare(x1, x2, float_text_tags={}):
+def xml_compare(x1, x2, tag_tolerances={}):
+    tolerance = tag_tolerances[x1.tag] if x1.tag in tag_tolerances else None
     if x1.tag != x2.tag:
         return False, 'Tags do not match: %s and %s' % (x1.tag, x2.tag)
     for name, value in x1.attrib.items():
@@ -37,7 +45,7 @@ def xml_compare(x1, x2, float_text_tags={}):
     for name in x2.attrib.keys():
         if name not in x1.attrib:
             return False, 'x2 has an attribute x1 is missing: %s' % name
-    if not text_compare(x1.text, x2.text, x1.tag in float_text_tags):
+    if not text_compare(x1.text, x2.text, tolerance):
         return False, 'text: %r != %r, for tag %s' % (x1.text, x2.text, x1.tag)
     if not text_compare(x1.tail, x2.tail):
         return False, 'tail: %r != %r' % (x1.tail, x2.tail)
@@ -48,7 +56,7 @@ def xml_compare(x1, x2, float_text_tags={}):
     i = 0
     for c1, c2 in zip(cl1, cl2):
         i += 1
-        result, message = xml_compare(c1, c2)
+        result, message = xml_compare(c1, c2, tag_tolerances)
         # if not xml_compare(c1, c2):
         if not result:
             return False, 'children %i do not match: %s\n%s' % (i, c1.tag, message)
@@ -146,55 +154,6 @@ class TestMetaDataSQL(unittest.TestCase):
                 (bounding_box[0] < row[14] < bounding_box[2]) or (bounding_box[0] < row[15] < bounding_box[2]))
             self.assertTrue(
                 (bounding_box[1] < row[12] < bounding_box[3]) or (bounding_box[1] < row[13] < bounding_box[3]))
-
-    def test_australia(self):
-        # 5th Place: Lake Eyre Landsat 5 Acquired August 5, 2006
-        wkt = "POLYGON((136.2469482421875 -27.57843813308233,138.6639404296875 -27.57843813308233," \
-              "138.6639404296875 -29.82351878748485,136.2469482421875 -29.82351878748485,136." \
-              "2469482421875 -27.57843813308233))"
-
-        polygon = loads(wkt)
-
-
-        metadata_service = MetadataService()
-        # sql_filters = ['cloud_cover=0']
-        d_start = date(2006, 8, 4)
-        d_end = date(2006, 8, 7)
-        bounding_box = polygon.bounds
-        rows = metadata_service.search(
-            SpacecraftID.LANDSAT_5,
-            start_date=d_start,
-            end_date=d_end,
-            bounding_box=bounding_box)
-
-        self.assertEqual(len(rows), 3)
-
-        # mounted directory in docker container
-        base_mount_path = '/imagery'
-
-        # data structure that contains all fields from Google's Landsat BigQuery Database
-        metadata = Metadata(rows[2], base_mount_path)
-        # print(metadata.__dict__)
-
-        # break down gs url into pieces required for gcs-fuse
-        # gsurl = urlparse(metadata.base_url)
-
-        # mounting Google Storage bucket with gcs-fuse
-        # storage = Storage(gsurl[1])
-        # b_mounted = storage.mount_sub_folder(gsurl[2], base_mount_path)
-
-        # print(gsurl[1])
-        # print(gsurl[2])
-        # GDAL helper functions for generating VRT
-        landsat = Landsat(metadata)
-
-        # get a numpy.ndarray from bands for specified imagery
-        band_numbers = [3, 2, 1]
-        scaleParams = [[0.0, 65535], [0.0, 65535], [0.0, 65535]]
-        # nda = landsat.__get_ndarray(band_numbers, metadata, scaleParams)
-        nda = landsat.fetch_imagery_array(band_numbers, scaleParams)
-        self.assertEqual((3581, 4041, 3), nda.shape)
-        # print(nda.shape)
 
 
 class TestStorage(unittest.TestCase):
@@ -349,6 +308,106 @@ class TestLandsat(unittest.TestCase):
         ds_band_3 = dataset.GetRasterBand(3)
         self.assertIsNotNone(ds_band_3)
         self.assertEqual(ds_band_3.YSize, 7771)
+
+    def test_australia(self):
+        # 5th Place: Lake Eyre Landsat 5 Acquired August 5, 2006
+        wkt = "POLYGON((136.2469482421875 -27.57843813308233,138.6639404296875 -27.57843813308233," \
+              "138.6639404296875 -29.82351878748485,136.2469482421875 -29.82351878748485,136." \
+              "2469482421875 -27.57843813308233))"
+
+        polygon = loads(wkt)
+
+        metadata_service = MetadataService()
+        # sql_filters = ['cloud_cover=0']
+        d_start = date(2006, 8, 4)
+        d_end = date(2006, 8, 7)
+        bounding_box = polygon.bounds
+        sql_filters = ['wrs_row=79']
+        rows = metadata_service.search(
+            SpacecraftID.LANDSAT_5,
+            start_date=d_start,
+            end_date=d_end,
+            bounding_box=bounding_box,
+            sql_filters=sql_filters)
+
+        self.assertEqual(len(rows), 1)
+
+        # mounted directory in docker container
+        base_mount_path = '/imagery'
+
+        # data structure that contains all fields from Google's Landsat BigQuery Database
+        metadata = Metadata(rows[0], base_mount_path)
+        # print(metadata.__dict__)
+
+        # break down gs url into pieces required for gcs-fuse
+        # gsurl = urlparse(metadata.base_url)
+
+        # mounting Google Storage bucket with gcs-fuse
+        # storage = Storage(gsurl[1])
+        # b_mounted = storage.mount_sub_folder(gsurl[2], base_mount_path)
+
+        # print(gsurl[1])
+        # print(gsurl[2])
+        # GDAL helper functions for generating VRT
+        landsat = Landsat(metadata)
+
+        # get a numpy.ndarray from bands for specified imagery
+        band_numbers = [3, 2, 1]
+        scaleParams = [[0.0, 65535], [0.0, 65535], [0.0, 65535]]
+        # nda = landsat.__get_ndarray(band_numbers, metadata, scaleParams)
+        nda = landsat.fetch_imagery_array(band_numbers, scaleParams)
+        self.assertEqual((3581, 4046, 3), nda.shape)
+        # print(nda.shape)
+
+    def test_landsat5_vrt(self):
+        # 5th Place: Lake Eyre Landsat 5 Acquired August 5, 2006
+        wkt = "POLYGON((136.2469482421875 -27.57843813308233,138.6639404296875 -27.57843813308233," \
+              "138.6639404296875 -29.82351878748485,136.2469482421875 -29.82351878748485,136." \
+              "2469482421875 -27.57843813308233))"
+
+        polygon = loads(wkt)
+
+        metadata_service = MetadataService()
+        # sql_filters = ['cloud_cover=0']
+        d_start = date(2006, 8, 4)
+        d_end = date(2006, 8, 5)
+        bounding_box = polygon.bounds
+        sql_filters = ['wrs_row=79']
+        rows = metadata_service.search(
+            SpacecraftID.LANDSAT_5,
+            start_date=d_start,
+            end_date=d_end,
+            bounding_box=bounding_box,
+            sql_filters=sql_filters)
+
+        self.assertEqual(len(rows), 1)
+
+        # mounted directory in docker container
+        base_mount_path = '/imagery'
+
+        # data structure that contains all fields from Google's Landsat BigQuery Database
+        metadata = Metadata(rows[0], base_mount_path)
+        # print(metadata.__dict__)
+
+        # break down gs url into pieces required for gcs-fuse
+        gsurl = urlparse(metadata.base_url)
+
+        # mounting Google Storage bucket with gcs-fuse
+        storage = Storage(gsurl[1])
+        b_mounted = storage.mount_sub_folder(metadata)
+        self.assertTrue(b_mounted)
+
+        # GDAL helper functions for generating VRT
+        landsat = Landsat(metadata)
+        vrt = landsat.get_vrt([3, 2, 1])
+
+        with open('testlandsat5.vrt', 'r') as myfile:
+            data = myfile.read()
+            expected = etree.XML(data)
+            actual = etree.XML(vrt)
+            result, message = xml_compare(expected, actual, {"GeoTransform": 1e-10})
+            self.assertTrue(result, message)
+
 
     def test_pixel_function_vrt_1(self):
         utah_box = (-112.66342163085938, 37.738141282210385, -111.79824829101562, 38.44821130413263)
