@@ -408,7 +408,6 @@ class TestLandsat(unittest.TestCase):
             result, message = xml_compare(expected, actual, {"GeoTransform": 1e-10})
             self.assertTrue(result, message)
 
-
     def test_pixel_function_vrt_1(self):
         utah_box = (-112.66342163085938, 37.738141282210385, -111.79824829101562, 38.44821130413263)
         d_start = date(2016, 7, 20)
