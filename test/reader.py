@@ -155,6 +155,19 @@ class TestMetaDataSQL(unittest.TestCase):
             self.assertTrue(
                 (bounding_box[1] < row[12] < bounding_box[3]) or (bounding_box[1] < row[13] < bounding_box[3]))
 
+    def test_no_bounding_box(self):
+        d_start = date(2003, 4, 4)
+        d_end = date(2003, 4, 7)
+        sql_filters = ['wrs_row=49', 'wrs_path=125']
+        metadata_service = MetadataService()
+        rows = metadata_service.search(
+            SpacecraftID.LANDSAT_5,
+            start_date=d_start,
+            end_date=d_end,
+            bounding_box=None,
+            sql_filters=sql_filters)
+        self.assertEquals(len(rows), 1)
+
 
 class TestStorage(unittest.TestCase):
     def test_storage_create(self):
