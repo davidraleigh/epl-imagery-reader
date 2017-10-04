@@ -304,7 +304,7 @@ LIMIT 1"""
 
     def search(
             self,
-            satellite_id,
+            satellite_id=None,
             bounding_box=None,
             start_date=None,
             end_date=None,
@@ -312,8 +312,13 @@ LIMIT 1"""
             limit=10,
             sql_filters=None):
         # # Perform a synchronous query.
-        query_builder = 'SELECT * FROM [bigquery-public-data:cloud_storage_geo_index.landsat_index] ' \
-                        'WHERE spacecraft_id="{}"'.format(satellite_id.name)
+        query_builder = 'SELECT * FROM [bigquery-public-data:cloud_storage_geo_index.landsat_index]'
+
+        clause_start = 'WHERE'
+        if satellite_id:
+            query_builder += ' {0} spacecraft_id="{1}"'.format(clause_start, satellite_id.name)
+            clause_start = 'AND'
+
 
         if bounding_box is not None:
             minx = bounding_box[0]
@@ -330,19 +335,25 @@ LIMIT 1"""
                     or minx < self.m_danger_east_lon:
                 print("danger zone. you're probably in trouble")
             else:
-                query_builder += ' AND (({0} <= west_lon AND {1} >= west_lon) OR ' \
-                                 '({0} >= west_lon AND east_lon >= {0}))'.format(minx, maxx)
+                query_builder += ' {2} (({0} <= west_lon AND {1} >= west_lon) OR ' \
+                                 '({0} >= west_lon AND east_lon >= {0}))'.format(minx, maxx, clause_start)
                 query_builder += ' AND ((south_lat <= {0} AND north_lat >= {0}) OR ' \
                                  '(south_lat > {0} AND {1} >= south_lat))'.format(miny, maxy)
+            clause_start = 'AND'
 
         if start_date is not None:
-            query_builder += ' AND date_acquired>="{}"'.format(start_date.isoformat())
+            query_builder += ' {0} date_acquired>="{1}"'.format(clause_start, start_date.isoformat())
+            clause_start = 'AND'
         if end_date is not None:
-            query_builder += ' AND date_acquired<="{}"'.format(end_date.isoformat())
+            query_builder += ' {0} date_acquired<="{1}"'.format(clause_start, end_date.isoformat())
+            clause_start = 'AND'
 
-        if sql_filters is not None:
-            for sql_filter in sql_filters:
-                query_builder += ' AND {}'.format(sql_filter)
+        if sql_filters is not None and len(sql_filters) > 0:
+
+            query_builder += ' {0} {1}'.format(clause_start, sql_filters[0])
+            clause_start = 'AND'
+            for idx in range(1, len(sql_filters)):
+                query_builder += ' AND {}'.format(sql_filters[idx])
 
         # TODO sort by area
         """

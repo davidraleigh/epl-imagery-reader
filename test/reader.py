@@ -161,12 +161,12 @@ class TestMetaDataSQL(unittest.TestCase):
         sql_filters = ['wrs_row=49', 'wrs_path=125']
         metadata_service = MetadataService()
         rows = metadata_service.search(
-            SpacecraftID.LANDSAT_5,
+            satellite_id=None,
             start_date=d_start,
             end_date=d_end,
             bounding_box=None,
             sql_filters=sql_filters)
-        self.assertEquals(len(rows), 1)
+        self.assertEqual(len(rows), 3)
 
 
 class TestStorage(unittest.TestCase):
