@@ -168,6 +168,31 @@ class TestMetaDataSQL(unittest.TestCase):
             sql_filters=sql_filters)
         self.assertEqual(len(rows), 3)
 
+    def test_metatdata_file_list(self):
+        wkt = "POLYGON((136.2469482421875 -27.57843813308233,138.6639404296875 -27.57843813308233," \
+              "138.6639404296875 -29.82351878748485,136.2469482421875 -29.82351878748485,136." \
+              "2469482421875 -27.57843813308233))"
+
+        polygon = loads(wkt)
+
+        metadata_service = MetadataService()
+        # sql_filters = ['cloud_cover=0']
+        d_start = date(2006, 8, 4)
+        d_end = date(2006, 8, 5)
+        bounding_box = polygon.bounds
+        sql_filters = ['wrs_row=79']
+        rows = metadata_service.search(
+            SpacecraftID.LANDSAT_5,
+            start_date=d_start,
+            end_date=d_end,
+            bounding_box=bounding_box,
+            sql_filters=sql_filters)
+
+        metadata = Metadata(rows[0])
+        self.assertEqual(len(metadata.get_file_list()), 0)
+
+
+
 
 class TestStorage(unittest.TestCase):
     def test_storage_create(self):

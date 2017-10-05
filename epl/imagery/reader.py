@@ -1,6 +1,7 @@
 import os
 import errno
 import sys
+import threading
 
 from osgeo import gdal
 from urllib.parse import urlparse
@@ -8,8 +9,10 @@ from lxml import etree
 from enum import Enum
 from subprocess import call
 
+
 # Imports the Google Cloud client library
 from google.cloud import bigquery
+from google.cloud import storage
 
 
 class SpacecraftID(Enum):
@@ -234,7 +237,68 @@ class Sentinel2:
 
 
 class Metadata:
-    def __init__(self, row, base_mount_path=None):
+    __storage_client = storage.Client()
+
+    """
+    LXSS_LLLL_PPPRRR_YYYYMMDD_yyyymmdd_CC_TX_BN.TIF where:
+     L           = Landsat
+     X           = Sensor (E for ETM+ data; T for TM data; M for MSS)
+     SS          = Satellite (07 = Landsat 7, 05 = Landsat 5, etc.)
+     LLLL        = processing level (L1TP for Precision Terrain;
+                                     L1GT for Systematic Terrain;
+                                     L1GS for Systematic only)
+     PPP         = starting path of the product
+     RRR         = starting and ending rows of the product
+     YYYY        = acquisition year
+     MM          = acquisition month
+     DD          = acquisition day
+     yyyy        = processing year
+     mm          = processing month
+     dd          = processing day
+     CC          = collection number
+     TX          = collection category (RT for real-time; T1 for Tier 1;
+                                        T2 for Tier 2)
+     BN          = file type:
+          B1         = band 1
+          B2         = band 2
+          B3         = band 3
+          B4         = band 4
+          B5         = band 5
+          B6_VCID_1  = band 6L (low gain)  (ETM+)
+          B6_VCID_2  = band 6H (high gain) (ETM+)
+          B6         = band 6 (TM and MSS)
+          B7         = band 7
+          B8         = band 8 (ETM+)
+          MTL        = Level-1 metadata
+          GCP        = ground control points
+     TIF         = GeoTIFF file extension
+
+The file naming convention for Landsat 4-5 NLAPS-processed GeoTIFF data
+is as follows:
+
+LLNppprrrOOYYDDDMM_AA.TIF  where:
+     LL          = Landsat sensor (LT for TM data)
+     N           = satellite number
+     ppp         = starting path of the product
+     rrr         = starting row of the product
+     OO          = WRS row offset (set to 00)
+     YY          = last two digits of the year of
+                   acquisition
+     DDD         = Julian date of acquisition
+     MM          = instrument mode (10 for MSS; 50 for TM)
+     AA          = file type:
+          B1          = band 1
+          B2          = band 2
+          B3          = band 3
+          B4          = band 4
+          B5          = band 5
+          B6          = band 6
+          B7          = band 7
+          WO          = processing history file
+     TIF         = GeoTIFF file extension
+    """
+
+    def __init__(self, row, base_mount_path='/imagery'):
         self.scene_id = row[0]  # STRING	REQUIRED   Unique identifier for a particular Landsat image downlinked to a particular ground station.
         self.product_id = row[1]  # STRING	NULLABLE Unique identifier for a particular scene processed by the USGS at a particular time, or null for pre-collection data.
         self.spacecraft_id = SpacecraftID[row[2].upper()]  # SpacecraftID REQUIRED The spacecraft that acquired this scene: one of 'LANDSAT_4' through 'LANDSAT_8'.
@@ -254,8 +318,34 @@ class Metadata:
         self.total_size = row[16]  # INTEGER	NULLABLE The total size of this scene in bytes.
         self.base_url = row[17]  # STRING	NULLABLE The base URL for this scene in Cloud Storage.
         gsurl = urlparse(self.base_url)
-        self.full_mount_path = base_mount_path.rstrip("\/") + os.path.sep + gsurl[2].strip("\/")
+        self.bucket_name = gsurl[1]
+        self.data_prefix = gsurl[2]
+        self.full_mount_path = base_mount_path.rstrip("\/") + os.path.sep + self.data_prefix.strip("\/")
         self.base_mount_path = base_mount_path
+
+        self.__file_list = None
+        self.thread = threading.Thread(target=self.__query_file_list(), args=())
+        self.thread.daemon = True
+        self.thread.start()
+
+
+        # thread = threading.Thread(target)
+
+    def get_file_list(self, timeout=4):
+        # 4 second timeout on info
+        self.thread.join(timeout=timeout)
+        # TODO if empty throw a warning?
+        return self.__file_list
+
+    def __query_file_list(self):
+        # bucket = self.__storage_client.list_buckets(prefix=self.bucket_name + os.path.sep + self.data_prefix)
+        bucket = []
+        results = []
+        for i in bucket:
+            results.append(i)
+        self.__file_list = results
+        # def __get_file_list(self):
+        #     self.__file_list = None
 
 
 class MetadataService:
