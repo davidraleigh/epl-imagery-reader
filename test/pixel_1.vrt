@@ -1,0 +1,20 @@
+<VRTDataset rasterXSize="20" rasterYSize="20">
+  <SRS>EPSG:26711</SRS>
+  <GeoTransform>440720,60,0,3751320,0,-60</GeoTransform>
+  <VRTRasterBand dataType="Byte" band="1" subClass="VRTDerivedRasterBand">
+    <PixelFunctionType>multiply</PixelFunctionType>
+    <PixelFunctionLanguage>Python</PixelFunctionLanguage>
+    <PixelFunctionArguments factor="1.5"/>
+    <PixelFunctionCode><![CDATA[
+import numpy as np
+def multiply(in_ar, out_ar, xoff, yoff, xsize, ysize, raster_xsize,
+                   raster_ysize, buf_radius, gt, **kwargs):
+    factor = float(kwargs['factor'])
+    out_ar[:] = np.round_(np.clip(in_ar[0] * factor,0,255))
+]]>
+    </PixelFunctionCode>
+    <SimpleSource>
+      <SourceFilename relativeToVRT="0">/imagery/LC08/PRE/040/031/LC80400312016103LGN00/LC80400312016103LGN00_B2.TIF</SourceFilename>
+    </SimpleSource>
+  </VRTRasterBand>
+</VRTDataset>

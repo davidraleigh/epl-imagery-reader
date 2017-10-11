@@ -140,6 +140,37 @@ class Landsat(Imagery):
             block_size,
             color_interp=None):
         elem_raster_band = etree.SubElement(vrt_dataset, "VRTRasterBand")
+        """
+http://www.gdal.org/gdal_vrttut.html
+  <VRTRasterBand dataType="Byte" band="1" subClass="VRTDerivedRasterBand">
+    <PixelFunctionType>multiply</PixelFunctionType>
+    <PixelFunctionLanguage>Python</PixelFunctionLanguage>
+    <PixelFunctionArguments factor="1.5"/>
+    <PixelFunctionCode><![CDATA[
+import numpy as np
+def multiply(in_ar, out_ar, xoff, yoff, xsize, ysize, raster_xsize,
+                   raster_ysize, buf_radius, gt, **kwargs):
+    factor = float(kwargs['factor'])
+    out_ar[:] = np.round_(np.clip(in_ar[0] * factor,0,255))
+]]>
+    </PixelFunctionCode>
+    <SimpleSource>
+      <SourceFilename relativeToVRT="1">byte.tif</SourceFilename>
+    </SimpleSource>
+  </VRTRasterBand>
+  """
+        elem_raster_band.set("dataType", data_type)
+        elem_raster_band.set("band", str(position_number))
+        elem_raster_band.set("subClass", "VRTDerivedRasterBand")
+
+        elem_simple_source = etree.SubElement(elem_raster_band, "SimpleSource")
+        elem_source_filename = etree.SubElement(elem_simple_source, "SourceFilename")
+        elem_source_filename.set("relativeToVRT", "0")
+        elem_source_filename.text = "byte.tif"
+
+        elem_simple_source = etree.SubElement(elem_raster_band, "SimpleSource")
+
+
 
     @staticmethod
     def get_band_elem(
@@ -213,15 +244,25 @@ class Landsat(Imagery):
 
             color_interp = self.__band_map.get_band_name(band)
 
-            self.get_band_elem(
-                vrt_dataset,
-                gdal.GetDataTypeName(dataset.GetRasterBand(1).DataType),
-                position_number,
-                file_path,
-                dataset.RasterXSize,
-                dataset.RasterYSize,
-                256,
-                color_interp=color_interp)
+            if isinstance(band, dict):
+                self.get_function_band_elem(vrt_dataset,
+                    gdal.GetDataTypeName(dataset.GetRasterBand(1).DataType),
+                    position_number,
+                    file_path,
+                    dataset.RasterXSize,
+                    dataset.RasterYSize,
+                    256,
+                    color_interp=color_interp)
+            else:
+                self.get_band_elem(
+                    vrt_dataset,
+                    gdal.GetDataTypeName(dataset.GetRasterBand(1).DataType),
+                    position_number,
+                    file_path,
+                    dataset.RasterXSize,
+                    dataset.RasterYSize,
+                    256,
+                    color_interp=color_interp)
 
             position_number += 1
 

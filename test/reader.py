@@ -192,8 +192,6 @@ class TestMetaDataSQL(unittest.TestCase):
         self.assertEqual(len(metadata.get_file_list()), 0)
 
 
-
-
 class TestStorage(unittest.TestCase):
     def test_storage_create(self):
         metadata_service = MetadataService()
@@ -553,5 +551,34 @@ class TestLandsat(unittest.TestCase):
     #         actual = etree.XML(vrt)
     #         result, message = xml_compare(expected, actual)
     #         self.assertTrue(result, message)
+
+
+class TestPixelFunctions(unittest.TestCase):
+    def test_pixel_1(self):
+        metadata_service = MetadataService()
+        d_start = date(2015, 6, 24)
+        d_end = date(2016, 6, 24)
+        bounding_box = (-115.927734375, 34.52466147177172, -78.31054687499999, 44.84029065139799)
+        sql_filters = ['scene_id="LC80400312016103LGN00"']
+        rows = metadata_service.search(SpacecraftID.LANDSAT_8, start_date=d_start, end_date=d_end,
+                                       bounding_box=bounding_box,
+                                       limit=1, sql_filters=sql_filters)
+
+        base_mount_path = '/imagery'
+        metadata = Metadata(rows[0], base_mount_path)
+        gsurl = urlparse(metadata.base_url)
+        storage = Storage(gsurl[1])
+
+        b_mounted = storage.mount_sub_folder(metadata)
+        self.assertTrue(b_mounted)
+        landsat = Landsat(metadata)  # , gsurl[2])
+        vrt = landsat.get_vrt([{"data": "byte.tif"}])
+
+        with open('pixel_1.vrt', 'r') as myfile:
+            data = myfile.read()
+            expected = etree.XML(data)
+            actual = etree.XML(vrt)
+            result, message = xml_compare(expected, actual, {"GeoTransform": 1e-10})
+            self.assertTrue(result, message)
 
 
