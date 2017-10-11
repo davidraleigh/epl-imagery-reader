@@ -572,7 +572,22 @@ class TestPixelFunctions(unittest.TestCase):
         b_mounted = storage.mount_sub_folder(metadata)
         self.assertTrue(b_mounted)
         landsat = Landsat(metadata)  # , gsurl[2])
-        vrt = landsat.get_vrt([{"data": "byte.tif"}])
+
+        code = """import numpy as np
+def multiply_rounded(in_ar, out_ar, xoff, yoff, xsize, ysize, raster_xsize,
+                   raster_ysize, buf_radius, gt, **kwargs):
+    factor = float(kwargs['factor'])
+    out_ar[:] = np.round_(np.clip(in_ar[0] * factor,0,255))"""
+
+        function_arguments = {"factor": "1.5"}
+        pixel_function_details = {
+            "band_numbers": [2],
+            "function_code": code,
+            "function_type": "multiply_rounded",
+            "data_type": "Float32",
+            "function_arguments": function_arguments
+        }
+        vrt = landsat.get_vrt([pixel_function_details, 3, 2])
 
         with open('pixel_1.vrt', 'r') as myfile:
             data = myfile.read()

@@ -129,59 +129,97 @@ class Landsat(Imagery):
 
         return self.__get_ndarray(band_numbers, scaleParams)
 
-    @staticmethod
-    def get_function_band_elem(
-            vrt_dataset,
-            data_type,
-            position_number,
-            file_path,
-            x_size,
-            y_size,
-            block_size,
-            color_interp=None):
+#         """
+# http://www.gdal.org/gdal_vrttut.html
+#   <VRTRasterBand dataType="Byte" band="1" subClass="VRTDerivedRasterBand">
+#     <PixelFunctionType>multiply</PixelFunctionType>
+#     <PixelFunctionLanguage>Python</PixelFunctionLanguage>
+#     <PixelFunctionArguments factor="1.5"/>
+#     <PixelFunctionCode><![CDATA[
+# import numpy as np
+# def multiply(in_ar, out_ar, xoff, yoff, xsize, ysize, raster_xsize,
+#                    raster_ysize, buf_radius, gt, **kwargs):
+#     factor = float(kwargs['factor'])
+#     out_ar[:] = np.round_(np.clip(in_ar[0] * factor,0,255))
+# ]]>
+#     </PixelFunctionCode>
+#     <SimpleSource>
+#       <SourceFilename relativeToVRT="1">byte.tif</SourceFilename>
+#     </SimpleSource>
+#   </VRTRasterBand>
+#   """
+    def get_function_band_elem(self, vrt_dataset, band_definition, position_number, block_size):
+
+        # TODO more elegant please
+        name_prefix = self.__metadata.product_id
+        if not self.__metadata.product_id:
+            name_prefix = self.__metadata.scene_id
+
+        file_path = "{0}/{1}_B{2}.TIF".format(self.__metadata.full_mount_path,
+                                              name_prefix,
+                                              band_definition['band_numbers'][0])
+
+        dataset = gdal.Open(file_path)
+
+        # data_type = gdal.GetDataTypeName(dataset.GetRasterBand(1).DataType)
+
+        x_size = dataset.RasterXSize
+        y_size = dataset.RasterYSize
+        projection = dataset.GetProjection()
+        geo_transform = dataset.GetGeoTransform()
+
         elem_raster_band = etree.SubElement(vrt_dataset, "VRTRasterBand")
-        """
-http://www.gdal.org/gdal_vrttut.html
-  <VRTRasterBand dataType="Byte" band="1" subClass="VRTDerivedRasterBand">
-    <PixelFunctionType>multiply</PixelFunctionType>
-    <PixelFunctionLanguage>Python</PixelFunctionLanguage>
-    <PixelFunctionArguments factor="1.5"/>
-    <PixelFunctionCode><![CDATA[
-import numpy as np
-def multiply(in_ar, out_ar, xoff, yoff, xsize, ysize, raster_xsize,
-                   raster_ysize, buf_radius, gt, **kwargs):
-    factor = float(kwargs['factor'])
-    out_ar[:] = np.round_(np.clip(in_ar[0] * factor,0,255))
-]]>
-    </PixelFunctionCode>
-    <SimpleSource>
-      <SourceFilename relativeToVRT="1">byte.tif</SourceFilename>
-    </SimpleSource>
-  </VRTRasterBand>
-  """
-        elem_raster_band.set("dataType", data_type)
+
+        elem_raster_band.set("dataType", band_definition['data_type'])
         elem_raster_band.set("band", str(position_number))
         elem_raster_band.set("subClass", "VRTDerivedRasterBand")
 
         elem_simple_source = etree.SubElement(elem_raster_band, "SimpleSource")
         elem_source_filename = etree.SubElement(elem_simple_source, "SourceFilename")
         elem_source_filename.set("relativeToVRT", "0")
-        elem_source_filename.text = "byte.tif"
+        elem_source_filename.text = file_path
 
-        elem_simple_source = etree.SubElement(elem_raster_band, "SimpleSource")
+        elem_function_language = etree.SubElement(elem_raster_band, "PixelFunctionLanguage")
+        elem_function_language.text = "Python"
+
+        elem_function_type = etree.SubElement(elem_raster_band, "PixelFunctionType")
+        elem_function_type.text = band_definition["function_type"]
+
+        if 'function_code' in band_definition:
+            etree.SubElement(elem_raster_band, "PixelFunctionCode").text = band_definition["function_code"]
+
+        if 'function_arguments' in band_definition:
+            # <PixelFunctionArguments factor="1.5"/>
+            elem_function_args = etree.SubElement(elem_raster_band, "PixelFunctionArguments")
+            for function_arg_key in band_definition['function_arguments']:
+                elem_function_args.set(function_arg_key, band_definition['function_arguments'][function_arg_key])
 
 
 
-    @staticmethod
-    def get_band_elem(
-            vrt_dataset,
-            data_type,
-            position_number,
-            file_path,
-            x_size,
-            y_size,
-            block_size,
-            color_interp=None):
+
+
+        return x_size, y_size, projection, geo_transform
+
+    def get_band_elem(self, vrt_dataset, band_number, position_number, block_size):
+
+        # TODO more elegant please
+        name_prefix = self.__metadata.product_id
+        if not self.__metadata.product_id:
+            name_prefix = self.__metadata.scene_id
+
+        file_path = "{0}/{1}_B{2}.TIF".format(self.__metadata.full_mount_path, name_prefix, band_number)
+        # file_path = self.__metadata.full_mount_path + os.path.sep + self.__metadata.scene_id + "_B{}.TIF".format(band)
+
+        dataset = gdal.Open(file_path)
+
+        data_type = gdal.GetDataTypeName(dataset.GetRasterBand(1).DataType)
+
+        x_size = dataset.RasterXSize
+        y_size = dataset.RasterYSize
+        projection = dataset.GetProjection()
+        geo_transform = dataset.GetGeoTransform()
+
+        color_interp = self.__band_map.get_band_name(band_number)
 
         elem_raster_band = etree.SubElement(vrt_dataset, "VRTRasterBand")
 
@@ -222,6 +260,8 @@ def multiply(in_ar, out_ar, xoff, yoff, xsize, ysize, raster_xsize,
         elem_dst_rect.set("xSize", str(x_size))
         elem_dst_rect.set("ySize", str(y_size))
 
+        return x_size, y_size, projection, geo_transform
+
     def get_vrt(self, band_definitions, translate_args=None):
         vrt_dataset = etree.Element("VRTDataset")
 
@@ -230,46 +270,23 @@ def multiply(in_ar, out_ar, xoff, yoff, xsize, ysize, raster_xsize,
         max_y = sys.float_info.min
 
         # TODO if no bands throw exception
-        for band in band_definitions:
-            # TODO more elegant please
-            if not self.__metadata.product_id:
-                file_path = self.__metadata.full_mount_path + os.path.sep + self.__metadata.scene_id + "_B{}.TIF".format(band)
+        for band_definition in band_definitions:
+
+            if isinstance(band_definition, dict):
+                x_size, y_size, projection, geo_transform = self.get_function_band_elem(vrt_dataset, band_definition, position_number, 256)
             else:
-                file_path = self.__metadata.full_mount_path + os.path.sep + self.__metadata.product_id + "_B{}.TIF".format(band)
-
-            dataset = gdal.Open(file_path)
-            # TODO, check that this matters. I think maybe it doesn't
-            max_x = dataset.RasterXSize if dataset.RasterXSize > max_x else max_x
-            max_y = dataset.RasterYSize if dataset.RasterYSize > max_y else max_y
-
-            color_interp = self.__band_map.get_band_name(band)
-
-            if isinstance(band, dict):
-                self.get_function_band_elem(vrt_dataset,
-                    gdal.GetDataTypeName(dataset.GetRasterBand(1).DataType),
-                    position_number,
-                    file_path,
-                    dataset.RasterXSize,
-                    dataset.RasterYSize,
-                    256,
-                    color_interp=color_interp)
-            else:
-                self.get_band_elem(
-                    vrt_dataset,
-                    gdal.GetDataTypeName(dataset.GetRasterBand(1).DataType),
-                    position_number,
-                    file_path,
-                    dataset.RasterXSize,
-                    dataset.RasterYSize,
-                    256,
-                    color_interp=color_interp)
+                x_size, y_size, projection, geo_transform = self.get_band_elem(vrt_dataset, band_definition, position_number, 256)
 
             position_number += 1
 
+            # TODO, check that this matters. I think maybe it doesn't
+            max_x = x_size if x_size > max_x else max_x
+            max_y = y_size if y_size > max_y else max_y
+
         vrt_dataset.set("rasterXSize", str(max_x))
         vrt_dataset.set("rasterYSize", str(max_y))
-        etree.SubElement(vrt_dataset, "SRS").text = dataset.GetProjection()
-        etree.SubElement(vrt_dataset, "GeoTransform").text = ",".join(map("  {:.16e}".format, dataset.GetGeoTransform()))
+        etree.SubElement(vrt_dataset, "SRS").text = projection
+        etree.SubElement(vrt_dataset, "GeoTransform").text = ",".join(map("  {:.16e}".format, geo_transform))
 
         return etree.tostring(vrt_dataset)
 
