@@ -38,28 +38,30 @@ def text_compare(t1, t2, tolerance=None):
 def xml_compare(x1, x2, tag_tolerances={}):
     tolerance = tag_tolerances[x1.tag] if x1.tag in tag_tolerances else None
     if x1.tag != x2.tag:
-        return False, 'Tags do not match: %s and %s' % (x1.tag, x2.tag)
+        return False, '\nTags do not match: %s and %s' % (x1.tag, x2.tag)
     for name, value in x1.attrib.items():
         if x2.attrib.get(name) != value:
-            return False, 'Attributes do not match: %s=%r, %s=%r' % (name, value, name, x2.attrib.get(name))
+            return False, '\nAttributes do not match: %s=%r, %s=%r' % (name, value, name, x2.attrib.get(name))
     for name in x2.attrib.keys():
         if name not in x1.attrib:
-            return False, 'x2 has an attribute x1 is missing: %s' % name
+            return False, '\nx2 has an attribute x1 is missing: %s' % name
     if not text_compare(x1.text, x2.text, tolerance):
-        return False, 'text: %r != %r, for tag %s' % (x1.text, x2.text, x1.tag)
+        return False, '\ntext: %r != %r, for tag %s' % (x1.text, x2.text, x1.tag)
     if not text_compare(x1.tail, x2.tail):
-        return False, 'tail: %r != %r' % (x1.tail, x2.tail)
+        return False, '\ntail: %r != %r' % (x1.tail, x2.tail)
     cl1 = sorted(x1.getchildren(), key=lambda x: x.tag)
     cl2 = sorted(x2.getchildren(), key=lambda x: x.tag)
     if len(cl1) != len(cl2):
-        return False, 'children length differs, %i != %i' % (len(cl1), len(cl2))
+        expected_tags = "\n".join(map(lambda x: x.tag, cl1)) + '\n'
+        actual_tags = "\n".join(map(lambda x: x.tag, cl2)) + '\n'
+        return False, '\nchildren length differs, %{0} != {1}\nexpected tags:\n{2}\nactual tags:\n{3}'.format(len(cl1), len(cl2), expected_tags, actual_tags)
     i = 0
     for c1, c2 in zip(cl1, cl2):
         i += 1
         result, message = xml_compare(c1, c2, tag_tolerances)
         # if not xml_compare(c1, c2):
         if not result:
-            return False, 'children %i do not match: %s\n%s' % (i, c1.tag, message)
+            return False, '\nthe children %i do not match: %s\n%s' % (i, c1.tag, message)
     return True, "no errors"
 
 

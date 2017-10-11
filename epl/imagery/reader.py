@@ -129,7 +129,7 @@ class Landsat(Imagery):
 
         return self.__get_ndarray(band_numbers, scaleParams)
 
-    def get_source_elem(self, band_number):
+    def get_source_elem(self, band_number, block_size=256):
         elem_simple_source = etree.Element("SimpleSource")
 
         # if the input had multiple bands this setting would be where you change that
@@ -147,7 +147,39 @@ class Landsat(Imagery):
         file_path = "{0}/{1}_B{2}.TIF".format(self.__metadata.full_mount_path, name_prefix, band_number)
         elem_source_filename.text = file_path
 
-        return elem_simple_source, file_path
+        dataset = gdal.Open(file_path)
+
+        data_type = gdal.GetDataTypeName(dataset.GetRasterBand(1).DataType)
+
+        x_size = dataset.RasterXSize
+        y_size = dataset.RasterYSize
+        projection = dataset.GetProjection()
+        geo_transform = dataset.GetGeoTransform()
+
+        dataset = None
+
+        elem_source_props = etree.SubElement(elem_simple_source, "SourceProperties")
+        elem_source_props.set("RasterXSize", str(x_size))
+        elem_source_props.set("RasterYSize", str(y_size))
+        elem_source_props.set("DataType", data_type)
+
+        # there may be a more efficient size than 256
+        elem_source_props.set("BlockXSize", str(block_size))
+        elem_source_props.set("BlockYSize", str(block_size))
+
+        elem_src_rect = etree.SubElement(elem_simple_source, "SrcRect")
+        elem_src_rect.set("xOff", str(0))
+        elem_src_rect.set("yOff", str(0))
+        elem_src_rect.set("xSize", str(x_size))
+        elem_src_rect.set("ySize", str(y_size))
+
+        elem_dst_rect = etree.SubElement(elem_simple_source, "DstRect")
+        elem_dst_rect.set("xOff", str(0))
+        elem_dst_rect.set("yOff", str(0))
+        elem_dst_rect.set("xSize", str(x_size))
+        elem_dst_rect.set("ySize", str(y_size))
+
+        return elem_simple_source, x_size, y_size, projection, geo_transform, data_type
 
     def get_function_band_elem(self, vrt_dataset, band_definition, position_number, block_size):
 
@@ -176,37 +208,21 @@ class Landsat(Imagery):
                 elem_function_args.set(function_arg_key, band_definition['function_arguments'][function_arg_key])
 
         for band_number in band_definition["band_numbers"]:
-            elem_simple_source, file_path = self.get_source_elem(band_number)
+            elem_simple_source, x_size, y_size, projection, geo_transform, data_type = self.get_source_elem(band_number)
             elem_raster_band.append(elem_simple_source)
-
-        dataset = gdal.Open(file_path)
-
-        x_size = dataset.RasterXSize
-        y_size = dataset.RasterYSize
-        projection = dataset.GetProjection()
-        geo_transform = dataset.GetGeoTransform()
 
         return x_size, y_size, projection, geo_transform
 
     def get_band_elem(self, vrt_dataset, band_number, position_number, block_size):
 
-        # TODO more elegant please
-        # TODO use get_source_elem
-        name_prefix = self.__metadata.product_id
-        if not self.__metadata.product_id:
-            name_prefix = self.__metadata.scene_id
-
-        file_path = "{0}/{1}_B{2}.TIF".format(self.__metadata.full_mount_path, name_prefix, band_number)
-        # file_path = self.__metadata.full_mount_path + os.path.sep + self.__metadata.scene_id + "_B{}.TIF".format(band)
-
-        dataset = gdal.Open(file_path)
-
-        data_type = gdal.GetDataTypeName(dataset.GetRasterBand(1).DataType)
-
-        x_size = dataset.RasterXSize
-        y_size = dataset.RasterYSize
-        projection = dataset.GetProjection()
-        geo_transform = dataset.GetGeoTransform()
+        # # TODO more elegant please
+        # # TODO use get_source_elem
+        # name_prefix = self.__metadata.product_id
+        # if not self.__metadata.product_id:
+        #     name_prefix = self.__metadata.scene_id
+        #
+        # file_path = "{0}/{1}_B{2}.TIF".format(self.__metadata.full_mount_path, name_prefix, band_number)
+        # # file_path = self.__metadata.full_mount_path + os.path.sep + self.__metadata.scene_id + "_B{}.TIF".format(band)
 
         color_interp = self.__band_map.get_band_name(band_number)
 
@@ -215,39 +231,11 @@ class Landsat(Imagery):
         if color_interp is not None:
             etree.SubElement(elem_raster_band, "ColorInterp").text = color_interp
 
+        elem_simple_source, x_size, y_size, projection, geo_transform, data_type = self.get_source_elem(band_number)
+        elem_raster_band.append(elem_simple_source)
+
         elem_raster_band.set("dataType", data_type)
         elem_raster_band.set("band", str(position_number))
-
-        elem_simple_source = etree.SubElement(elem_raster_band, "SimpleSource")
-
-        elem_source_filename = etree.SubElement(elem_simple_source, "SourceFilename")
-        elem_source_filename.set("relativeToVRT", "0")
-        elem_source_filename.text = file_path
-
-        elem_source_props = etree.SubElement(elem_simple_source, "SourceProperties")
-        elem_source_props.set("RasterXSize", str(x_size))
-        elem_source_props.set("RasterYSize", str(y_size))
-        elem_source_props.set("DataType", data_type)
-
-        # there may be a more efficient size than 256
-        elem_source_props.set("BlockXSize", str(block_size))
-        elem_source_props.set("BlockYSize", str(block_size))
-
-        # if the input had multiple bands this setting would be where you change that
-        # but the google landsat is one tif per band
-        etree.SubElement(elem_simple_source, "SourceBand").text = str(1)
-
-        elem_src_rect = etree.SubElement(elem_simple_source, "SrcRect")
-        elem_src_rect.set("xOff", str(0))
-        elem_src_rect.set("yOff", str(0))
-        elem_src_rect.set("xSize", str(x_size))
-        elem_src_rect.set("ySize", str(y_size))
-
-        elem_dst_rect = etree.SubElement(elem_simple_source, "DstRect")
-        elem_dst_rect.set("xOff", str(0))
-        elem_dst_rect.set("yOff", str(0))
-        elem_dst_rect.set("xSize", str(x_size))
-        elem_dst_rect.set("ySize", str(y_size))
 
         return x_size, y_size, projection, geo_transform
 

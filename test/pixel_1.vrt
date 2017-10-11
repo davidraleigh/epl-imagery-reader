@@ -16,6 +16,9 @@ def multiply_rounded(in_ar, out_ar, xoff, yoff, xsize, ysize, raster_xsize,
     <SimpleSource>
       <SourceBand>1</SourceBand>
       <SourceFilename relativeToVRT="0">/imagery/LC08/PRE/040/031/LC80400312016103LGN00/LC80400312016103LGN00_B2.TIF</SourceFilename>
+      <SourceProperties RasterXSize="7631" RasterYSize="7771" DataType="UInt16" BlockXSize="256" BlockYSize="256" />
+      <SrcRect xOff="0" yOff="0" xSize="7631" ySize="7771" />
+      <DstRect xOff="0" yOff="0" xSize="7631" ySize="7771" />
     </SimpleSource>
   </VRTRasterBand>
   <VRTRasterBand dataType="UInt16" band="2">
