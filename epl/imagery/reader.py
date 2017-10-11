@@ -130,7 +130,19 @@ class Landsat(Imagery):
         return self.__get_ndarray(band_numbers, scaleParams)
 
     @staticmethod
-    def get_raster_band_elem(
+    def get_function_band_elem(
+            vrt_dataset,
+            data_type,
+            position_number,
+            file_path,
+            x_size,
+            y_size,
+            block_size,
+            color_interp=None):
+        elem_raster_band = etree.SubElement(vrt_dataset, "VRTRasterBand")
+
+    @staticmethod
+    def get_band_elem(
             vrt_dataset,
             data_type,
             position_number,
@@ -179,14 +191,15 @@ class Landsat(Imagery):
         elem_dst_rect.set("xSize", str(x_size))
         elem_dst_rect.set("ySize", str(y_size))
 
-    def get_vrt(self, band_numbers, translate_args=None):
+    def get_vrt(self, band_definitions, translate_args=None):
         vrt_dataset = etree.Element("VRTDataset")
 
         position_number = 1
         max_x = sys.float_info.min
         max_y = sys.float_info.min
 
-        for band in band_numbers:
+        # TODO if no bands throw exception
+        for band in band_definitions:
             # TODO more elegant please
             if not self.__metadata.product_id:
                 file_path = self.__metadata.full_mount_path + os.path.sep + self.__metadata.scene_id + "_B{}.TIF".format(band)
@@ -200,7 +213,7 @@ class Landsat(Imagery):
 
             color_interp = self.__band_map.get_band_name(band)
 
-            self.get_raster_band_elem(
+            self.get_band_elem(
                 vrt_dataset,
                 gdal.GetDataTypeName(dataset.GetRasterBand(1).DataType),
                 position_number,
@@ -219,8 +232,8 @@ class Landsat(Imagery):
 
         return etree.tostring(vrt_dataset)
 
-    def __get_ndarray(self, band_numbers, scaleParams=None):
-        vrt = self.get_vrt(band_numbers)
+    def __get_ndarray(self, band_definitions, scaleParams=None, additional_param=None):
+        vrt = self.get_vrt(band_definitions)
         # http://gdal.org/python/
         # http://gdal.org/python/osgeo.gdal-module.html#TranslateOptions
         # vrt_projected = gdal.Translate('', vrt, of="VRT", scaleParams=[], ot="Byte")
@@ -338,8 +351,7 @@ LLNppprrrOOYYDDDMM_AA.TIF  where:
         return self.__file_list
 
     def __query_file_list(self):
-        # bucket = self.__storage_client.list_buckets(prefix=self.bucket_name + os.path.sep + self.data_prefix)
-        bucket = []
+        bucket = self.__storage_client.list_buckets(prefix=self.bucket_name + self.data_prefix)
         results = []
         for i in bucket:
             results.append(i)
