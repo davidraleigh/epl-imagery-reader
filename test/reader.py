@@ -554,7 +554,10 @@ class TestLandsat(unittest.TestCase):
 
 
 class TestPixelFunctions(unittest.TestCase):
-    def test_pixel_1(self):
+    m_row_data = None
+    base_mount_path = '/imagery'
+
+    def setUp(self):
         metadata_service = MetadataService()
         d_start = date(2015, 6, 24)
         d_end = date(2016, 6, 24)
@@ -563,14 +566,10 @@ class TestPixelFunctions(unittest.TestCase):
         rows = metadata_service.search(SpacecraftID.LANDSAT_8, start_date=d_start, end_date=d_end,
                                        bounding_box=bounding_box,
                                        limit=1, sql_filters=sql_filters)
+        self.m_row_data = rows[0]
 
-        base_mount_path = '/imagery'
-        metadata = Metadata(rows[0], base_mount_path)
-        gsurl = urlparse(metadata.base_url)
-        storage = Storage(gsurl[1])
-
-        b_mounted = storage.mount_sub_folder(metadata)
-        self.assertTrue(b_mounted)
+    def test_pixel_1(self):
+        metadata = Metadata(self.m_row_data, self.base_mount_path)
         landsat = Landsat(metadata)  # , gsurl[2])
 
         code = """import numpy as np
@@ -596,4 +595,32 @@ def multiply_rounded(in_ar, out_ar, xoff, yoff, xsize, ysize, raster_xsize,
             result, message = xml_compare(expected, actual, {"GeoTransform": 1e-10})
             self.assertTrue(result, message)
 
+    def test_pixel_ndvi(self):
+        """
+        http://grindgis.com/blog/vegetation-indices-arcgis
+        NDVI = (NIR - RED) / (NIR + RED)
+        NDVI = (5 - 4) / (5 + 4)
+        :return:
+        """
+        metadata = Metadata(self.m_row_data, self.base_mount_path)
+        landsat = Landsat(metadata)  # , gsurl[2])
+
+        code = """import numpy as np
+    def ndvi_numpy(in_ar, out_ar, xoff, yoff, xsize, ysize, raster_xsize, raster_ysize, buf_radius, gt, **kwargs):
+        out_ar[:] = np.divide((in_ar[1] - in_ar[0]), (in_ar[1] + in_ar[0]))"""
+
+        pixel_function_details = {
+            "band_numbers": [4, 5],
+            "function_code": code,
+            "function_type": "ndvi_numpy",
+            "data_type": "Float32",
+        }
+        vrt = landsat.get_vrt([pixel_function_details, 3, 2])
+
+        with open('ndvi_numpy.vrt', 'r') as myfile:
+            data = myfile.read()
+            expected = etree.XML(data)
+            actual = etree.XML(vrt)
+            result, message = xml_compare(expected, actual, {"GeoTransform": 1e-10})
+            self.assertTrue(result, message)
 

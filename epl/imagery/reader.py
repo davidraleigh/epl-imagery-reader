@@ -129,55 +129,36 @@ class Landsat(Imagery):
 
         return self.__get_ndarray(band_numbers, scaleParams)
 
-#         """
-# http://www.gdal.org/gdal_vrttut.html
-#   <VRTRasterBand dataType="Byte" band="1" subClass="VRTDerivedRasterBand">
-#     <PixelFunctionType>multiply</PixelFunctionType>
-#     <PixelFunctionLanguage>Python</PixelFunctionLanguage>
-#     <PixelFunctionArguments factor="1.5"/>
-#     <PixelFunctionCode><![CDATA[
-# import numpy as np
-# def multiply(in_ar, out_ar, xoff, yoff, xsize, ysize, raster_xsize,
-#                    raster_ysize, buf_radius, gt, **kwargs):
-#     factor = float(kwargs['factor'])
-#     out_ar[:] = np.round_(np.clip(in_ar[0] * factor,0,255))
-# ]]>
-#     </PixelFunctionCode>
-#     <SimpleSource>
-#       <SourceFilename relativeToVRT="1">byte.tif</SourceFilename>
-#     </SimpleSource>
-#   </VRTRasterBand>
-#   """
-    def get_function_band_elem(self, vrt_dataset, band_definition, position_number, block_size):
+    def get_source_elem(self, band_number):
+        elem_simple_source = etree.Element("SimpleSource")
+
+        # if the input had multiple bands this setting would be where you change that
+        # but the google landsat is one tif per band
+        etree.SubElement(elem_simple_source, "SourceBand").text = str(1)
+
+        elem_source_filename = etree.SubElement(elem_simple_source, "SourceFilename")
+        elem_source_filename.set("relativeToVRT", "0")
 
         # TODO more elegant please
         name_prefix = self.__metadata.product_id
         if not self.__metadata.product_id:
             name_prefix = self.__metadata.scene_id
 
-        file_path = "{0}/{1}_B{2}.TIF".format(self.__metadata.full_mount_path,
-                                              name_prefix,
-                                              band_definition['band_numbers'][0])
+        file_path = "{0}/{1}_B{2}.TIF".format(self.__metadata.full_mount_path, name_prefix, band_number)
+        elem_source_filename.text = file_path
 
-        dataset = gdal.Open(file_path)
+        return elem_simple_source, file_path
+
+    def get_function_band_elem(self, vrt_dataset, band_definition, position_number, block_size):
 
         # data_type = gdal.GetDataTypeName(dataset.GetRasterBand(1).DataType)
-
-        x_size = dataset.RasterXSize
-        y_size = dataset.RasterYSize
-        projection = dataset.GetProjection()
-        geo_transform = dataset.GetGeoTransform()
-
         elem_raster_band = etree.SubElement(vrt_dataset, "VRTRasterBand")
 
         elem_raster_band.set("dataType", band_definition['data_type'])
         elem_raster_band.set("band", str(position_number))
         elem_raster_band.set("subClass", "VRTDerivedRasterBand")
 
-        elem_simple_source = etree.SubElement(elem_raster_band, "SimpleSource")
-        elem_source_filename = etree.SubElement(elem_simple_source, "SourceFilename")
-        elem_source_filename.set("relativeToVRT", "0")
-        elem_source_filename.text = file_path
+        # elem_simple_source = etree.SubElement(elem_raster_band, "SimpleSource")
 
         elem_function_language = etree.SubElement(elem_raster_band, "PixelFunctionLanguage")
         elem_function_language.text = "Python"
@@ -194,15 +175,23 @@ class Landsat(Imagery):
             for function_arg_key in band_definition['function_arguments']:
                 elem_function_args.set(function_arg_key, band_definition['function_arguments'][function_arg_key])
 
+        for band_number in band_definition["band_numbers"]:
+            elem_simple_source, file_path = self.get_source_elem(band_number)
+            elem_raster_band.append(elem_simple_source)
 
+        dataset = gdal.Open(file_path)
 
-
+        x_size = dataset.RasterXSize
+        y_size = dataset.RasterYSize
+        projection = dataset.GetProjection()
+        geo_transform = dataset.GetGeoTransform()
 
         return x_size, y_size, projection, geo_transform
 
     def get_band_elem(self, vrt_dataset, band_number, position_number, block_size):
 
         # TODO more elegant please
+        # TODO use get_source_elem
         name_prefix = self.__metadata.product_id
         if not self.__metadata.product_id:
             name_prefix = self.__metadata.scene_id
