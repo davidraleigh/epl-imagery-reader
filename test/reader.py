@@ -636,19 +636,25 @@ def ndvi_numpy(in_ar, out_ar, xoff, yoff, xsize, ysize, raster_xsize, raster_ysi
         }
         vrt = landsat.get_vrt([pixel_function_details, 3, 2])
 
-        # with open('ndvi_numpy.vrt', 'r') as myfile:
-        #     data = myfile.read()
-        #     expected = etree.XML(data)
-        #     actual = etree.XML(vrt)
-        #     result, message = xml_compare(expected, actual, {"GeoTransform": 1e-10})
-        #     self.assertTrue(result, message)
+        with open('ndvi_numpy.vrt', 'r') as myfile:
+            data = myfile.read()
+            expected = etree.XML(data)
+            actual = etree.XML(vrt)
+            result, message = xml_compare(expected, actual, {"GeoTransform": 1e-10})
+            self.assertTrue(result, message)
 
         gdal.SetConfigOption('GDAL_VRT_ENABLE_PYTHON', "YES")
 
         ds = gdal.Open(vrt)
         self.assertIsNotNone(ds)
         arr_ndvi = ds.GetRasterBand(1).ReadAsArray()
+        ds = None
         self.assertIsNotNone(arr_ndvi)
+        scaleParams = [[0.0, 65535], [0.0, 65535], [0.0, 65535]]
+        band_definitions = [pixel_function_details, 3, 2]
+        nda = landsat.fetch_imagery_array(band_definitions, scaleParams)
+        self.assertIsNotNone(nda)
+
 
     @staticmethod
     def ndvi_numpy(nir, red):

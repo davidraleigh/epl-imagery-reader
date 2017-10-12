@@ -284,7 +284,7 @@ class Landsat(Imagery):
         etree.SubElement(vrt_dataset, "SRS").text = projection
         etree.SubElement(vrt_dataset, "GeoTransform").text = ",".join(map("  {:.16e}".format, geo_transform))
 
-        return etree.tostring(vrt_dataset)
+        return etree.tostring(vrt_dataset, encoding='UTF-8', method='xml')
 
     def __get_ndarray(self, band_definitions, scaleParams=None, additional_param=None):
         vrt = self.get_vrt(band_definitions)
@@ -292,8 +292,10 @@ class Landsat(Imagery):
         # http://gdal.org/python/osgeo.gdal-module.html#TranslateOptions
         # vrt_projected = gdal.Translate('', vrt, of="VRT", scaleParams=[], ot="Byte")
         # assumes input is unsigned int and output it Bytes and resolution is 60 meters
-        dataset = gdal.Translate('', str(vrt), format="VRT",
-                                 scaleParams=scaleParams,
+        # with tempfile.NamedTemporaryFile(vrt.decode("utf-8"), suffix=".vrt", delete=True) as temp_vrt:
+        #     temp_vrt.write(vrt)
+        #     temp_vrt.flush()
+        dataset = gdal.Translate('', vrt.decode('utf-8'), format="VRT", scaleParams=scaleParams,
                                  xRes=60, yRes=60, outputType=gdal.GDT_Byte, noData=0)
         nda = dataset.ReadAsArray().transpose((1, 2, 0))
         return nda
