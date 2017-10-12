@@ -1,6 +1,8 @@
 import unittest
 import datetime
 
+import numpy as np
+
 from math import isclose
 from lxml import etree
 from osgeo import gdal
@@ -558,6 +560,7 @@ class TestLandsat(unittest.TestCase):
 class TestPixelFunctions(unittest.TestCase):
     m_row_data = None
     base_mount_path = '/imagery'
+    metadata_service = MetadataService()
 
     def setUp(self):
         metadata_service = MetadataService()
@@ -608,8 +611,8 @@ def multiply_rounded(in_ar, out_ar, xoff, yoff, xsize, ysize, raster_xsize,
         landsat = Landsat(metadata)  # , gsurl[2])
 
         code = """import numpy as np
-    def ndvi_numpy(in_ar, out_ar, xoff, yoff, xsize, ysize, raster_xsize, raster_ysize, buf_radius, gt, **kwargs):
-        out_ar[:] = np.divide((in_ar[1] - in_ar[0]), (in_ar[1] + in_ar[0]))"""
+def ndvi_numpy(in_ar, out_ar, xoff, yoff, xsize, ysize, raster_xsize, raster_ysize, buf_radius, gt, **kwargs):
+    out_ar[:] = np.divide((in_ar[1] - in_ar[0]), (in_ar[1] + in_ar[0]))"""
 
         pixel_function_details = {
             "band_numbers": [4, 5],
@@ -625,4 +628,80 @@ def multiply_rounded(in_ar, out_ar, xoff, yoff, xsize, ysize, raster_xsize,
             actual = etree.XML(vrt)
             result, message = xml_compare(expected, actual, {"GeoTransform": 1e-10})
             self.assertTrue(result, message)
+
+        gdal.SetConfigOption('GDAL_VRT_ENABLE_PYTHON', "YES")
+
+        ds = gdal.Open(vrt)
+        self.assertIsNotNone(ds)
+        arr_ndvi = ds.GetRasterBand(1).ReadAsArray()
+        self.assertIsNotNone(arr_ndvi)
+
+    @staticmethod
+    def ndvi_numpy(nir, red):
+        with np.errstate(divide='ignore', invalid='ignore'):
+            out_ar = np.divide((nir.astype(float) - red.astype(float)), (nir.astype(float) + red.astype(float)))
+            out_ar[np.isnan(out_ar)] = 0.0
+            # out_ar[np.isposinf(out_ar)] = 1.0
+            # out_ar[np.isneginf(out_ar)] = -1.0
+            return out_ar
+
+    def test_iowa_ndarray(self):
+        wkt_iowa = "POLYGON((-93.76075744628906 42.32707774458643,-93.47854614257812 42.32707774458643," \
+                   "-93.47854614257812 42.12674735753131,-93.76075744628906 42.12674735753131," \
+                   "-93.76075744628906 42.32707774458643))"
+
+        polygon = loads(wkt_iowa)
+
+        d_start = date(2016, 4, 4)
+        d_end = date(2016, 8, 7)
+        bounding_box = polygon.bounds
+        sql_filters = ["cloud_cover<=15"]
+        rows = self.metadata_service.search(
+            SpacecraftID.LANDSAT_8,
+            start_date=d_start,
+            end_date=d_end,
+            bounding_box=bounding_box,
+            sql_filters=sql_filters)
+        metadata = Metadata(rows[0], self.base_mount_path)
+
+        gdal.SetConfigOption('GDAL_VRT_ENABLE_PYTHON', "YES")
+
+        landsat = Landsat(metadata)
+
+        code = """import numpy as np
+def ndvi_numpy(in_ar, out_ar, xoff, yoff, xsize, ysize, raster_xsize, raster_ysize, buf_radius, gt, **kwargs):
+    with np.errstate(divide = 'ignore', invalid = 'ignore'):
+        out_ar[:] = np.divide((in_ar[1] - in_ar[0]), (in_ar[1] + in_ar[0]))
+        out_ar[np.isnan(out_ar)] = 0.0"""
+
+        pixel_function_details = {
+            "band_numbers": [4, 5],
+            "function_code": code,
+            "function_type": "ndvi_numpy",
+            "data_type": "Float32",
+        }
+
+        band_definitions = [pixel_function_details, 4, 5]
+
+        vrt = landsat.get_vrt(band_definitions)
+        ds = gdal.Open(vrt)
+
+        self.assertIsNotNone(ds)
+
+        arr_4 = ds.GetRasterBand(2).ReadAsArray()
+        arr_5 = ds.GetRasterBand(3).ReadAsArray()
+        arr_ndvi = ds.GetRasterBand(1).ReadAsArray()
+        print(np.ndarray.max(arr_ndvi))
+        print(np.ndarray.min(arr_ndvi))
+        self.assertFalse(np.any(np.isposinf(arr_ndvi)))
+        self.assertIsNotNone(arr_ndvi)
+
+        local_ndvi = self.ndvi_numpy(arr_5, arr_4)
+
+        np.testing.assert_almost_equal(arr_ndvi, local_ndvi)
+        # scaleParams = [[0.0, 255], [0.0, 255], [0.0, 255]]
+        # nda = landsat.fetch_imagery_array(band_definitions, scaleParams)
+        # plt.figure(figsize=[16, 16])
+        # plt.imshow(nda)
+
 

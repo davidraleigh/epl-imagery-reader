@@ -3,6 +3,8 @@ import errno
 import sys
 import threading
 
+import numpy as np
+
 from osgeo import gdal
 from urllib.parse import urlparse
 from lxml import etree
@@ -123,11 +125,12 @@ class Landsat(Imagery):
         self.__band_map = BandMap(metadata.spacecraft_id)
         self.__metadata = metadata
 
-    def fetch_imagery_array(self, band_numbers, scaleParams=None):
+    def fetch_imagery_array(self, band_definitions, scaleParams=None):
+        # TODO move this under __init__? Maybe run it on a separate thread
         if self.storage.mount_sub_folder(self.__metadata) is False:
             return None
 
-        return self.__get_ndarray(band_numbers, scaleParams)
+        return self.__get_ndarray(band_definitions, scaleParams)
 
     def get_source_elem(self, band_number, block_size=256):
         elem_simple_source = etree.Element("SimpleSource")
@@ -240,6 +243,10 @@ class Landsat(Imagery):
         return x_size, y_size, projection, geo_transform
 
     def get_vrt(self, band_definitions, translate_args=None):
+        # TODO move this under __init__? Maybe run it on a separate thread
+        if self.storage.mount_sub_folder(self.__metadata) is False:
+            return None
+
         vrt_dataset = etree.Element("VRTDataset")
 
         position_number = 1
@@ -455,7 +462,6 @@ LIMIT 1"""
         if satellite_id:
             query_builder += ' {0} spacecraft_id="{1}"'.format(clause_start, satellite_id.name)
             clause_start = 'AND'
-
 
         if bounding_box is not None:
             minx = bounding_box[0]
