@@ -3,6 +3,9 @@ import errno
 import sys
 import threading
 
+import tempfile
+import py_compile
+
 import numpy as np
 
 from osgeo import gdal
@@ -15,6 +18,7 @@ from subprocess import call
 # Imports the Google Cloud client library
 from google.cloud import bigquery
 from google.cloud import storage
+
 
 
 class SpacecraftID(Enum):
@@ -185,7 +189,6 @@ class Landsat(Imagery):
         return elem_simple_source, x_size, y_size, projection, geo_transform, data_type
 
     def get_function_band_elem(self, vrt_dataset, band_definition, position_number, block_size):
-
         # data_type = gdal.GetDataTypeName(dataset.GetRasterBand(1).DataType)
         elem_raster_band = etree.SubElement(vrt_dataset, "VRTRasterBand")
 
@@ -202,13 +205,20 @@ class Landsat(Imagery):
         elem_function_type.text = band_definition["function_type"]
 
         if 'function_code' in band_definition:
+            # TODO, still ugly that I have to use a temporary file: Also, stupid that I can't catch GDAL errors
+            function_file = tempfile.NamedTemporaryFile(prefix=band_definition['function_type'], suffix=".py", delete=False)
+            function_file.write(band_definition['function_code'].encode())
+            function_file.close()
+
+            py_compile.compile(function_file.name, doraise=True)
+
             etree.SubElement(elem_raster_band, "PixelFunctionCode").text = band_definition["function_code"]
 
         if 'function_arguments' in band_definition:
             # <PixelFunctionArguments factor="1.5"/>
             elem_function_args = etree.SubElement(elem_raster_band, "PixelFunctionArguments")
             for function_arg_key in band_definition['function_arguments']:
-                elem_function_args.set(function_arg_key, band_definition['function_arguments'][function_arg_key])
+                elem_function_args.set(function_arg_key, str(band_definition['function_arguments'][function_arg_key]))
 
         for band_number in band_definition["band_numbers"]:
             elem_simple_source, x_size, y_size, projection, geo_transform, data_type = self.get_source_elem(band_number)

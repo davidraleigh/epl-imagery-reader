@@ -1,5 +1,6 @@
 import unittest
 import datetime
+import py_compile
 
 import numpy as np
 
@@ -561,6 +562,7 @@ class TestPixelFunctions(unittest.TestCase):
     m_row_data = None
     base_mount_path = '/imagery'
     metadata_service = MetadataService()
+    iowa_polygon = None
 
     def setUp(self):
         metadata_service = MetadataService()
@@ -572,6 +574,11 @@ class TestPixelFunctions(unittest.TestCase):
                                        bounding_box=bounding_box,
                                        limit=1, sql_filters=sql_filters)
         self.m_row_data = rows[0]
+        wkt_iowa = "POLYGON((-93.76075744628906 42.32707774458643,-93.47854614257812 42.32707774458643," \
+                   "-93.47854614257812 42.12674735753131,-93.76075744628906 42.12674735753131," \
+                   "-93.76075744628906 42.32707774458643))"
+        self.iowa_polygon = loads(wkt_iowa)
+        gdal.SetConfigOption('GDAL_VRT_ENABLE_PYTHON', "YES")
 
     def test_pixel_1(self):
         metadata = Metadata(self.m_row_data, self.base_mount_path)
@@ -641,20 +648,12 @@ def ndvi_numpy(in_ar, out_ar, xoff, yoff, xsize, ysize, raster_xsize, raster_ysi
         with np.errstate(divide='ignore', invalid='ignore'):
             out_ar = np.divide((nir.astype(float) - red.astype(float)), (nir.astype(float) + red.astype(float)))
             out_ar[np.isnan(out_ar)] = 0.0
-            # out_ar[np.isposinf(out_ar)] = 1.0
-            # out_ar[np.isneginf(out_ar)] = -1.0
             return out_ar
 
     def test_iowa_ndarray(self):
-        wkt_iowa = "POLYGON((-93.76075744628906 42.32707774458643,-93.47854614257812 42.32707774458643," \
-                   "-93.47854614257812 42.12674735753131,-93.76075744628906 42.12674735753131," \
-                   "-93.76075744628906 42.32707774458643))"
-
-        polygon = loads(wkt_iowa)
-
         d_start = date(2016, 4, 4)
         d_end = date(2016, 8, 7)
-        bounding_box = polygon.bounds
+        bounding_box = self.iowa_polygon.bounds
         sql_filters = ["cloud_cover<=15"]
         rows = self.metadata_service.search(
             SpacecraftID.LANDSAT_8,
@@ -663,16 +662,14 @@ def ndvi_numpy(in_ar, out_ar, xoff, yoff, xsize, ysize, raster_xsize, raster_ysi
             bounding_box=bounding_box,
             sql_filters=sql_filters)
         metadata = Metadata(rows[0], self.base_mount_path)
-
-        gdal.SetConfigOption('GDAL_VRT_ENABLE_PYTHON', "YES")
-
         landsat = Landsat(metadata)
 
         code = """import numpy as np
 def ndvi_numpy(in_ar, out_ar, xoff, yoff, xsize, ysize, raster_xsize, raster_ysize, buf_radius, gt, **kwargs):
     with np.errstate(divide = 'ignore', invalid = 'ignore'):
         out_ar[:] = np.divide((in_ar[1] - in_ar[0]), (in_ar[1] + in_ar[0]))
-        out_ar[np.isnan(out_ar)] = 0.0"""
+        out_ar[np.isnan(out_ar)] = 0.0
+        out_ar """
 
         pixel_function_details = {
             "band_numbers": [4, 5],
@@ -693,15 +690,105 @@ def ndvi_numpy(in_ar, out_ar, xoff, yoff, xsize, ysize, raster_xsize, raster_ysi
         arr_ndvi = ds.GetRasterBand(1).ReadAsArray()
         print(np.ndarray.max(arr_ndvi))
         print(np.ndarray.min(arr_ndvi))
-        self.assertFalse(np.any(np.isposinf(arr_ndvi)))
+        self.assertFalse(np.any(np.isinf(arr_ndvi)))
         self.assertIsNotNone(arr_ndvi)
 
         local_ndvi = self.ndvi_numpy(arr_5, arr_4)
+        self.assertFalse(np.any(np.isinf(local_ndvi)))
 
         np.testing.assert_almost_equal(arr_ndvi, local_ndvi)
-        # scaleParams = [[0.0, 255], [0.0, 255], [0.0, 255]]
-        # nda = landsat.fetch_imagery_array(band_definitions, scaleParams)
-        # plt.figure(figsize=[16, 16])
-        # plt.imshow(nda)
 
+    def test_iowa_scaled(self):
+        d_start = date(2016, 4, 4)
+        d_end = date(2016, 8, 7)
+        bounding_box = self.iowa_polygon.bounds
+        sql_filters = ["cloud_cover<=15"]
+        rows = self.metadata_service.search(
+            SpacecraftID.LANDSAT_8,
+            start_date=d_start,
+            end_date=d_end,
+            bounding_box=bounding_box,
+            sql_filters=sql_filters)
+        metadata = Metadata(rows[0], self.base_mount_path)
+        landsat = Landsat(metadata)
 
+        code = """import numpy as np
+def ndvi_numpy(in_ar, out_ar, xoff, yoff, xsize, ysize, raster_xsize, raster_ysize, buf_radius, gt, **kwargs):
+    with np.errstate(divide = 'ignore', invalid = 'ignore'):
+        factor = float(kwargs['factor'])
+        out_ar[:] = np.divide((in_ar[1] - in_ar[0]), (in_ar[1] + in_ar[0]))
+        out_ar[np.isnan(out_ar)] = 0.0
+        # shift range from -1.0-1.0 to 0.0-2.0
+        out_ar += 1.0
+        # scale up from 0.0-2.0 to 0 to 255 by multiplying by 255/2
+        out_ar *= factor/2.0"""
+
+        pixel_function_details = {
+            "function_arguments": {"factor": 255},
+            "band_numbers": [4, 5],
+            "function_code": code,
+            "function_type": "ndvi_numpy",
+            "data_type": "Float32",
+        }
+
+        band_definitions = [pixel_function_details, 4, 5]
+
+        vrt = landsat.get_vrt(band_definitions)
+        ds = gdal.Open(vrt)
+
+        self.assertIsNotNone(ds)
+
+        arr_4 = ds.GetRasterBand(2).ReadAsArray()
+        arr_5 = ds.GetRasterBand(3).ReadAsArray()
+        arr_ndvi = ds.GetRasterBand(1).ReadAsArray()
+        print(np.ndarray.max(arr_ndvi))
+        # print(np.ndarray.min(arr_ndvi))
+        # self.assertFalse(np.any(np.isinf(arr_ndvi)))
+        self.assertIsNotNone(arr_ndvi)
+
+        local_ndvi = self.ndvi_numpy(arr_5, arr_4)
+        arr_4 = None
+        arr_5 = None
+        local_ndvi += 1.0
+        local_ndvi *= pixel_function_details['function_arguments']['factor'] / 2.0
+        self.assertFalse(np.any(np.isinf(local_ndvi)))
+
+        np.floor(arr_ndvi, out=arr_ndvi)
+        np.floor(local_ndvi, out=local_ndvi)
+        np.testing.assert_almost_equal(arr_ndvi, local_ndvi, decimal=0)
+
+    def test_malformed_funciton(self):
+        d_start = date(2016, 4, 4)
+        d_end = date(2016, 8, 7)
+        bounding_box = self.iowa_polygon.bounds
+        sql_filters = ["cloud_cover<=15"]
+        rows = self.metadata_service.search(
+            SpacecraftID.LANDSAT_8,
+            start_date=d_start,
+            end_date=d_end,
+            bounding_box=bounding_box,
+            sql_filters=sql_filters)
+        metadata = Metadata(rows[0], self.base_mount_path)
+        landsat = Landsat(metadata)
+
+        code = """import numpy as np
+        def ndvi_numpy(in_ar, out_ar, xoff, yoff, xsize, ysize, raster_xsize, raster_ysize, buf_radius, gt, **kwargs):
+        with np.errstate(divide = 'ignore', invalid = 'ignore'):
+            factor = float(kwargs['factor'])
+            out_ar[:] = np.divide((in_ar[1] - in_ar[0]), (in_ar[1] + in_ar[0]))
+            out_ar[np.isnan(out_ar)] = 0.0
+            # shift range from -1.0-1.0 to 0.0-2.0
+            out_ar += 1.0
+            # scale up from 0.0-2.0 to 0 to 255 by multiplying by 255/2
+            out_ar *= factor/2.0 """
+
+        pixel_function_details = {
+            "function_arguments": {"factor": 255},
+            "band_numbers": [4, 5],
+            "function_code": code,
+            "function_type": "ndvi_numpy",
+            "data_type": "Float32",
+        }
+
+        band_definitions = [pixel_function_details, 4, 5]
+        self.assertRaises(py_compile.PyCompileError, lambda: landsat.get_vrt(band_definitions))
