@@ -206,11 +206,13 @@ class Landsat(Imagery):
 
         if 'function_code' in band_definition:
             # TODO, still ugly that I have to use a temporary file: Also, stupid that I can't catch GDAL errors
-            function_file = tempfile.NamedTemporaryFile(prefix=band_definition['function_type'], suffix=".py", delete=False)
+            function_file = tempfile.NamedTemporaryFile(prefix=band_definition['function_type'], suffix=".py", delete=True)
             function_file.write(band_definition['function_code'].encode())
-            function_file.close()
+            function_file.flush()
 
             py_compile.compile(function_file.name, doraise=True)
+            # delete file after compiling
+            function_file.close()
 
             etree.SubElement(elem_raster_band, "PixelFunctionCode").text = band_definition["function_code"]
 
