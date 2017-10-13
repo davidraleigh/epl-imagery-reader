@@ -279,7 +279,7 @@ class Landsat(Imagery):
         # # file_path = self.__metadata.full_mount_path + os.path.sep + self.__metadata.scene_id + "_B{}.TIF".format(band)
 
         # I think this needs to be removed.
-        color_interp = self.band_map.get_band_name(band_number)
+        color_interp = self.band_map.get_band_name(band_number).capitalize()
 
         elem_raster_band = etree.SubElement(vrt_dataset, "VRTRasterBand")
 
