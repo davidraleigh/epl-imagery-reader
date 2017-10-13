@@ -262,6 +262,10 @@ class Landsat(Imagery):
                 elem_function_args.set(function_arg_key, str(band_definition['function_arguments'][function_arg_key]))
 
         for band_number in band_definition["band_numbers"]:
+            # TODO, I don't like this reuse of this variable
+            if isinstance(band_number, Band):
+                band_number = self.band_map.get_band_number(band_number)
+
             elem_simple_source, x_size, y_size, projection, geo_transform, data_type = self.get_source_elem(band_number)
             elem_raster_band.append(elem_simple_source)
 

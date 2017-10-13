@@ -603,6 +603,7 @@ class TestLandsat(unittest.TestCase):
         np.testing.assert_almost_equal(nda, nda2)
         # 'scene_id': 'LC80390332016208LGN00'
 
+
 class TestPixelFunctions(unittest.TestCase):
     m_row_data = None
     base_mount_path = '/imagery'
@@ -790,13 +791,13 @@ def ndvi_numpy(in_ar, out_ar, xoff, yoff, xsize, ysize, raster_xsize, raster_ysi
 
         pixel_function_details = {
             "function_arguments": {"factor": 255},
-            "band_numbers": [4, 5],
+            "band_numbers": [4, Band.NIR],
             "function_code": code,
             "function_type": "ndvi_numpy",
             "data_type": "Float32",
         }
 
-        band_definitions = [pixel_function_details, 4, 5]
+        band_definitions = [pixel_function_details, Band.RED, 5]
 
         vrt = landsat.get_vrt(band_definitions)
         ds = gdal.Open(vrt)
