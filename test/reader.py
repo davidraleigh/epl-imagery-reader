@@ -217,7 +217,8 @@ class TestStorage(unittest.TestCase):
         storage = Storage(gsurl[1])
 
         metadata = Metadata(rows[0], self.base_mount_path)
-        self.assertTrue(storage.mount_sub_folder(metadata))
+        self.assertTrue(storage.mount_sub_folder(metadata, "generic"))
+        self.assertTrue(storage.unmount_sub_folder(metadata, "generic"))
 
     def test_singleton(self):
         metadata_service = MetadataService()
@@ -244,18 +245,19 @@ class TestStorage(unittest.TestCase):
         storage = Storage(gsurl[1])
 
         metadata = Metadata(rows[0], self.base_mount_path)
-        self.assertTrue(storage.mount_sub_folder(metadata))
+        self.assertTrue(storage.mount_sub_folder(metadata, "generic"))
         files = [f for f in os.listdir(metadata.full_mount_path) if
                  os.path.isfile(os.path.join(metadata.full_mount_path, f))]
         self.assertTrue(len(files) > 0)
-        self.assertTrue(storage.unmount_sub_folder(metadata))
+        self.assertTrue(storage.unmount_sub_folder(metadata, "generic"))
         files = [f for f in os.listdir(metadata.full_mount_path) if
                  os.path.isfile(os.path.join(metadata.full_mount_path, f))]
         self.assertEqual(len(files), 0)
-        self.assertTrue(storage.mount_sub_folder(metadata))
+        self.assertTrue(storage.mount_sub_folder(metadata, "generic"))
         files = [f for f in os.listdir(metadata.full_mount_path) if
                  os.path.isfile(os.path.join(metadata.full_mount_path, f))]
         self.assertTrue(len(files) > 0)
+        self.assertTrue(storage.unmount_sub_folder(metadata, "generic"))
 
 
 class TestBandMap(unittest.TestCase):
@@ -356,8 +358,10 @@ class TestLandsat(unittest.TestCase):
         storage = Storage(gsurl[1])
 
         metadata = Metadata(rows[0], self.base_mount_path)
-        b_mounted = storage.mount_sub_folder(metadata)
+        b_mounted = storage.mount_sub_folder(metadata, "generic")
         self.assertTrue(b_mounted)
+        b_deleted = storage.unmount_sub_folder(metadata, "generic")
+        self.assertTrue(b_deleted)
 
     def test_vrt(self):
         metadata_service = MetadataService()
@@ -369,12 +373,8 @@ class TestLandsat(unittest.TestCase):
                                limit=1, sql_filters=sql_filters)
 
         metadata = Metadata(rows[0], self.base_mount_path)
-        gsurl = urlparse(metadata.base_url)
-        storage = Storage(gsurl[1])
 
-        b_mounted = storage.mount_sub_folder(metadata)
-        self.assertTrue(b_mounted)
-        landsat = Landsat(metadata)#, gsurl[2])
+        landsat = Landsat(metadata)
         vrt = landsat.get_vrt([4, 3, 2])
         with open('test_1.vrt', 'r') as myfile:
             data = myfile.read()
@@ -471,15 +471,6 @@ class TestLandsat(unittest.TestCase):
 
         # data structure that contains all fields from Google's Landsat BigQuery Database
         metadata = Metadata(rows[0], self.base_mount_path)
-        # print(metadata.__dict__)
-
-        # break down gs url into pieces required for gcs-fuse
-        gsurl = urlparse(metadata.base_url)
-
-        # mounting Google Storage bucket with gcs-fuse
-        storage = Storage(gsurl[1])
-        b_mounted = storage.mount_sub_folder(metadata)
-        self.assertTrue(b_mounted)
 
         # GDAL helper functions for generating VRT
         landsat = Landsat(metadata)
@@ -620,13 +611,42 @@ class TestLandsat(unittest.TestCase):
             bounding_box=bounding_box,
             sql_filters=sql_filters)
 
-
         metadata = Metadata(rows[0], self.base_mount_path)
         landsat = Landsat(metadata)
         vrt = landsat.get_vrt([4])
         storage = Storage("gcp-public-data-landsat")
         del landsat
         self.assertFalse(storage.is_mounted(metadata))
+
+    def test_unmount_destructor_conflict(self):
+        wkt = "POLYGON((136.2469482421875 -27.57843813308233,138.6639404296875 -27.57843813308233," \
+              "138.6639404296875 -29.82351878748485,136.2469482421875 -29.82351878748485,136." \
+              "2469482421875 -27.57843813308233))"
+
+        polygon = loads(wkt)
+
+        metadata_service = MetadataService()
+        # sql_filters = ['cloud_cover=0']
+        d_start = date(2006, 8, 4)
+        d_end = date(2006, 8, 7)
+        bounding_box = polygon.bounds
+        sql_filters = ['wrs_row=79']
+        rows = metadata_service.search(
+            SpacecraftID.LANDSAT_5,
+            start_date=d_start,
+            end_date=d_end,
+            bounding_box=bounding_box,
+            sql_filters=sql_filters)
+
+
+        metadata = Metadata(rows[0], self.base_mount_path)
+        landsat = Landsat(metadata)
+        vrt = landsat.get_vrt([4])
+        storage = Storage("gcp-public-data-landsat")
+        landsat_2 = Landsat(metadata)
+        vrt = landsat_2.get_vrt([4])
+        del landsat
+        self.assertTrue(storage.is_mounted(metadata))
 
 
 
@@ -769,18 +789,22 @@ def ndvi_numpy(in_ar, out_ar, xoff, yoff, xsize, ysize, raster_xsize, raster_ysi
 
         vrt = landsat.get_vrt(band_definitions)
         ds = gdal.Open(vrt)
-
         self.assertIsNotNone(ds)
 
         arr_4 = ds.GetRasterBand(2).ReadAsArray()
         arr_5 = ds.GetRasterBand(3).ReadAsArray()
         arr_ndvi = ds.GetRasterBand(1).ReadAsArray()
+        del ds
+        del landsat
         print(np.ndarray.max(arr_ndvi))
         print(np.ndarray.min(arr_ndvi))
         self.assertFalse(np.any(np.isinf(arr_ndvi)))
         self.assertIsNotNone(arr_ndvi)
 
         local_ndvi = self.ndvi_numpy(arr_5, arr_4)
+
+        del arr_4
+        del arr_5
         self.assertFalse(np.any(np.isinf(local_ndvi)))
 
         np.testing.assert_almost_equal(arr_ndvi, local_ndvi)
@@ -828,14 +852,17 @@ def ndvi_numpy(in_ar, out_ar, xoff, yoff, xsize, ysize, raster_xsize, raster_ysi
         arr_4 = ds.GetRasterBand(2).ReadAsArray()
         arr_5 = ds.GetRasterBand(3).ReadAsArray()
         arr_ndvi = ds.GetRasterBand(1).ReadAsArray()
+        del ds
+        del landsat
         print(np.ndarray.max(arr_ndvi))
         # print(np.ndarray.min(arr_ndvi))
         # self.assertFalse(np.any(np.isinf(arr_ndvi)))
         self.assertIsNotNone(arr_ndvi)
 
         local_ndvi = self.ndvi_numpy(arr_5, arr_4)
-        arr_4 = None
-        arr_5 = None
+        del arr_4
+        del arr_5
+
         local_ndvi += 1.0
         local_ndvi *= pixel_function_details['function_arguments']['factor'] / 2.0
         self.assertFalse(np.any(np.isinf(local_ndvi)))

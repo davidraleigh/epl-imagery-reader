@@ -137,20 +137,22 @@ class Landsat(Imagery):
     # def __init__(self, base_mount_path, bucket_name="gcp-public-data-landsat"):
     __band_map = None
     __metadata = None
+    __id = None
 
     def __init__(self, metadata):
         bucket_name = "gcp-public-data-landsat"
         super().__init__(bucket_name)
         self.__band_map = BandMap(metadata.spacecraft_id)
         self.__metadata = metadata
+        self.__id = id(self)
 
     def __del__(self):
-        print('bucket unmounted')
-        self.storage.unmount_sub_folder(self.__metadata)
+        print('\nbucket unmounted\n')
+        self.storage.unmount_sub_folder(self.__metadata, request_key=self.__id)
 
     def fetch_imagery_array(self, band_definitions, scaleParams=None):
         # TODO move this under __init__? Maybe run it on a separate thread
-        if self.storage.mount_sub_folder(self.__metadata) is False:
+        if self.storage.mount_sub_folder(self.__metadata, request_key=self.__id) is False:
             return None
 
         return self.__get_ndarray(band_definitions, scaleParams)
@@ -182,7 +184,7 @@ class Landsat(Imagery):
         projection = dataset.GetProjection()
         geo_transform = dataset.GetGeoTransform()
 
-        dataset = None
+        del dataset
 
         elem_source_props = etree.SubElement(elem_simple_source, "SourceProperties")
         elem_source_props.set("RasterXSize", str(x_size))
@@ -275,7 +277,7 @@ class Landsat(Imagery):
 
     def get_vrt(self, band_definitions, translate_args=None):
         # TODO move this under __init__? Maybe run it on a separate thread
-        if self.storage.mount_sub_folder(self.__metadata) is False:
+        if self.storage.mount_sub_folder(self.__metadata, request_key=self.__id) is False:
             return None
 
         vrt_dataset = etree.Element("VRTDataset")
@@ -578,8 +580,9 @@ class Storage(metaclass=__Singleton):
         if metadata.full_mount_path in self.__mounted_sub_folders and \
                 self.__mounted_sub_folders[metadata.full_mount_path]:
             return True
+        return False
 
-    def mount_sub_folder(self, metadata):
+    def mount_sub_folder(self, metadata, request_key):
         # execute mount command
         # gcsfuse --only-dir LC08/PRE/044/034/LC80440342016259LGN00 gcp-public-data-landsat /landsat
 
@@ -587,8 +590,12 @@ class Storage(metaclass=__Singleton):
         # subprocess.run("exit 1", shell=True, check=True)
         # subprocess.run(["ls", "-l", "/dev/null"], stdout=subprocess.PIPE)
         if metadata.full_mount_path in self.__mounted_sub_folders and \
-                self.__mounted_sub_folders[metadata.full_mount_path]:
+                        request_key in self.__mounted_sub_folders[metadata.full_mount_path]:
             return True
+
+        # if this isn't
+        if metadata.full_mount_path not in self.__mounted_sub_folders:
+            self.__mounted_sub_folders[metadata.full_mount_path] = set()
 
         try:
             if not os.path.isdir(metadata.full_mount_path):
@@ -596,7 +603,7 @@ class Storage(metaclass=__Singleton):
             else:
                 # check to see if directory is already mounted if so maybe just return True?
                 if len(os.listdir(metadata.full_mount_path)) > 0:
-                    self.__mounted_sub_folders[metadata.full_mount_path] = True
+                    self.__mounted_sub_folders[metadata.full_mount_path].add(request_key)
                     return True
                 # hard to know what to do if it's mounted and it's empty...
                 # TODO make a test for that case
@@ -614,26 +621,29 @@ class Storage(metaclass=__Singleton):
         if val != 0:
             return False
 
-        self.__mounted_sub_folders[metadata.full_mount_path] = True
+        self.__mounted_sub_folders[metadata.full_mount_path].add(request_key)
         return True
 
-    def unmount_sub_folder(self, metadata, force=False):
+    def unmount_sub_folder(self, metadata, request_key, force=False):
         # fusermount -u /path/to/mount/point
-        if metadata.full_mount_path not in self.__mounted_sub_folders and not force:
+        if not force and (metadata.full_mount_path not in self.__mounted_sub_folders or request_key not in self.__mounted_sub_folders[metadata.full_mount_path]):
             return True
 
+        # remove the request_key from
+        self.__mounted_sub_folders[metadata.full_mount_path].discard(request_key)
+
+        # if there are still members of the set then escape
+        if not force and self.__mounted_sub_folders[metadata.full_mount_path]:
+            return True
+
+        # if there are no more references to this storage object, unmount
+        # of if this is being forced
         val = call(["fusermount", "-u", metadata.full_mount_path])
         if val != 0:
             return False
 
-        # TODO, maybe there should be some sort of cleanup of this hashmap? or maybe it wouldn't ever get too large?...
-        # instead of setting things to false and storing information about files we might never visit again, maybe
-        # we delete the position in the hashmap? does that force and immediate reshape of the hashmap? probably not.
-        # self.__mounted_sub_folders[metadata.full_mount_path] = False
-        # Decided to delete the key/value pair
-        del self.__mounted_sub_folders[metadata.full_mount_path]
+        # if the set is empty, maybe we reclaim the space in the hashmap
+        if not self.__mounted_sub_folders[metadata.full_mount_path] or force:
+            del self.__mounted_sub_folders[metadata.full_mount_path]
 
         return True
-
-
-
