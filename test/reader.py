@@ -1,6 +1,7 @@
 import unittest
 import datetime
 import py_compile
+import os
 
 import numpy as np
 
@@ -196,8 +197,15 @@ class TestMetaDataSQL(unittest.TestCase):
         metadata = Metadata(rows[0])
         self.assertEqual(len(metadata.get_file_list()), 0)
 
+    def test_metadata_singleton(self):
+        metadata_service_1 = MetadataService()
+        metadata_service_2 = MetadataService()
+        self.assertTrue(metadata_service_1 is metadata_service_2)
+
 
 class TestStorage(unittest.TestCase):
+    base_mount_path = '/imagery'
+
     def test_storage_create(self):
         metadata_service = MetadataService()
         d_start = date(2015, 6, 24)
@@ -207,10 +215,47 @@ class TestStorage(unittest.TestCase):
         path = rows[0][17]
         gsurl = urlparse(path)
         storage = Storage(gsurl[1])
-        base_mount_path = '/imagery'
 
-        metadata = Metadata(rows[0], base_mount_path)
+        metadata = Metadata(rows[0], self.base_mount_path)
         self.assertTrue(storage.mount_sub_folder(metadata))
+
+    def test_singleton(self):
+        metadata_service = MetadataService()
+        d_start = date(2015, 6, 24)
+        d_end = date(2016, 6, 24)
+        bounding_box = (-115.927734375, 34.52466147177172, -78.31054687499999, 44.84029065139799)
+        rows = metadata_service.search(SpacecraftID.LANDSAT_8, start_date=d_start, end_date=d_end,
+                                       bounding_box=bounding_box, limit=1)
+        path = rows[0][17]
+        gsurl = urlparse(path)
+        storage_1 = Storage(gsurl[1])
+        storage_2 = Storage(gsurl[1])
+        self.assertTrue(storage_1 is storage_2)
+
+    def test_delete_storage(self):
+        metadata_service = MetadataService()
+        d_start = date(2015, 6, 24)
+        d_end = date(2016, 6, 24)
+        bounding_box = (-115.927734375, 34.52466147177172, -78.31054687499999, 44.84029065139799)
+        rows = metadata_service.search(SpacecraftID.LANDSAT_8, start_date=d_start, end_date=d_end,
+                                       bounding_box=bounding_box, limit=1)
+        path = rows[0][17]
+        gsurl = urlparse(path)
+        storage = Storage(gsurl[1])
+
+        metadata = Metadata(rows[0], self.base_mount_path)
+        self.assertTrue(storage.mount_sub_folder(metadata))
+        files = [f for f in os.listdir(metadata.full_mount_path) if
+                 os.path.isfile(os.path.join(metadata.full_mount_path, f))]
+        self.assertTrue(len(files) > 0)
+        self.assertTrue(storage.unmount_sub_folder(metadata))
+        files = [f for f in os.listdir(metadata.full_mount_path) if
+                 os.path.isfile(os.path.join(metadata.full_mount_path, f))]
+        self.assertEqual(len(files), 0)
+        self.assertTrue(storage.mount_sub_folder(metadata))
+        files = [f for f in os.listdir(metadata.full_mount_path) if
+                 os.path.isfile(os.path.join(metadata.full_mount_path, f))]
+        self.assertTrue(len(files) > 0)
 
 
 class TestBandMap(unittest.TestCase):
@@ -286,14 +331,17 @@ class TestBandMap(unittest.TestCase):
 
 
 class TestLandsat(unittest.TestCase):
+    base_mount_path = '/imagery'
+
     def test_get_file(self):
         metadata_service = MetadataService()
         d_start = date(2015, 6, 24)
         d_end = date(2016, 6, 24)
         bounding_box = (-115.927734375, 34.52466147177172, -78.31054687499999, 44.84029065139799)
         rows = metadata_service.search(SpacecraftID.LANDSAT_8, start_date=d_start, end_date=d_end, bounding_box=bounding_box, limit=1)
-        metadata = Metadata(rows[0], '/data/imagery')
+        metadata = Metadata(rows[0], self.base_mount_path)
         landsat = Landsat(metadata)
+        self.assertIsNotNone(landsat)
         #    'gs://gcp-public-data-landsat/LC08/PRE/037/036/LC80370362016082LGN00'
 
     def test_gdal_info(self):
@@ -306,8 +354,8 @@ class TestLandsat(unittest.TestCase):
         path = rows[0][17]
         gsurl = urlparse(path)
         storage = Storage(gsurl[1])
-        base_mount_path = '/imagery'
-        metadata = Metadata(rows[0], base_mount_path)
+
+        metadata = Metadata(rows[0], self.base_mount_path)
         b_mounted = storage.mount_sub_folder(metadata)
         self.assertTrue(b_mounted)
 
@@ -320,9 +368,7 @@ class TestLandsat(unittest.TestCase):
         rows = metadata_service.search(SpacecraftID.LANDSAT_8, start_date=d_start, end_date=d_end, bounding_box=bounding_box,
                                limit=1, sql_filters=sql_filters)
 
-
-        base_mount_path = '/imagery'
-        metadata = Metadata(rows[0], base_mount_path)
+        metadata = Metadata(rows[0], self.base_mount_path)
         gsurl = urlparse(metadata.base_url)
         storage = Storage(gsurl[1])
 
@@ -374,10 +420,10 @@ class TestLandsat(unittest.TestCase):
         self.assertEqual(len(rows), 1)
 
         # mounted directory in docker container
-        base_mount_path = '/imagery'
+
 
         # data structure that contains all fields from Google's Landsat BigQuery Database
-        metadata = Metadata(rows[0], base_mount_path)
+        metadata = Metadata(rows[0], self.base_mount_path)
         # print(metadata.__dict__)
 
         # break down gs url into pieces required for gcs-fuse
@@ -385,7 +431,7 @@ class TestLandsat(unittest.TestCase):
 
         # mounting Google Storage bucket with gcs-fuse
         # storage = Storage(gsurl[1])
-        # b_mounted = storage.mount_sub_folder(gsurl[2], base_mount_path)
+        # b_mounted = storage.mount_sub_folder(gsurl[2], self.base_mount_path)
 
         # print(gsurl[1])
         # print(gsurl[2])
@@ -423,11 +469,8 @@ class TestLandsat(unittest.TestCase):
 
         self.assertEqual(len(rows), 1)
 
-        # mounted directory in docker container
-        base_mount_path = '/imagery'
-
         # data structure that contains all fields from Google's Landsat BigQuery Database
-        metadata = Metadata(rows[0], base_mount_path)
+        metadata = Metadata(rows[0], self.base_mount_path)
         # print(metadata.__dict__)
 
         # break down gs url into pieces required for gcs-fuse
@@ -458,18 +501,18 @@ class TestLandsat(unittest.TestCase):
         rows = metadata_service.search(SpacecraftID.LANDSAT_8, start_date=d_start, end_date=d_end, bounding_box=utah_box,
                                       limit=10, sql_filters=['collection_number=="PRE"', "cloud_cover<=5"])
         self.assertEqual(len(rows), 1)
-        base_mount_path = '/imagery'
+
         #     metadata_row = ['LC80390332016208LGN00', '', 'LANDSAT_8', 'OLI_TIRS', '2016-07-26',
         # '2016-07-26T18:14:46.9465460Z', 'PRE', 'N/A', 'L1T', 39, 33, 1.69,
         # 39.96962, 37.81744, -115.27267, -112.56732, 1070517542,
         # 'gs://gcp-public-data-landsat/LC08/PRE/039/033/LC80390332016208LGN00']
-        metadata = Metadata(rows[0], base_mount_path)
+        metadata = Metadata(rows[0], self.base_mount_path)
         # break down gs url into pieces required for gcs-fuse
         # gsurl = urlparse(metadata.base_url)
         #
         # # mounting Google Storage bucket with gcs-fuse
         # storage = Storage(gsurl[1])
-        # b_mounted = storage.mount_sub_folder(gsurl[2], base_mount_path)
+        # b_mounted = storage.mount_sub_folder(gsurl[2], self.base_mount_path)
         # self.assertTrue(b_mounted)
         #
         # storage = Storage(gsurl[1])
@@ -541,12 +584,12 @@ class TestLandsat(unittest.TestCase):
     #     metadata_service = MetadataService()
     #     rows = metadata_service.search(SpacecraftID.LANDSAT_8, sql_filters=sql_filters)
     #
-    #     base_mount_path = '/imagery'
-    #     metadata = Metadata(rows[0], base_mount_path)
+    #
+    #     metadata = Metadata(rows[0], self.base_mount_path)
     #     gsurl = urlparse(metadata.base_url)
     #     storage = Storage(gsurl[1])
     #
-    #     b_mounted = storage.mount_sub_folder(gsurl[2], base_mount_path)
+    #     b_mounted = storage.mount_sub_folder(gsurl[2], self.base_mount_path)
     #     landsat = Landsat(base_mount_path, gsurl[2])
     #     vrt = landsat.get_vrt(metadata, [5, 4, 3])
     #
@@ -556,6 +599,35 @@ class TestLandsat(unittest.TestCase):
     #         actual = etree.XML(vrt)
     #         result, message = xml_compare(expected, actual)
     #         self.assertTrue(result, message)
+
+    def test_unmount_destructor(self):
+        wkt = "POLYGON((136.2469482421875 -27.57843813308233,138.6639404296875 -27.57843813308233," \
+              "138.6639404296875 -29.82351878748485,136.2469482421875 -29.82351878748485,136." \
+              "2469482421875 -27.57843813308233))"
+
+        polygon = loads(wkt)
+
+        metadata_service = MetadataService()
+        # sql_filters = ['cloud_cover=0']
+        d_start = date(2006, 8, 4)
+        d_end = date(2006, 8, 7)
+        bounding_box = polygon.bounds
+        sql_filters = ['wrs_row=79']
+        rows = metadata_service.search(
+            SpacecraftID.LANDSAT_5,
+            start_date=d_start,
+            end_date=d_end,
+            bounding_box=bounding_box,
+            sql_filters=sql_filters)
+
+
+        metadata = Metadata(rows[0], self.base_mount_path)
+        landsat = Landsat(metadata)
+        vrt = landsat.get_vrt([4])
+        storage = Storage("gcp-public-data-landsat")
+        del landsat
+        self.assertFalse(storage.is_mounted(metadata))
+
 
 
 class TestPixelFunctions(unittest.TestCase):
@@ -626,6 +698,8 @@ def ndvi_numpy(in_ar, out_ar, xoff, yoff, xsize, ysize, raster_xsize, raster_ysi
         output += 1.0
         # scale up from 0.0-2.0 to 0 to 255 by multiplying by 255/2
         output *=  65535/2.0
+        # https://stackoverflow.com/a/10622758/445372
+        # in place type conversion
         out_ar[:] = output.astype(np.int16, copy=False)"""
 
         pixel_function_details = {

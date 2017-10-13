@@ -13,6 +13,8 @@ def ndvi_numpy(in_ar, out_ar, xoff, yoff, xsize, ysize, raster_xsize, raster_ysi
         output += 1.0
         # scale up from 0.0-2.0 to 0 to 255 by multiplying by 255/2
         output *=  65535/2.0
+        # https://stackoverflow.com/a/10622758/445372
+        # in place type conversion
         out_ar[:] = output.astype(np.int16, copy=False)]]>
     </PixelFunctionCode>
     <SimpleSource>

@@ -20,6 +20,21 @@ from google.cloud import bigquery
 from google.cloud import storage
 
 
+class __Singleton(type):
+    """
+    Define an Instance operation that lets clients access its unique
+    instance.
+    """
+
+    def __init__(cls, name, bases, attrs, **kwargs):
+        super().__init__(name, bases, attrs)
+        cls._instance = None
+
+    def __call__(cls, *args, **kwargs):
+        if cls._instance is None:
+            cls._instance = super().__call__(*args, **kwargs)
+        return cls._instance
+
 
 class SpacecraftID(Enum):
     LANDSAT_1 = 1
@@ -128,6 +143,10 @@ class Landsat(Imagery):
         super().__init__(bucket_name)
         self.__band_map = BandMap(metadata.spacecraft_id)
         self.__metadata = metadata
+
+    def __del__(self):
+        print('bucket unmounted')
+        self.storage.unmount_sub_folder(self.__metadata)
 
     def fetch_imagery_array(self, band_definitions, scaleParams=None):
         # TODO move this under __init__? Maybe run it on a separate thread
@@ -416,7 +435,7 @@ LLNppprrrOOYYDDDMM_AA.TIF  where:
         #     self.__file_list = None
 
 
-class MetadataService:
+class MetadataService(metaclass=__Singleton):
     def __init__(self):
         self.m_client = bigquery.Client()
         self.m_timeout_ms = 10000
@@ -547,13 +566,18 @@ return bIntersecting;"""
         return query.rows
 
 
-class Storage:
+class Storage(metaclass=__Singleton):
     bucket = ""
-    mounted_sub_folders = None
+    __mounted_sub_folders = None
 
     def __init__(self, bucket_name):
         self.bucket = bucket_name
-        self.mounted_sub_folders = {}
+        self.__mounted_sub_folders = {}
+
+    def is_mounted(self, metadata):
+        if metadata.full_mount_path in self.__mounted_sub_folders and \
+                self.__mounted_sub_folders[metadata.full_mount_path]:
+            return True
 
     def mount_sub_folder(self, metadata):
         # execute mount command
@@ -562,7 +586,8 @@ class Storage:
         # full_mount_path = base_path.rstrip("\/") + os.path.sep + bucket_sub_folder.strip("\/")
         # subprocess.run("exit 1", shell=True, check=True)
         # subprocess.run(["ls", "-l", "/dev/null"], stdout=subprocess.PIPE)
-        if metadata.full_mount_path in self.mounted_sub_folders:
+        if metadata.full_mount_path in self.__mounted_sub_folders and \
+                self.__mounted_sub_folders[metadata.full_mount_path]:
             return True
 
         try:
@@ -571,6 +596,7 @@ class Storage:
             else:
                 # check to see if directory is already mounted if so maybe just return True?
                 if len(os.listdir(metadata.full_mount_path)) > 0:
+                    self.__mounted_sub_folders[metadata.full_mount_path] = True
                     return True
                 # hard to know what to do if it's mounted and it's empty...
                 # TODO make a test for that case
@@ -579,12 +605,34 @@ class Storage:
             if exception.errno != errno.EEXIST:
                 raise
 
-        val = call(["gcsfuse", "--only-dir", metadata.full_mount_path.lstrip(metadata.base_mount_path).lstrip("\/"), self.bucket, metadata.full_mount_path])
+        val = call(["gcsfuse",
+                    "--only-dir",
+                    metadata.full_mount_path.lstrip(metadata.base_mount_path).lstrip("\/"),
+                    self.bucket,
+                    metadata.full_mount_path])
         # TODO return error message if necessary
         if val != 0:
             return False
 
-        self.mounted_sub_folders[metadata.full_mount_path] = True
+        self.__mounted_sub_folders[metadata.full_mount_path] = True
+        return True
+
+    def unmount_sub_folder(self, metadata, force=False):
+        # fusermount -u /path/to/mount/point
+        if metadata.full_mount_path not in self.__mounted_sub_folders and not force:
+            return True
+
+        val = call(["fusermount", "-u", metadata.full_mount_path])
+        if val != 0:
+            return False
+
+        # TODO, maybe there should be some sort of cleanup of this hashmap? or maybe it wouldn't ever get too large?...
+        # instead of setting things to false and storing information about files we might never visit again, maybe
+        # we delete the position in the hashmap? does that force and immediate reshape of the hashmap? probably not.
+        # self.__mounted_sub_folders[metadata.full_mount_path] = False
+        # Decided to delete the key/value pair
+        del self.__mounted_sub_folders[metadata.full_mount_path]
+
         return True
 
 
