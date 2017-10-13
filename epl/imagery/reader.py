@@ -22,8 +22,7 @@ from google.cloud import storage
 
 class __Singleton(type):
     """
-    Define an Instance operation that lets clients access its unique
-    instance.
+    https://sourcemaking.com/design_patterns/singleton/python/1
     """
 
     def __init__(cls, name, bases, attrs, **kwargs):
@@ -44,6 +43,22 @@ class SpacecraftID(Enum):
     LANDSAT_5 = 5
     LANDSAT_7 = 7
     LANDSAT_8 = 8
+
+
+class Band(Enum):
+    # Crazy Values so that the Band.<ENUM>.value isn't used for anything
+    ULTRA_BLUE = -1000
+    BLUE = -2000
+    GREEN = -3000
+    RED = -4000
+    NIR = -5000
+    SWIR1 = -6000
+    THERMAL = -7000
+    SWIR2 = -8000
+    PANCHROMATIC = -9000
+    CIRRUS = -10000
+    TIRS1 = -11000
+    TIRS2 = -12000
 
 
 class BandMap:
@@ -85,41 +100,44 @@ class BandMap:
     Band 11 - Thermal Infrared (TIRS) 2	11.50 - 12.51	100 * (30)
     """
 
-    __band_names = None
+    __band_enums = None
     __band_numbers = None
-    __band_set_1 = ["Blue", "Green", "Red", "NIR", "SWIR1"]
-    __band_set_2 = ["SWIR2", "Panchromatic", "Cirrus", "TIRS1", "TIRS2"]
+    __band_set_1 = [Band.BLUE, Band.GREEN, Band.RED, Band.NIR, Band.SWIR1]
+    __band_set_2 = [Band.SWIR2, Band.PANCHROMATIC, Band.CIRRUS, Band.TIRS1, Band.TIRS2]
 
     def __init__(self, spacecraft_id):
-        self.__band_names = {}
+        self.__band_enums = {}
         self.__band_numbers = {}
         index = 1
         if spacecraft_id.value > 7:
-            self.__band_names[index] = "UltraBlue"
-            self.__band_numbers[self.__band_names[index]] = index
+            self.__band_enums[index] = Band.ULTRA_BLUE
+            self.__band_numbers[self.__band_enums[index]] = index
             index = 2
 
         for i in range(0, len(self.__band_set_1)):
-            self.__band_names[index + i] = self.__band_set_1[i]
-            self.__band_numbers[self.__band_names[index + i]] = index + i
+            self.__band_enums[index + i] = self.__band_set_1[i]
+            self.__band_numbers[self.__band_enums[index + i]] = index + i
 
         index = index + len(self.__band_set_1)
         if spacecraft_id.value < 8:
-            self.__band_names[index] = "Thermal"
-            self.__band_numbers[self.__band_names[index]] = index
+            self.__band_enums[index] = Band.THERMAL
+            self.__band_numbers[self.__band_enums[index]] = index
             index += 1
 
         for i in range(0, len(self.__band_set_2)):
             if (spacecraft_id.value < 7 and i > 0) or (spacecraft_id.value < 8 and i > 1):
                 break
-            self.__band_names[index + i] = self.__band_set_2[i]
-            self.__band_numbers[self.__band_names[index + i]] = index + i
+            self.__band_enums[index + i] = self.__band_set_2[i]
+            self.__band_numbers[self.__band_enums[index + i]] = index + i
 
     def get_band_name(self, band_number):
-        return self.__band_names[band_number]
+        return self.__band_enums[band_number].name
 
-    def get_band_number(self, band_name):
-        return self.__band_numbers[band_name]
+    def get_band_enum(self, band_number):
+        return self.__band_enums[band_number]
+
+    def get_band_number(self, band_enum):
+        return self.__band_numbers[band_enum]
 
 
 class Imagery:
@@ -135,14 +153,14 @@ class Imagery:
 
 class Landsat(Imagery):
     # def __init__(self, base_mount_path, bucket_name="gcp-public-data-landsat"):
-    __band_map = None
+    band_map = None
     __metadata = None
     __id = None
 
     def __init__(self, metadata):
         bucket_name = "gcp-public-data-landsat"
         super().__init__(bucket_name)
-        self.__band_map = BandMap(metadata.spacecraft_id)
+        self.band_map = BandMap(metadata.spacecraft_id)
         self.__metadata = metadata
         self.__id = id(self)
 
@@ -260,7 +278,8 @@ class Landsat(Imagery):
         # file_path = "{0}/{1}_B{2}.TIF".format(self.__metadata.full_mount_path, name_prefix, band_number)
         # # file_path = self.__metadata.full_mount_path + os.path.sep + self.__metadata.scene_id + "_B{}.TIF".format(band)
 
-        color_interp = self.__band_map.get_band_name(band_number)
+        # I think this needs to be removed.
+        color_interp = self.band_map.get_band_name(band_number)
 
         elem_raster_band = etree.SubElement(vrt_dataset, "VRTRasterBand")
 
@@ -289,8 +308,11 @@ class Landsat(Imagery):
         # TODO if no bands throw exception
         for band_definition in band_definitions:
 
+            band_metadata = None
             if isinstance(band_definition, dict):
                 x_size, y_size, projection, geo_transform = self.get_function_band_elem(vrt_dataset, band_definition, position_number, 256)
+            elif isinstance(band_definition, Band):
+                x_size, y_size, projection, geo_transform = self.get_band_elem(vrt_dataset, self.band_map.get_band_number(band_definition), position_number, 256)
             else:
                 x_size, y_size, projection, geo_transform = self.get_band_elem(vrt_dataset, band_definition, position_number, 256)
 

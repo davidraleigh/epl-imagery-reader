@@ -10,7 +10,7 @@ from lxml import etree
 from osgeo import gdal
 from urllib.parse import urlparse
 from datetime import date
-from epl.imagery.reader import MetadataService, Landsat, Storage, SpacecraftID, Metadata, BandMap
+from epl.imagery.reader import MetadataService, Landsat, Storage, SpacecraftID, Metadata, BandMap, Band
 
 from shapely.wkt import loads
 
@@ -263,95 +263,98 @@ class TestStorage(unittest.TestCase):
 class TestBandMap(unittest.TestCase):
     def test_landsat_5(self):
         band_map = BandMap(SpacecraftID.LANDSAT_5)
-        self.assertEqual(band_map.get_band_number("Blue"), 1)
-        self.assertEqual(band_map.get_band_number("SWIR2"), 7)
-        self.assertEqual(band_map.get_band_number("Thermal"), 6)
+        self.assertEqual(band_map.get_band_number(Band.BLUE), 1)
+        self.assertEqual(band_map.get_band_number(Band.SWIR2), 7)
+        self.assertEqual(band_map.get_band_number(Band.THERMAL), 6)
 
-        self.assertEqual(band_map.get_band_name(1), "Blue")
-        self.assertEqual(band_map.get_band_name(7), "SWIR2")
-        self.assertEqual(band_map.get_band_name(6), "Thermal")
+        self.assertEqual(band_map.get_band_enum(1), Band.BLUE)
+        self.assertEqual(band_map.get_band_enum(7), Band.SWIR2)
+        self.assertEqual(band_map.get_band_enum(6), Band.THERMAL)
 
-        for idx, val in enumerate(["Blue", "Green", "Red", "NIR", "SWIR1"]):
-            self.assertEqual(band_map.get_band_name(idx + 1), val)
+        for idx, val in enumerate([Band.BLUE, Band.GREEN, Band.RED, Band.NIR, Band.SWIR1]):
+            self.assertEqual(band_map.get_band_enum(idx + 1), val)
             self.assertEqual(band_map.get_band_number(val), idx + 1)
 
     def test_landsat_5_exceptions(self):
         band_map = BandMap(SpacecraftID.LANDSAT_5)
-        self.assertRaises(KeyError, lambda: band_map.get_band_number("Cirrus"))
-        self.assertRaises(KeyError, lambda: band_map.get_band_number("Panchromatic"))
-        self.assertRaises(KeyError, lambda: band_map.get_band_name(8))
+        self.assertRaises(KeyError, lambda: band_map.get_band_number(Band.CIRRUS))
+        self.assertRaises(KeyError, lambda: band_map.get_band_number(Band.PANCHROMATIC))
+        self.assertRaises(KeyError, lambda: band_map.get_band_enum(8))
 
     def test_landsat_7(self):
         band_map = BandMap(SpacecraftID.LANDSAT_7)
-        self.assertEqual(band_map.get_band_number("Blue"), 1)
-        self.assertEqual(band_map.get_band_number("SWIR1"), 5)
-        self.assertEqual(band_map.get_band_number("Thermal"), 6)
+        self.assertEqual(band_map.get_band_number(Band.BLUE), 1)
+        self.assertEqual(band_map.get_band_number(Band.SWIR1), 5)
+        self.assertEqual(band_map.get_band_number(Band.THERMAL), 6)
 
-        self.assertEqual(band_map.get_band_name(1), "Blue")
-        self.assertEqual(band_map.get_band_name(5), "SWIR1")
-        self.assertEqual(band_map.get_band_name(6), "Thermal")
-        self.assertEqual(band_map.get_band_number("SWIR2"), 7)
-        self.assertEqual(band_map.get_band_name(7), "SWIR2")
+        self.assertEqual(band_map.get_band_enum(1), Band.BLUE)
+        self.assertEqual(band_map.get_band_enum(5), Band.SWIR1)
+        self.assertEqual(band_map.get_band_enum(6), Band.THERMAL)
+        self.assertEqual(band_map.get_band_number(Band.SWIR2), 7)
+        self.assertEqual(band_map.get_band_enum(7), Band.SWIR2)
 
-        for idx, val in enumerate(["Blue", "Green", "Red", "NIR", "SWIR1"]):
-            self.assertEqual(band_map.get_band_name(idx + 1), val)
+        for idx, val in enumerate([Band.BLUE, Band.GREEN, Band.RED, Band.NIR, Band.SWIR1]):
+            self.assertEqual(band_map.get_band_enum(idx + 1), val)
             self.assertEqual(band_map.get_band_number(val), idx + 1)
 
     def test_landsat_7_exceptions(self):
         band_map = BandMap(SpacecraftID.LANDSAT_7)
-        self.assertRaises(KeyError, lambda: band_map.get_band_number("Cirrus"))
-        self.assertRaises(KeyError, lambda: band_map.get_band_number("TIRS1"))
-        self.assertRaises(KeyError, lambda: band_map.get_band_name(9))
+        self.assertRaises(KeyError, lambda: band_map.get_band_number(Band.CIRRUS))
+        self.assertRaises(KeyError, lambda: band_map.get_band_number(Band.TIRS1))
+        self.assertRaises(KeyError, lambda: band_map.get_band_enum(9))
 
     def test_landsat_8(self):
         band_map = BandMap(SpacecraftID.LANDSAT_8)
-        self.assertEqual(band_map.get_band_number("Blue"), 2)
-        self.assertEqual(band_map.get_band_number("SWIR1"), 6)
+        self.assertEqual(band_map.get_band_number(Band.ULTRA_BLUE), 1)
+        self.assertEqual(band_map.get_band_number(Band.BLUE), 2)
+        self.assertEqual(band_map.get_band_number(Band.SWIR1), 6)
 
-        self.assertEqual(band_map.get_band_name(2), "Blue")
-        self.assertEqual(band_map.get_band_name(6), "SWIR1")
+        self.assertEqual(band_map.get_band_enum(2), Band.BLUE)
+        self.assertEqual(band_map.get_band_enum(6), Band.SWIR1)
 
-        self.assertEqual(band_map.get_band_number("SWIR2"), 7)
-        self.assertEqual(band_map.get_band_name(7), "SWIR2")
+        self.assertEqual(band_map.get_band_number(Band.SWIR2), 7)
+        self.assertEqual(band_map.get_band_enum(7), Band.SWIR2)
 
-        for idx, val in enumerate(["Blue", "Green", "Red", "NIR", "SWIR1"]):
-            self.assertEqual(band_map.get_band_name(idx + 2), val)
+        for idx, val in enumerate([Band.BLUE, Band.GREEN, Band.RED, Band.NIR, Band.SWIR1]):
+            self.assertEqual(band_map.get_band_enum(idx + 2), val)
             self.assertEqual(band_map.get_band_number(val), idx + 2)
 
-        self.assertEqual(band_map.get_band_number("Cirrus"), 9)
-        self.assertEqual(band_map.get_band_number("TIRS1"), 10)
-        self.assertEqual(band_map.get_band_number("TIRS2"), 11)
+        self.assertEqual(band_map.get_band_number(Band.CIRRUS), 9)
+        self.assertEqual(band_map.get_band_number(Band.TIRS1), 10)
+        self.assertEqual(band_map.get_band_number(Band.TIRS2), 11)
 
-        self.assertEqual(band_map.get_band_name(9), "Cirrus")
-        self.assertEqual(band_map.get_band_name(10), "TIRS1")
-        self.assertEqual(band_map.get_band_name(11), "TIRS2")
+        self.assertEqual(band_map.get_band_enum(9), Band.CIRRUS)
+        self.assertEqual(band_map.get_band_enum(10), Band.TIRS1)
+        self.assertEqual(band_map.get_band_enum(11), Band.TIRS2)
 
     def test_landsat_8_exceptions(self):
         band_map = BandMap(SpacecraftID.LANDSAT_8)
-        self.assertRaises(KeyError, lambda: band_map.get_band_number("Thermal"))
-        self.assertRaises(KeyError, lambda: band_map.get_band_name(12))
+        self.assertRaises(KeyError, lambda: band_map.get_band_number(Band.THERMAL))
+        self.assertRaises(KeyError, lambda: band_map.get_band_enum(12))
 
 
 class TestLandsat(unittest.TestCase):
     base_mount_path = '/imagery'
+    metadata_service = None
+
+    def setUp(self):
+        self.metadata_service = MetadataService()
 
     def test_get_file(self):
-        metadata_service = MetadataService()
         d_start = date(2015, 6, 24)
         d_end = date(2016, 6, 24)
         bounding_box = (-115.927734375, 34.52466147177172, -78.31054687499999, 44.84029065139799)
-        rows = metadata_service.search(SpacecraftID.LANDSAT_8, start_date=d_start, end_date=d_end, bounding_box=bounding_box, limit=1)
+        rows = self.metadata_service.search(SpacecraftID.LANDSAT_8, start_date=d_start, end_date=d_end, bounding_box=bounding_box, limit=1)
         metadata = Metadata(rows[0], self.base_mount_path)
         landsat = Landsat(metadata)
         self.assertIsNotNone(landsat)
         #    'gs://gcp-public-data-landsat/LC08/PRE/037/036/LC80370362016082LGN00'
 
     def test_gdal_info(self):
-        metadata_service = MetadataService()
         d_start = date(2015, 6, 24)
         d_end = date(2016, 6, 24)
         bounding_box = (-115.927734375, 34.52466147177172, -78.31054687499999, 44.84029065139799)
-        rows = metadata_service.search(SpacecraftID.LANDSAT_8, start_date=d_start, end_date=d_end, bounding_box=bounding_box,
+        rows = self.metadata_service.search(SpacecraftID.LANDSAT_8, start_date=d_start, end_date=d_end, bounding_box=bounding_box,
                                limit=1)
         path = rows[0][17]
         gsurl = urlparse(path)
@@ -364,12 +367,11 @@ class TestLandsat(unittest.TestCase):
         self.assertTrue(b_deleted)
 
     def test_vrt(self):
-        metadata_service = MetadataService()
         d_start = date(2015, 6, 24)
         d_end = date(2016, 6, 24)
         bounding_box = (-115.927734375, 34.52466147177172, -78.31054687499999, 44.84029065139799)
         sql_filters = ['scene_id="LC80400312016103LGN00"']
-        rows = metadata_service.search(SpacecraftID.LANDSAT_8, start_date=d_start, end_date=d_end, bounding_box=bounding_box,
+        rows = self.metadata_service.search(SpacecraftID.LANDSAT_8, start_date=d_start, end_date=d_end, bounding_box=bounding_box,
                                limit=1, sql_filters=sql_filters)
 
         metadata = Metadata(rows[0], self.base_mount_path)
@@ -404,13 +406,12 @@ class TestLandsat(unittest.TestCase):
 
         polygon = loads(wkt)
 
-        metadata_service = MetadataService()
         # sql_filters = ['cloud_cover=0']
         d_start = date(2006, 8, 4)
         d_end = date(2006, 8, 7)
         bounding_box = polygon.bounds
         sql_filters = ['wrs_row=79']
-        rows = metadata_service.search(
+        rows = self.metadata_service.search(
             SpacecraftID.LANDSAT_5,
             start_date=d_start,
             end_date=d_end,
@@ -419,23 +420,7 @@ class TestLandsat(unittest.TestCase):
 
         self.assertEqual(len(rows), 1)
 
-        # mounted directory in docker container
-
-
-        # data structure that contains all fields from Google's Landsat BigQuery Database
-        metadata = Metadata(rows[0], self.base_mount_path)
-        # print(metadata.__dict__)
-
-        # break down gs url into pieces required for gcs-fuse
-        # gsurl = urlparse(metadata.base_url)
-
-        # mounting Google Storage bucket with gcs-fuse
-        # storage = Storage(gsurl[1])
-        # b_mounted = storage.mount_sub_folder(gsurl[2], self.base_mount_path)
-
-        # print(gsurl[1])
-        # print(gsurl[2])
-        # GDAL helper functions for generating VRT
+        metadata = Metadata(rows[0])
         landsat = Landsat(metadata)
 
         # get a numpy.ndarray from bands for specified imagery
@@ -454,13 +439,12 @@ class TestLandsat(unittest.TestCase):
 
         polygon = loads(wkt)
 
-        metadata_service = MetadataService()
         # sql_filters = ['cloud_cover=0']
         d_start = date(2006, 8, 4)
         d_end = date(2006, 8, 5)
         bounding_box = polygon.bounds
         sql_filters = ['wrs_row=79']
-        rows = metadata_service.search(
+        rows = self.metadata_service.search(
             SpacecraftID.LANDSAT_5,
             start_date=d_start,
             end_date=d_end,
@@ -488,8 +472,7 @@ class TestLandsat(unittest.TestCase):
         d_start = date(2016, 7, 20)
         d_end = date(2016, 7, 28)
 
-        metadata_service = MetadataService()
-        rows = metadata_service.search(SpacecraftID.LANDSAT_8, start_date=d_start, end_date=d_end, bounding_box=utah_box,
+        rows = self.metadata_service.search(SpacecraftID.LANDSAT_8, start_date=d_start, end_date=d_end, bounding_box=utah_box,
                                       limit=10, sql_filters=['collection_number=="PRE"', "cloud_cover<=5"])
         self.assertEqual(len(rows), 1)
 
@@ -498,15 +481,7 @@ class TestLandsat(unittest.TestCase):
         # 39.96962, 37.81744, -115.27267, -112.56732, 1070517542,
         # 'gs://gcp-public-data-landsat/LC08/PRE/039/033/LC80390332016208LGN00']
         metadata = Metadata(rows[0], self.base_mount_path)
-        # break down gs url into pieces required for gcs-fuse
-        # gsurl = urlparse(metadata.base_url)
-        #
-        # # mounting Google Storage bucket with gcs-fuse
-        # storage = Storage(gsurl[1])
-        # b_mounted = storage.mount_sub_folder(gsurl[2], self.base_mount_path)
-        # self.assertTrue(b_mounted)
-        #
-        # storage = Storage(gsurl[1])
+
         # GDAL helper functions for generating VRT
         landsat = Landsat(metadata)
 
@@ -514,12 +489,10 @@ class TestLandsat(unittest.TestCase):
         band_numbers = [4, 3, 2]
         scaleParams = [[0.0, 65535], [0.0, 65535], [0.0, 65535]]
         nda = landsat.fetch_imagery_array(band_numbers, scaleParams)
-        # nda = landsat.__get_ndarray(band_numbers, metadata, scaleParams)
 
-        # landsat = Landsat(base_mount_path)  # , gsurl[2])
-        vrt = landsat.get_vrt([4, 3, 2])
-    #     self.assertTrue(True)
         self.assertEqual(nda.shape, (3861, 3786, 3))
+
+
         # src_ds = gdal.Open(input_file)
         # if src_ds is None:
         #     print
@@ -568,13 +541,12 @@ class TestLandsat(unittest.TestCase):
 
         polygon = loads(wkt)
 
-        metadata_service = MetadataService()
         # sql_filters = ['cloud_cover=0']
         d_start = date(2006, 8, 4)
         d_end = date(2006, 8, 7)
         bounding_box = polygon.bounds
         sql_filters = ['wrs_row=79']
-        rows = metadata_service.search(
+        rows = self.metadata_service.search(
             SpacecraftID.LANDSAT_5,
             start_date=d_start,
             end_date=d_end,
@@ -595,13 +567,12 @@ class TestLandsat(unittest.TestCase):
 
         polygon = loads(wkt)
 
-        metadata_service = MetadataService()
         # sql_filters = ['cloud_cover=0']
         d_start = date(2006, 8, 4)
         d_end = date(2006, 8, 7)
         bounding_box = polygon.bounds
         sql_filters = ['wrs_row=79']
-        rows = metadata_service.search(
+        rows = self.metadata_service.search(
             SpacecraftID.LANDSAT_5,
             start_date=d_start,
             end_date=d_end,
@@ -617,6 +588,20 @@ class TestLandsat(unittest.TestCase):
         del landsat
         self.assertTrue(storage.is_mounted(metadata))
 
+    def test_band_enum(self):
+        self.assertTrue(True)
+        d_start = date(2016, 7, 20)
+        d_end = date(2016, 7, 28)
+        rows = self.metadata_service.search(SpacecraftID.LANDSAT_8, start_date=d_start, end_date=d_end, limit=1, sql_filters=['scene_id="LC80390332016208LGN00"'])
+        metadata = Metadata(rows[0])
+        landsat = Landsat(metadata)
+        scaleParams = [[0.0, 65535], [0.0, 65535], [0.0, 65535]]
+        # nda = landsat.__get_ndarray(band_numbers, metadata, scaleParams)
+        nda = landsat.fetch_imagery_array([Band.RED, Band.GREEN, Band.BLUE], scaleParams)
+        self.assertIsNotNone(nda)
+        nda2 = landsat.fetch_imagery_array([4, 3, 2], scaleParams)
+        np.testing.assert_almost_equal(nda, nda2)
+        # 'scene_id': 'LC80390332016208LGN00'
 
 class TestPixelFunctions(unittest.TestCase):
     m_row_data = None
@@ -685,6 +670,7 @@ def ndvi_numpy(in_ar, out_ar, xoff, yoff, xsize, ysize, raster_xsize, raster_ysi
         # shift range from -1.0-1.0 to 0.0-2.0
         output += 1.0
         # scale up from 0.0-2.0 to 0 to 255 by multiplying by 255/2
+        # https://stackoverflow.com/a/1735122/445372
         output *=  65535/2.0
         # https://stackoverflow.com/a/10622758/445372
         # in place type conversion
