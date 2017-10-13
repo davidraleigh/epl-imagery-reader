@@ -576,6 +576,10 @@ class Storage(metaclass=__Singleton):
         self.bucket = bucket_name
         self.__mounted_sub_folders = {}
 
+    def __del__(self):
+        for full_path in self.__mounted_sub_folders:
+            self.__unmount_sub_folder(full_path, "", force=True)
+
     def is_mounted(self, metadata):
         if metadata.full_mount_path in self.__mounted_sub_folders and \
                 self.__mounted_sub_folders[metadata.full_mount_path]:
@@ -593,7 +597,10 @@ class Storage(metaclass=__Singleton):
                         request_key in self.__mounted_sub_folders[metadata.full_mount_path]:
             return True
 
-        # if this isn't
+        # This is a little weird. It could be that from a crash, some of the folders are already mounted by gcsfuse
+        # this would set it so that those mountings were removed. If there are two Storage scripts running in parallel
+        # on the same machine then maybe there would be conflicts. Not sure how to share those resources without
+        # destroying them, but still cleaning up after them. Virtual files seems like the way to go with all this.
         if metadata.full_mount_path not in self.__mounted_sub_folders:
             self.__mounted_sub_folders[metadata.full_mount_path] = set()
 
@@ -624,26 +631,29 @@ class Storage(metaclass=__Singleton):
         self.__mounted_sub_folders[metadata.full_mount_path].add(request_key)
         return True
 
-    def unmount_sub_folder(self, metadata, request_key, force=False):
+    def __unmount_sub_folder(self, full_mount_path, request_key, force=False):
         # fusermount -u /path/to/mount/point
-        if not force and (metadata.full_mount_path not in self.__mounted_sub_folders or request_key not in self.__mounted_sub_folders[metadata.full_mount_path]):
+        if not force and (full_mount_path not in self.__mounted_sub_folders or request_key not in self.__mounted_sub_folders[full_mount_path]):
             return True
 
         # remove the request_key from
-        self.__mounted_sub_folders[metadata.full_mount_path].discard(request_key)
+        self.__mounted_sub_folders[full_mount_path].discard(request_key)
 
         # if there are still members of the set then escape
-        if not force and self.__mounted_sub_folders[metadata.full_mount_path]:
+        if not force and self.__mounted_sub_folders[full_mount_path]:
             return True
 
         # if there are no more references to this storage object, unmount
         # of if this is being forced
-        val = call(["fusermount", "-u", metadata.full_mount_path])
+        val = call(["fusermount", "-u", full_mount_path])
         if val != 0:
             return False
 
         # if the set is empty, maybe we reclaim the space in the hashmap
-        if not self.__mounted_sub_folders[metadata.full_mount_path] or force:
-            del self.__mounted_sub_folders[metadata.full_mount_path]
+        if not self.__mounted_sub_folders[full_mount_path] or force:
+            del self.__mounted_sub_folders[full_mount_path]
 
         return True
+
+    def unmount_sub_folder(self, metadata, request_key, force=False):
+        return self.__unmount_sub_folder(metadata.full_mount_path, request_key, force)
