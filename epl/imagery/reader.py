@@ -434,7 +434,8 @@ LLNppprrrOOYYDDDMM_AA.TIF  where:
         self.total_size = row[16]  # INTEGER	NULLABLE The total size of this scene in bytes.
         self.base_url = row[17]  # STRING	NULLABLE The base URL for this scene in Cloud Storage.
 
-        self.bounds = (self.east_lon, self.south_lat, self.west_lon, self.north_lat)
+        #  (minx, miny, maxx, maxy)
+        self.bounds = (self.west_lon, self.south_lat, self.east_lon, self.north_lat)
 
         gsurl = urlparse(self.base_url)
         self.bucket_name = gsurl[1]
