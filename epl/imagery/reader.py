@@ -433,6 +433,9 @@ LLNppprrrOOYYDDDMM_AA.TIF  where:
         self.east_lon = row[15]  # FLOAT	NULLABLE The eastern longitude of the bounding box of this scene.
         self.total_size = row[16]  # INTEGER	NULLABLE The total size of this scene in bytes.
         self.base_url = row[17]  # STRING	NULLABLE The base URL for this scene in Cloud Storage.
+
+        self.bounds = (self.east_lon, self.south_lat, self.west_lon, self.north_lat)
+
         gsurl = urlparse(self.base_url)
         self.bucket_name = gsurl[1]
         self.data_prefix = gsurl[2]
@@ -446,6 +449,9 @@ LLNppprrrOOYYDDDMM_AA.TIF  where:
 
 
         # thread = threading.Thread(target)
+
+    def get_boundary_wkt(self):
+        return "POLYGON (({0} {1}, {2} {1}, {2} {3}, {0} {3}, {0} {1}))".format(*self.bounds)
 
     def get_file_list(self, timeout=4):
         # 4 second timeout on info

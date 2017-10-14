@@ -203,6 +203,18 @@ class TestMetaDataSQL(unittest.TestCase):
         self.assertTrue(metadata_service_1 is metadata_service_2)
 
 
+class TestMetadata(unittest.TestCase):
+    def test_bounds(self):
+        row = ('LC80330352017072LGN00', '', 'LANDSAT_8', 'OLI_TIRS', '2017-03-13', '2017-03-13T17:38:14.0196140Z', 'PRE', 'N/A', 'L1T', 33, 35, 1.2, 37.10422, 34.96178, -106.85883, -104.24596, 1067621299, 'gs://gcp-public-data-landsat/LC08/PRE/033/035/LC80330352017072LGN00')
+        metadata = Metadata(row)
+        self.assertIsNotNone(metadata)
+        wkt = metadata.get_boundary_wkt()
+        polygon = loads(wkt)
+        self.assertEqual(polygon.wkt, wkt)
+        self.assertEqual(polygon.bounds, metadata.bounds)
+        self.assertTrue(True)
+
+
 class TestStorage(unittest.TestCase):
     base_mount_path = '/imagery'
 
