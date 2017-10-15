@@ -165,7 +165,7 @@ class Landsat(Imagery):
         self.__id = id(self)
 
     def __del__(self):
-        print('\nbucket unmounted\n')
+        # log('\nbucket unmounted\n')
         self.storage.unmount_sub_folder(self.__metadata, request_key=self.__id)
 
     def fetch_imagery_array(self, band_definitions, scaleParams=None):
