@@ -14,6 +14,7 @@ from epl.imagery.reader import MetadataService, Landsat, Storage, SpacecraftID, 
 
 from shapely.wkt import loads
 from shapely.geometry import shape
+from shapely.geometry import box
 
 
 def text_compare(t1, t2, tolerance=None):
@@ -209,8 +210,12 @@ class TestMetadata(unittest.TestCase):
         row = ('LC80330352017072LGN00', '', 'LANDSAT_8', 'OLI_TIRS', '2017-03-13', '2017-03-13T17:38:14.0196140Z', 'PRE', 'N/A', 'L1T', 33, 35, 1.2, 37.10422, 34.96178, -106.85883, -104.24596, 1067621299, 'gs://gcp-public-data-landsat/LC08/PRE/033/035/LC80330352017072LGN00')
         metadata = Metadata(row)
         self.assertIsNotNone(metadata)
-        wkt = metadata.get_boundary_wkt()
-        self.assertIsNotNone(wkt)
+        geom_obj = metadata.get_boundary_wkt()
+        self.assertIsNotNone(geom_obj)
+        bounding_polygon = box(*metadata.bounds)
+        wrs_polygon = shape(geom_obj)
+        self.assertTrue(bounding_polygon.contains(wrs_polygon))
+
         # polygon = loads(wkt)
         # self.assertEqual(polygon.wkt, wkt)
         # self.assertEqual(polygon.bounds, metadata.bounds)

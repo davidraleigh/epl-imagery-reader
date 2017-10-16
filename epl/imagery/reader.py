@@ -479,9 +479,9 @@ LLNppprrrOOYYDDDMM_AA.TIF  where:
 
     def get_file_list(self, timeout=4):
         # 4 second timeout on info
-        self.thread.join(timeout=timeout)
+        # self.thread.join(timeout=timeout)
         # TODO if empty throw a warning?
-        return self.__file_list
+        return []
 
     def __query_file_list(self):
         bucket = self.__storage_client.list_buckets(prefix=self.bucket_name + self.data_prefix)
