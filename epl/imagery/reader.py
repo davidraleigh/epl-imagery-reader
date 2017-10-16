@@ -758,6 +758,8 @@ Notes on WRS-2 Landsat 8's Operational Land Imager (OLI) and/or Thermal Infrared
 
             self.__wrs2_map[path_num][row_num] = self.__wrs2.shape(idx).__geo_interface__
 
-    def get_wrs_geometry(self, wrs_path, wrs_row):
-        self.__read_thread.join(timeout=10)
+    def get_wrs_geometry(self, wrs_path, wrs_row, timeout=10):
+        self.__read_thread.join(timeout=timeout)
+        if self.__read_thread.is_alive():
+            return None
         return self.__wrs2_map[wrs_path][wrs_row]

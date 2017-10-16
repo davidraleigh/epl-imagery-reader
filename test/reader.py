@@ -911,11 +911,12 @@ def ndvi_numpy(in_ar, out_ar, xoff, yoff, xsize, ysize, raster_xsize, raster_ysi
 
 
 class TestWRSGeometries(unittest.TestCase):
+    @unittest.skip("Let's build a debug image first")
     def test_geometry(self):
         wrs_geometries = WRSGeometries()
 
         # [15.74326, 26.98611, 1, 1, 1, 0, 13001, 13001, 13, 1, 'D', 1, 2233]
-        geom_obj = wrs_geometries.get_wrs_geometry(13, 1)
+        geom_obj = wrs_geometries.get_wrs_geometry(13, 1, timeout=60)
         self.assertIsNotNone(geom_obj)
         geom_expected_area = 15.74326
         s = shape(geom_obj)
