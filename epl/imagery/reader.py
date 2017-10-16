@@ -8,8 +8,6 @@ import py_compile
 
 import shapefile
 
-import numpy as np
-
 from osgeo import gdal
 from urllib.parse import urlparse
 from lxml import etree
@@ -743,9 +741,9 @@ Notes on WRS-2 Landsat 8's Operational Land Imager (OLI) and/or Thermal Infrared
         wrs_row_idx = None
         for idx, field in enumerate(self.__wrs2.fields):
             if field[0] == "PATH":
-                wrs_path_idx = idx
+                wrs_path_idx = idx - 1
             elif field[0] == "ROW":
-                wrs_row_idx = idx
+                wrs_row_idx = idx - 1
 
         # self.__wrs1_records = self.__wrs1.records()
         self.__wrs2_records = self.__wrs2.records()
@@ -762,4 +760,5 @@ Notes on WRS-2 Landsat 8's Operational Land Imager (OLI) and/or Thermal Infrared
         self.__read_thread.join(timeout=timeout)
         if self.__read_thread.is_alive():
             return None
+
         return self.__wrs2_map[wrs_path][wrs_row]

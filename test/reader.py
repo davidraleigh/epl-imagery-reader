@@ -911,19 +911,20 @@ def ndvi_numpy(in_ar, out_ar, xoff, yoff, xsize, ysize, raster_xsize, raster_ysi
 
 
 class TestWRSGeometries(unittest.TestCase):
-    @unittest.skip("Let's build a debug image first")
     def test_geometry(self):
         wrs_geometries = WRSGeometries()
 
-        # [15.74326, 26.98611, 1, 1, 1, 0, 13001, 13001, 13, 1, 'D', 1, 2233]
-        geom_obj = wrs_geometries.get_wrs_geometry(13, 1, timeout=60)
-        self.assertIsNotNone(geom_obj)
-        geom_expected_area = 15.74326
-        s = shape(geom_obj)
-        self.assertAlmostEqual(geom_expected_area, s.area, 5)
+        test_cases = [[15.74326, 26.98611, 1, 1, 1, 0, 13001, 13001, 13, 1, 'D', 1, 2233],
+                      [2.74362, 6.65058, 942, 942, 1, 0, 61198, 61198, 61, 198, 'A', 1, 3174],
+                      [13.37321, 24.20422, 2225, 2225, 1, 0, 125241, 125241, 125, 241, 'A', 2, 4209],
+                      [3.58953, 7.7865, 1021, 1021, 1, 0, 75029, 75029, 75, 29, 'D', 3, 10445],
+                      [4.2424, 8.69453, 891, 891, 1, 0, 64147, 64147, 64, 147, 'A', 6, 21227],
+                      [16.81754, 27.20801, 3720, 3720, 1, 0, 223248, 223248, 223, 248, 'D', 16, 56296]]
 
-        # [2.74362, 6.65058, 942, 942, 1, 0, 61198, 61198, 61, 198, 'A', 1, 3174]
-        # [13.37321, 24.20422, 2225, 2225, 1, 0, 125241, 125241, 125, 241, 'A', 2, 4209]
-        # [3.58953, 7.7865, 1021, 1021, 1, 0, 75029, 75029, 75, 29, 'D', 3, 10445]
-        # [4.2424, 8.69453, 891, 891, 1, 0, 64147, 64147, 64, 147, 'A', 6, 21227]
-        # [16.81754, 27.20801, 3720, 3720, 1, 0, 223248, 223248, 223, 248, 'D', 16, 56296]
+        for test_case in test_cases:
+            geom_obj = wrs_geometries.get_wrs_geometry(test_case[8], test_case[9], timeout=60)
+            geom_expected_area = test_case[0]
+
+            self.assertIsNotNone(geom_obj)
+            s = shape(geom_obj)
+            self.assertAlmostEqual(geom_expected_area, s.area, 5)
