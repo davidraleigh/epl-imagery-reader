@@ -6,6 +6,8 @@ import threading
 import tempfile
 import py_compile
 
+import shapefile
+
 import numpy as np
 
 from osgeo import gdal
@@ -41,8 +43,8 @@ class SpacecraftID(Enum):
     LANDSAT_3 = 3
     LANDSAT_4 = 4
     LANDSAT_5 = 5
-    LANDSAT_7 = 7
     LANDSAT_8 = 8
+    LANDSAT_7 = 7
 
 
 class Band(Enum):
@@ -200,6 +202,17 @@ class Landsat(Imagery):
         x_size = dataset.RasterXSize
         y_size = dataset.RasterYSize
         projection = dataset.GetProjection()
+
+        """
+        http://www.gdal.org/gdal_tutorial.html[ 
+        In the particular, but common, case of a "north up" image without any rotation or shearing, 
+        the georeferencing transform takes the following form
+        adfGeoTransform[0] /* top left x */
+        adfGeoTransform[1] /* w-e pixel resolution */
+        adfGeoTransform[2] /* 0 */
+        adfGeoTransform[3] /* top left y */
+        adfGeoTransform[4] /* 0 */
+        adfGeoTransform[5] /* n-s pixel resolution (negative value) */"""
         geo_transform = dataset.GetGeoTransform()
 
         del dataset
@@ -454,6 +467,16 @@ LLNppprrrOOYYDDDMM_AA.TIF  where:
     def get_boundary_wkt(self):
         return "POLYGON (({0} {1}, {2} {1}, {2} {3}, {0} {3}, {0} {1}))".format(*self.bounds)
 
+    def get_intersect_wkt(self, other_bounds):
+        xmin = self.bounds[0] if self.bounds[0] > other_bounds[0] else other_bounds[0]
+        ymin = self.bounds[1] if self.bounds[1] > other_bounds[1] else other_bounds[1]
+
+        xmax = self.bounds[2] if self.bounds[2] < other_bounds[2] else other_bounds[2]
+        ymax = self.bounds[3] if self.bounds[3] < other_bounds[3] else other_bounds[3]
+
+        return "POLYGON (({0} {1}, {2} {1}, {2} {3}, {0} {3}, {0} {1}))".format(xmin, ymin, xmax, ymax)
+
+
     def get_file_list(self, timeout=4):
         # 4 second timeout on info
         self.thread.join(timeout=timeout)
@@ -471,6 +494,10 @@ LLNppprrrOOYYDDDMM_AA.TIF  where:
 
 
 class MetadataService(metaclass=__Singleton):
+    """
+    Notes on WRS-2 Landsat 8's Operational Land Imager (OLI) and/or Thermal Infrared Sensor (TIRS) sensors acquired nearly 10,000 scenes from just after its February 11, 2013 launch through April 10, 2013, during when the satellite was moving into the operational WRS-2 orbit. The earliest images are TIRS data only.  While these data meet the quality standards and have the same geometric precision as data acquired on and after April 10, 2013, the geographic extents of each scene will differ. Many of the scenes are processed to full terrain correction, with a pixel size of 30 meters. There may be some differences in the spatial resolution of the early TIRS images due to telescope temperature changes.
+    """
+
     def __init__(self):
         self.m_client = bigquery.Client()
         self.m_timeout_ms = 10000
@@ -690,3 +717,47 @@ class Storage(metaclass=__Singleton):
 
     def unmount_sub_folder(self, metadata, request_key, force=False):
         return self.__unmount_sub_folder(metadata.full_mount_path, request_key, force)
+
+
+# TODO this could probably be moved into it's own file
+class WRSGeometries(metaclass=__Singleton):
+    """
+Notes on WRS-2 Landsat 8's Operational Land Imager (OLI) and/or Thermal Infrared Sensor (TIRS) sensors acquired nearly 10,000 scenes from just after its February 11, 2013 launch through April 10, 2013, during when the satellite was moving into the operational WRS-2 orbit. The earliest images are TIRS data only.  While these data meet the quality standards and have the same geometric precision as data acquired on and after April 10, 2013, the geographic extents of each scene will differ. Many of the scenes are processed to full terrain correction, with a pixel size of 30 meters. There may be some differences in the spatial resolution of the early TIRS images due to telescope temperature changes.
+    """
+    def __init__(self):
+        self.__wrs2 = None
+        self.__wrs2_records = None
+        self.__wrs2_path_idx = None
+        self.__wrs2_row_idx = None
+        # do some async query to check if the danger_zone needs updating
+        self.__read_thread = threading.Thread(target=self.__read_shapefiles, args=())
+        self.__read_thread.daemon = True  # Daemonize thread
+        self.__read_thread.start()
+        self.__wrs2_map = {}
+
+    def __read_shapefiles(self):
+        # self.__wrs1 = shapefile.Reader("/.epl/metadata/wrs/wrs1_asc_desc/wrs1_asc_desc.shp")
+        self.__wrs2 = shapefile.Reader("/.epl/metadata/wrs/wrs2_asc_desc/wrs2_asc_desc.shp")
+        self.__wrs2_fields = self.__wrs2.fields
+        wrs_path_idx = None
+        wrs_row_idx = None
+        for idx, field in enumerate(self.__wrs2.fields):
+            if field[0] == "PATH":
+                wrs_path_idx = idx
+            elif field[0] == "ROW":
+                wrs_row_idx = idx
+
+        # self.__wrs1_records = self.__wrs1.records()
+        self.__wrs2_records = self.__wrs2.records()
+        for idx, record in enumerate(self.__wrs2_records):
+            path_num = record[wrs_path_idx]
+            row_num = record[wrs_row_idx]
+
+            if path_num not in self.__wrs2_map:
+                self.__wrs2_map[path_num] = {}
+
+            self.__wrs2_map[path_num][row_num] = self.__wrs2.shape(idx).__geo_interface__
+
+    def get_wrs_geometry(self, wrs_path, wrs_row):
+        self.__read_thread.join(timeout=10)
+        return self.__wrs2_map[wrs_path][wrs_row]

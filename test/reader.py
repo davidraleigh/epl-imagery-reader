@@ -10,9 +10,10 @@ from lxml import etree
 from osgeo import gdal
 from urllib.parse import urlparse
 from datetime import date
-from epl.imagery.reader import MetadataService, Landsat, Storage, SpacecraftID, Metadata, BandMap, Band
+from epl.imagery.reader import MetadataService, Landsat, Storage, SpacecraftID, Metadata, BandMap, Band, WRSGeometries
 
 from shapely.wkt import loads
+from shapely.geometry import shape
 
 
 def text_compare(t1, t2, tolerance=None):
@@ -212,6 +213,9 @@ class TestMetadata(unittest.TestCase):
         polygon = loads(wkt)
         self.assertEqual(polygon.wkt, wkt)
         self.assertEqual(polygon.bounds, metadata.bounds)
+        self.assertTrue(True)
+
+    def test_interesct(self):
         self.assertTrue(True)
 
 
@@ -904,3 +908,21 @@ def ndvi_numpy(in_ar, out_ar, xoff, yoff, xsize, ysize, raster_xsize, raster_ysi
     #         actual = etree.XML(vrt)
     #         result, message = xml_compare(expected, actual)
     #         self.assertTrue(result, message)
+
+
+class TestWRSGeometries(unittest.TestCase):
+    def test_geometry(self):
+        wrs_geometries = WRSGeometries()
+
+        # [15.74326, 26.98611, 1, 1, 1, 0, 13001, 13001, 13, 1, 'D', 1, 2233]
+        geom_obj = wrs_geometries.get_wrs_geometry(13, 1)
+        self.assertIsNotNone(geom_obj)
+        geom_expected_area = 15.74326
+        s = shape(geom_obj)
+        self.assertAlmostEqual(geom_expected_area, s.area, 5)
+
+        # [2.74362, 6.65058, 942, 942, 1, 0, 61198, 61198, 61, 198, 'A', 1, 3174]
+        # [13.37321, 24.20422, 2225, 2225, 1, 0, 125241, 125241, 125, 241, 'A', 2, 4209]
+        # [3.58953, 7.7865, 1021, 1021, 1, 0, 75029, 75029, 75, 29, 'D', 3, 10445]
+        # [4.2424, 8.69453, 891, 891, 1, 0, 64147, 64147, 64, 147, 'A', 6, 21227]
+        # [16.81754, 27.20801, 3720, 3720, 1, 0, 223248, 223248, 223, 248, 'D', 16, 56296]
