@@ -454,16 +454,19 @@ LLNppprrrOOYYDDDMM_AA.TIF  where:
         self.full_mount_path = base_mount_path.rstrip("\/") + os.path.sep + self.data_prefix.strip("\/")
         self.base_mount_path = base_mount_path
 
-        self.__file_list = None
-        self.thread = threading.Thread(target=self.__query_file_list(), args=())
-        self.thread.daemon = True
-        self.thread.start()
+        # self.__file_list = None
+        # self.thread = threading.Thread(target=self.__query_file_list(), args=())
+        # self.thread.daemon = True
+        # self.thread.start()
+
+        self.__wrs_geometries = WRSGeometries()
 
 
         # thread = threading.Thread(target)
 
     def get_boundary_wkt(self):
-        return "POLYGON (({0} {1}, {2} {1}, {2} {3}, {0} {3}, {0} {1}))".format(*self.bounds)
+        return self.__wrs_geometries.get_wrs_geometry(self.wrs_path, self.wrs_row, timeout=60)
+        # return "POLYGON (({0} {1}, {2} {1}, {2} {3}, {0} {3}, {0} {1}))".format(*self.bounds)
 
     def get_intersect_wkt(self, other_bounds):
         xmin = self.bounds[0] if self.bounds[0] > other_bounds[0] else other_bounds[0]
@@ -473,7 +476,6 @@ LLNppprrrOOYYDDDMM_AA.TIF  where:
         ymax = self.bounds[3] if self.bounds[3] < other_bounds[3] else other_bounds[3]
 
         return "POLYGON (({0} {1}, {2} {1}, {2} {3}, {0} {3}, {0} {1}))".format(xmin, ymin, xmax, ymax)
-
 
     def get_file_list(self, timeout=4):
         # 4 second timeout on info
@@ -723,38 +725,34 @@ class WRSGeometries(metaclass=__Singleton):
 Notes on WRS-2 Landsat 8's Operational Land Imager (OLI) and/or Thermal Infrared Sensor (TIRS) sensors acquired nearly 10,000 scenes from just after its February 11, 2013 launch through April 10, 2013, during when the satellite was moving into the operational WRS-2 orbit. The earliest images are TIRS data only.  While these data meet the quality standards and have the same geometric precision as data acquired on and after April 10, 2013, the geographic extents of each scene will differ. Many of the scenes are processed to full terrain correction, with a pixel size of 30 meters. There may be some differences in the spatial resolution of the early TIRS images due to telescope temperature changes.
     """
     def __init__(self):
-        self.__wrs2 = None
-        self.__wrs2_records = None
-        self.__wrs2_path_idx = None
-        self.__wrs2_row_idx = None
+        self.__wrs2_map = {}
+
         # do some async query to check if the danger_zone needs updating
         self.__read_thread = threading.Thread(target=self.__read_shapefiles, args=())
         self.__read_thread.daemon = True  # Daemonize thread
         self.__read_thread.start()
-        self.__wrs2_map = {}
 
     def __read_shapefiles(self):
         # self.__wrs1 = shapefile.Reader("/.epl/metadata/wrs/wrs1_asc_desc/wrs1_asc_desc.shp")
-        self.__wrs2 = shapefile.Reader("/.epl/metadata/wrs/wrs2_asc_desc/wrs2_asc_desc.shp")
-        self.__wrs2_fields = self.__wrs2.fields
+        wrs2 = shapefile.Reader("/.epl/metadata/wrs/wrs2_asc_desc/wrs2_asc_desc.shp")
         wrs_path_idx = None
         wrs_row_idx = None
-        for idx, field in enumerate(self.__wrs2.fields):
+        for idx, field in enumerate(wrs2.fields):
             if field[0] == "PATH":
                 wrs_path_idx = idx - 1
             elif field[0] == "ROW":
                 wrs_row_idx = idx - 1
 
         # self.__wrs1_records = self.__wrs1.records()
-        self.__wrs2_records = self.__wrs2.records()
-        for idx, record in enumerate(self.__wrs2_records):
+        records = wrs2.records()
+        for idx, record in enumerate(records):
             path_num = record[wrs_path_idx]
             row_num = record[wrs_row_idx]
 
             if path_num not in self.__wrs2_map:
                 self.__wrs2_map[path_num] = {}
 
-            self.__wrs2_map[path_num][row_num] = self.__wrs2.shape(idx).__geo_interface__
+            self.__wrs2_map[path_num][row_num] = wrs2.shape(idx).__geo_interface__
 
     def get_wrs_geometry(self, wrs_path, wrs_row, timeout=10):
         self.__read_thread.join(timeout=timeout)
