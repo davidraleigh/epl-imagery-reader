@@ -8,6 +8,8 @@ import py_compile
 
 import shapefile
 
+import math
+
 from osgeo import gdal
 from urllib.parse import urlparse
 from lxml import etree
@@ -445,6 +447,11 @@ LLNppprrrOOYYDDDMM_AA.TIF  where:
         self.total_size = row[16]  # INTEGER	NULLABLE The total size of this scene in bytes.
         self.base_url = row[17]  # STRING	NULLABLE The base URL for this scene in Cloud Storage.
 
+        self.center_lat = (self.north_lat - self.south_lat) / 2 + self.south_lat
+        self.center_lon = (self.east_lon - self.west_lon) / 2 + self.west_lon
+
+        self.utm_epsg_code = self.get_utm_epsg_code(self.center_lon, self.center_lat)
+
         #  (minx, miny, maxx, maxy)
         self.bounds = (self.west_lon, self.south_lat, self.east_lon, self.north_lat)
 
@@ -458,11 +465,7 @@ LLNppprrrOOYYDDDMM_AA.TIF  where:
         # self.thread = threading.Thread(target=self.__query_file_list(), args=())
         # self.thread.daemon = True
         # self.thread.start()
-
         self.__wrs_geometries = WRSGeometries()
-
-
-        # thread = threading.Thread(target)
 
     def get_boundary_wkt(self):
         return self.__wrs_geometries.get_wrs_geometry(self.wrs_path, self.wrs_row, timeout=60)
@@ -476,6 +479,28 @@ LLNppprrrOOYYDDDMM_AA.TIF  where:
         ymax = self.bounds[3] if self.bounds[3] < other_bounds[3] else other_bounds[3]
 
         return "POLYGON (({0} {1}, {2} {1}, {2} {3}, {0} {3}, {0} {1}))".format(xmin, ymin, xmax, ymax)
+
+    @staticmethod
+    def get_utm_epsg_code(longitude, latitude):
+        # TODO yield alternative if perfectly at 6 degree interval
+        # TODO throw or wrap if longitude greater than 180 or less than -180
+
+        # epsg code for N1 32601
+        epsg_code = 32601
+        if latitude < 0:
+            # epsg code for S1 32701
+            epsg_code += 100
+
+        diff = longitude + 180
+
+        # TODO ugly
+        if diff == 0:
+            return epsg_code
+
+        # 6 degrees of separation between zones, started with zone one, so subtract 1
+        bump = int(math.ceil(diff / 6)) - 1
+
+        return epsg_code + bump
 
     def get_file_list(self, timeout=4):
         # 4 second timeout on info

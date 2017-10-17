@@ -207,7 +207,9 @@ class TestMetaDataSQL(unittest.TestCase):
 
 class TestMetadata(unittest.TestCase):
     def test_bounds(self):
-        row = ('LC80330352017072LGN00', '', 'LANDSAT_8', 'OLI_TIRS', '2017-03-13', '2017-03-13T17:38:14.0196140Z', 'PRE', 'N/A', 'L1T', 33, 35, 1.2, 37.10422, 34.96178, -106.85883, -104.24596, 1067621299, 'gs://gcp-public-data-landsat/LC08/PRE/033/035/LC80330352017072LGN00')
+        row = ('LC80330352017072LGN00', '', 'LANDSAT_8', 'OLI_TIRS', '2017-03-13', '2017-03-13T17:38:14.0196140Z',
+               'PRE', 'N/A', 'L1T', 33, 35, 1.2, 37.10422, 34.96178, -106.85883, -104.24596, 1067621299,
+               'gs://gcp-public-data-landsat/LC08/PRE/033/035/LC80330352017072LGN00')
         metadata = Metadata(row)
         self.assertIsNotNone(metadata)
         geom_obj = metadata.get_boundary_wkt()
@@ -223,6 +225,40 @@ class TestMetadata(unittest.TestCase):
 
     def test_interesct(self):
         self.assertTrue(True)
+
+    def test_epsg_codes(self):
+        self.assertEqual(32601, Metadata.get_utm_epsg_code(-180, 45))
+        self.assertEqual(32701, Metadata.get_utm_epsg_code(-180, -45))
+        self.assertEqual(32601, Metadata.get_utm_epsg_code(-174, 45))
+        self.assertEqual(32701, Metadata.get_utm_epsg_code(-174, -45))
+
+        self.assertEqual(32602, Metadata.get_utm_epsg_code(-173.99, 45))
+        self.assertEqual(32702, Metadata.get_utm_epsg_code(-173.99, -45))
+        self.assertEqual(32602, Metadata.get_utm_epsg_code(-168, 45))
+        self.assertEqual(32702, Metadata.get_utm_epsg_code(-168, -45))
+
+        self.assertEqual(32603, Metadata.get_utm_epsg_code(-167.99, 45))
+        self.assertEqual(32703, Metadata.get_utm_epsg_code(-167.99, -45))
+        self.assertEqual(32603, Metadata.get_utm_epsg_code(-162, 45))
+        self.assertEqual(32703, Metadata.get_utm_epsg_code(-162, -45))
+
+        self.assertEqual(32660, Metadata.get_utm_epsg_code(180, 45))
+        self.assertEqual(32760, Metadata.get_utm_epsg_code(180, -45))
+        self.assertEqual(32660, Metadata.get_utm_epsg_code(174.00001, 45))
+        self.assertEqual(32760, Metadata.get_utm_epsg_code(174.00001, -45))
+
+        self.assertEqual(32659, Metadata.get_utm_epsg_code(174, 45))
+        self.assertEqual(32759, Metadata.get_utm_epsg_code(174, -45))
+        self.assertEqual(32659, Metadata.get_utm_epsg_code(168.00001, 45))
+        self.assertEqual(32759, Metadata.get_utm_epsg_code(168.00001, -45))
+
+    def test_utm_epsg(self):
+        row = ('LC80330352017072LGN00', '', 'LANDSAT_8', 'OLI_TIRS', '2017-03-13', '2017-03-13T17:38:14.0196140Z',
+               'PRE', 'N/A', 'L1T', 33, 35, 1.2, 37.10422, 34.96178, -106.85883, -104.24596, 1067621299,
+               'gs://gcp-public-data-landsat/LC08/PRE/033/035/LC80330352017072LGN00')
+        metadata = Metadata(row)
+        self.assertIsNotNone(metadata)
+        self.assertEqual(32613, metadata.utm_epsg_code)
 
 
 class TestStorage(unittest.TestCase):
