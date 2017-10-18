@@ -166,23 +166,30 @@ class BandMap:
 
 class RasterBandMetadata:
     def __init__(self, product_id, scene_id, full_mount_path, band_number):
-        band_metadata = {}
         # TODO more elegant please
         name_prefix = product_id
         if not product_id:
             name_prefix = scene_id
 
         file_path = "{0}/{1}_B{2}.TIF".format(full_mount_path, name_prefix, band_number)
+
         dataset = gdal.Open(file_path)
 
-        self.file_path = file_path
         self.data_type = gdal.GetDataTypeName(dataset.GetRasterBand(1).DataType)
         self.x_size = dataset.RasterXSize
         self.y_size = dataset.RasterYSize
         self.projection = dataset.GetProjection()
         self.geo_transform = dataset.GetGeoTransform()
+        self.data_id = name_prefix
 
         del dataset
+
+        self.band_number = band_number
+        self.file_path = file_path
+
+    def __iter__(self):
+        for attr, value in self.__dict__.items():
+            yield attr, value
 
     def get_geotransform(self, extent):
         """
@@ -197,6 +204,54 @@ class RasterBandMetadata:
         adfGeoTransform[5] /* n-s pixel resolution (negative value) */"""
         return None
 
+
+class RasterMetadata:
+    def __init__(self):
+        self.raster_band_metadata = {}
+        # TODO there needs to be a test to make sure that all of these items are length 1. They shouldn't be different, right?
+        self.projection = None
+        self.data_type = None
+        self.x_size = None
+        self.y_size = None
+        self.geo_transform = None
+        self.data_id = None
+
+    def __check_conflicts(self, raster_band_metadata: RasterBandMetadata):
+        if self.projection and self.projection is not raster_band_metadata.projection:
+            raise Exception("differing projections")
+        if self.data_type and self.data_type is not raster_band_metadata.data_type:
+            raise Exception("differing projections")
+        if self.x_size and self.x_size is not raster_band_metadata.x_size:
+            raise Exception("differing projections")
+        if self.y_size and self.y_size is not raster_band_metadata.y_size:
+            raise Exception("differing projections")
+        if self.geo_transform and self.geo_transform is not raster_band_metadata.geo_transform:
+            raise Exception("differing projections")
+
+    def __getattr__(self, attrname):
+        return self.__dict__[attrname]
+
+    def __setattr__(self, key, value):
+        self.__dict__[key] = value
+
+    def add_metadata(self, raster_band_metadata: RasterBandMetadata):
+        self.raster_band_metadata[raster_band_metadata.band_number] = raster_band_metadata
+
+        for key, value in raster_band_metadata:
+            if key in ['file_path', 'band_number']:
+                continue
+            self_value = getattr(self, key)
+            # if not None and not equal
+            if self_value and self_value != value:
+                raise Exception("key {0} differs between RasterBandMetadata and RasterMetadata\nRasterBandMetadata: {1}\nRasterBand: {2}\n".format(key, value, self_value))
+            if not self_value:
+                setattr(self, key, getattr(raster_band_metadata, key))
+
+    def get_metadata(self, band_number):
+        return self.raster_band_metadata[band_number]
+
+    def contains(self, band_number):
+        return band_number in self.raster_band_metadata
 
 # TODO rename as LandsatMetadata
 class Metadata:
@@ -375,7 +430,7 @@ class Landsat(Imagery):
         self.__metadata = metadata
         self.__id = id(self)
         self.__wgs84_cs = pyproj.Proj(init='epsg:4326')
-        self.__band_metadata = {}
+        self.__raster_metadata = RasterMetadata()
 
     def __del__(self):
         # log('\nbucket unmounted\n')
@@ -407,9 +462,9 @@ class Landsat(Imagery):
         elem_source_filename.text = file_path
 
         elem_source_props = etree.SubElement(elem_simple_source, "SourceProperties")
-        elem_source_props.set("RasterXSize", str(self.__band_metadata[band_number].x_size))
-        elem_source_props.set("RasterYSize", str(self.__band_metadata[band_number].y_size))
-        elem_source_props.set("DataType", self.__band_metadata[band_number].data_type)
+        elem_source_props.set("RasterXSize", str(self.__raster_metadata.get_metadata(band_number).x_size))
+        elem_source_props.set("RasterYSize", str(self.__raster_metadata.get_metadata(band_number).y_size))
+        elem_source_props.set("DataType", self.__raster_metadata.get_metadata(band_number).data_type)
 
         # there may be a more efficient size than 256
         elem_source_props.set("BlockXSize", str(block_size))
@@ -418,14 +473,14 @@ class Landsat(Imagery):
         elem_src_rect = etree.SubElement(elem_simple_source, "SrcRect")
         elem_src_rect.set("xOff", str(0))
         elem_src_rect.set("yOff", str(0))
-        elem_src_rect.set("xSize", str(self.__band_metadata[band_number].x_size))
-        elem_src_rect.set("ySize", str(self.__band_metadata[band_number].y_size))
+        elem_src_rect.set("xSize", str(self.__raster_metadata.get_metadata(band_number).x_size))
+        elem_src_rect.set("ySize", str(self.__raster_metadata.get_metadata(band_number).y_size))
 
         elem_dst_rect = etree.SubElement(elem_simple_source, "DstRect")
         elem_dst_rect.set("xOff", str(0))
         elem_dst_rect.set("yOff", str(0))
-        elem_dst_rect.set("xSize", str(self.__band_metadata[band_number].x_size))
-        elem_dst_rect.set("ySize", str(self.__band_metadata[band_number].y_size))
+        elem_dst_rect.set("xSize", str(self.__raster_metadata.get_metadata(band_number).x_size))
+        elem_dst_rect.set("ySize", str(self.__raster_metadata.get_metadata(band_number).y_size))
 
         return elem_simple_source
 
@@ -483,7 +538,7 @@ class Landsat(Imagery):
         elem_simple_source = self.get_source_elem(band_number)
         elem_raster_band.append(elem_simple_source)
 
-        elem_raster_band.set("dataType", self.__band_metadata[band_number].data_type)
+        elem_raster_band.set("dataType", self.__raster_metadata.get_metadata(band_number).data_type)
         elem_raster_band.set("band", str(position_number))
 
     # TODO move this to Metadata???
@@ -503,15 +558,13 @@ class Landsat(Imagery):
                 band_number_set.add(band_definition)
 
         for band_number in band_number_set:
-            if band_number in self.__band_metadata or force_update:
+            if self.__raster_metadata.contains(band_number) or force_update:
                 continue
 
-            self.__band_metadata[band_number] = RasterBandMetadata(self.__metadata.product_id,
+            self.__raster_metadata.add_metadata(RasterBandMetadata(self.__metadata.product_id,
                                                                    self.__metadata.scene_id,
                                                                    self.__metadata.full_mount_path,
-                                                                   band_number)
-            # There has to be a better way to get a sample of data!!
-            self.__band_metadata['TODO_REPLACE'] = band_number
+                                                                   band_number))
 
     def get_vrt(self, band_definitions: list, translate_args=None, extent: tuple=None, xRes=30, yRes=30):
         # TODO move this under __init__? Maybe run it on a separate thread
@@ -535,18 +588,18 @@ class Landsat(Imagery):
         adfGeoTransform[4] /* 0 */
         adfGeoTransform[5] /* n-s pixel resolution (negative value) */"""
 
-        raster_band_metadata = self.__band_metadata[self.__band_metadata['TODO_REPLACE']]
 
         # proj_cs = pyproj.Proj(init='epsg:{0}'.format(self.__metadata.utm_epsg_code))
         # lon_ul_corner, lat_ul_corner = self.__wgs84_cs(self.__metadata.west_lon, self.__metadata.north_lat)
         # x_ul_corner, y_ul_corner = pyproj.transform(self.__wgs84_cs, proj_cs, lon_ul_corner, lat_ul_corner, radians=True)
         # resolution = self.__metadata.band_map.get_max_resolution()
         # geo_transform = (x_ul_corner, resolution, 0, y_ul_corner, 0, -resolution)
-        etree.SubElement(vrt_dataset, "GeoTransform").text = ",".join(map("  {:.16e}".format, raster_band_metadata.geo_transform))
 
-        vrt_dataset.set("rasterXSize", str(raster_band_metadata.x_size))
-        vrt_dataset.set("rasterYSize", str(raster_band_metadata.y_size))
-        etree.SubElement(vrt_dataset, "SRS").text = raster_band_metadata.projection
+        etree.SubElement(vrt_dataset, "GeoTransform").text = ",".join(map("  {:.16e}".format, self.__raster_metadata.geo_transform))
+
+        vrt_dataset.set("rasterXSize", str(self.__raster_metadata.x_size))
+        vrt_dataset.set("rasterYSize", str(self.__raster_metadata.y_size))
+        etree.SubElement(vrt_dataset, "SRS").text = self.__raster_metadata.projection
 
         # TODO if no bands throw exception
         for band_definition in band_definitions:
