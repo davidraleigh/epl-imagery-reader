@@ -9,11 +9,13 @@ import py_compile
 import shapefile
 
 import math
+import pyproj
 
 from osgeo import gdal
 from urllib.parse import urlparse
 from lxml import etree
 from enum import Enum
+from enum import IntEnum
 from subprocess import call
 
 
@@ -37,15 +39,21 @@ class __Singleton(type):
         return cls._instance
 
 
-class SpacecraftID(Enum):
-    LANDSAT_1 = 1
-    LANDSAT_2 = 2
-    LANDSAT_3 = 3
-    LANDSAT_4 = 4
-    LANDSAT_5 = 5
-    LANDSAT_8 = 8
-    LANDSAT_7 = 7
-
+class SpacecraftID(IntEnum):
+    LANDSAT_1_MSS = 1
+    LANDSAT_2_MSS = 2
+    LANDSAT_3_MSS = 4
+    LANDSAT_123_MSS = 7
+    LANDSAT_4_MSS = 8
+    LANDSAT_5_MSS = 16
+    LANDSAT_45_MSS = 24
+    LANDSAT_4 = 32
+    LANDSAT_5 = 64
+    LANDSAT_45 = 96
+    LANDSAT_7 = 128
+    LANDSAT_457 = 224
+    LANDSAT_8 = 256
+    ALL = 512
 
 class Band(Enum):
     # Crazy Values so that the Band.<ENUM>.value isn't used for anything
@@ -61,85 +69,75 @@ class Band(Enum):
     CIRRUS = -10000
     TIRS1 = -11000
     TIRS2 = -12000
+    INFRARED2 = -13000
+    INFRARED1 = -14000
 
 
 class BandMap:
-    """
-    Landsat 4-5
-    Band 1 - Blue	0.45-0.52	30
-    Band 2 - Green	0.52-0.60	30
-    Band 3 - Red	0.63-0.69	30
-    Band 4 - Near Infrared (NIR)	0.76-0.90	30
-    Band 5  - Shortwave Infrared (SWIR) 1	1.55-1.75	30
-    Band 6 - Thermal	10.40-12.50	120* (30)
-    Band 7 - Shortwave Infrared (SWIR) 2	2.08-2.35	30
-    """
-
-    """
-    Landsat 7
-    Band 1 - Blue	0.45-0.52	30
-    Band 2 - Green	0.52-0.60	30
-    Band 3 - Red	0.63-0.69	30
-    Band 4 - Near Infrared (NIR)	0.77-0.90	30
-    Band 5 - Shortwave Infrared (SWIR) 1	1.55-1.75	30
-    Band 6 - Thermal	10.40-12.50	60 * (30)
-    Band 7 - Shortwave Infrared (SWIR) 2	2.09-2.35	30
-    Band 8 - Panchromatic	.52-.90	15
-    """
-
-    """
-    Landsat 8
-    Band 1 - Ultra Blue (coastal/aerosol)	0.435 - 0.451	30
-    Band 2 - Blue	0.452 - 0.512	30
-    Band 3 - Green	0.533 - 0.590	30
-    Band 4 - Red	0.636 - 0.673	30
-    Band 5 - Near Infrared (NIR)	0.851 - 0.879	30
-    Band 6 - Shortwave Infrared (SWIR) 1	1.566 - 1.651	30
-    Band 7 - Shortwave Infrared (SWIR) 2	2.107 - 2.294	30
-    Band 8 - Panchromatic	0.503 - 0.676	15
-    Band 9 - Cirrus	1.363 - 1.384	30
-    Band 10 - Thermal Infrared (TIRS) 1	10.60 - 11.19	100 * (30)
-    Band 11 - Thermal Infrared (TIRS) 2	11.50 - 12.51	100 * (30)
-    """
-
-    __band_enums = None
-    __band_numbers = None
-    __band_set_1 = [Band.BLUE, Band.GREEN, Band.RED, Band.NIR, Band.SWIR1]
-    __band_set_2 = [Band.SWIR2, Band.PANCHROMATIC, Band.CIRRUS, Band.TIRS1, Band.TIRS2]
+    __map = {
+        SpacecraftID.LANDSAT_8: {
+            Band.ULTRA_BLUE: {'number': 1, 'wavelenght_range': (0.435, 0.451), 'description': 'Coastal and aerosol studies', 'resolution_m': 30},
+            Band.BLUE: {'number': 2, 'wavelength_range': (0.452, 0.512), 'description': 'Bathymetric mapping, distinguishing soil from vegetation, and deciduous from coniferous vegetation', 'resolution_m': 30},
+            Band.GREEN: {'number': 3, 'wavelength_range': (0.533, 0.590), 'description': 'Emphasizes peak vegetation, which is useful for assessing plant vigor', 'resolution_m': 30},
+            Band.RED: {'number': 4, 'wavelength_range': (0.636, 0.673), 'description': 'Discriminates vegetation slopes', 'resolution_m': 30},
+            Band.NIR: {'number': 5, 'wavelength_range': (0.851, 0.879), 'description': 'Emphasizes biomass content and shorelines', 'resolution_m': 30},
+            Band.SWIR1: {'number': 6, 'wavelength_range': (1.566, 1.651), 'description': 'Discriminates moisture content of soil and vegetation; penetrates thin clouds', 'resolution_m': 30},
+            Band.SWIR2: {'number': 7, 'wavelength_range': (2.107, 2.294), 'description': 'Improved moisture content of soil and vegetation and thin cloud penetration', 'resolution_m': 30},
+            Band.PANCHROMATIC: {'number': 8, 'wavelength_range': (0.503, 0.676), 'description': '15 meter resolution, sharper image definition', 'resolution_m': 15},
+            Band.CIRRUS: {'number': 9, 'wavelength_range': (1.363, 1.384), 'description': 'Improved detection of cirrus cloud contamination', 'resolution_m': 30},
+            Band.TIRS1: {'number': 10, 'wavelength_range': (10.60, 11.19), 'description': '100 meter resolution, thermal mapping and estimated soil moisture', 'resolution_m': 30},
+            Band.TIRS2: {'number': 11, 'wavelength_range': (11.50, 12.51), 'description': '100 meter resolution, Improved thermal mapping and estimated soil moisture', 'resolution_m': 30},
+        },
+        SpacecraftID.LANDSAT_457: {
+            Band.BLUE: {'number': 1, 'wavelength_range': (0.45, 0.52), 'description': 'Bathymetric mapping, distinguishing soil from vegetation, and deciduous from coniferous vegetation', 'resolution_m': 30},
+            Band.GREEN: {'number': 2, 'wavelength_range': (0.52, 0.60), 'description': 'Emphasizes peak vegetation, which is useful for assessing plant vigor', 'resolution_m': 30},
+            Band.RED: {'number': 3, 'wavelength_range': (0.63, 0.69), 'description': 'Discriminates vegetation slopes', 'resolution_m': 30},
+            Band.NIR: {'number': 4, 'wavelenght_range': (0.77, 0.90), 'description': 'Emphasizes biomass content and shorelines', 'resolution_m': 30},
+            Band.SWIR1: {'number': 5, 'wavelength_range': (1.55, 1.75), 'description': 'Discriminates moisture content of soil and vegetation; penetrates thin clouds', 'resolution_m': 30},
+            Band.THERMAL: {'number': 6, 'wavelength_range': (10.40, 12.50), 'description': 'Thermal mapping and estimated soil moisture (60m downsample Landsat7, 120m downsample landsat 4&5)', 'resolution_m': 30},
+            Band.SWIR2: {'number': 7, 'wavelength_range': (2.09, 2.35), 'description': 'Hydrothermally altered rocks associated with mineral deposits', 'resolution_m': 30},
+            Band.PANCHROMATIC: {'number': 8, 'wavelength_range': (0.52, 0.90), 'description': '15 meter resolution, sharper image definition', 'resolution_m': 15},
+        },
+        SpacecraftID.LANDSAT_123_MSS:{
+            Band.GREEN: {'number': 4, 'wavelength_range': (0.5, 0.6), 'description': 'Sediment-laden water, delineates areas of shallow water', 'resolution_m': 60},
+            Band.RED: {'number': 5, 'wavelength_range': (0.6, 0.7), 'description': 'Cultural features', 'resolution_m': 60},
+            Band.INFRARED1: {'number': 6, 'wavelength_range': (0.7, 0.8), 'description': 'Vegetation boundary between land and water, and landforms', 'resolution_m': 60},
+            Band.INFRARED2: {'number': 7, 'wavelength_range': (0.8, 1.1), 'description': 'Penetrates atmospheric haze best, emphasizes vegetation, boundary between land and water, and landforms', 'resolution_m': 60},
+        },
+        SpacecraftID.LANDSAT_45_MSS: {
+            Band.GREEN: {'number': 1, 'wavelength_range': (0.5, 0.6), 'description': 'Sediment-laden water, delineates areas of shallow water', 'resolution_m': 60},
+            Band.RED: {'number': 2, 'wavelength_range': (0.6, 0.7), 'description': 'Cultural features', 'resolution_m': 60},
+            Band.INFRARED1: {'number': 3, 'wavelength_range': (0.7, 0.8), 'description': 'Vegetation boundary between land and water, and landforms', 'resolution_m': 60},
+            Band.INFRARED2: {'number': 4, 'wavelength_range': (0.8, 1.1), 'description': 'Penetrates atmospheric haze best, emphasizes vegetation, boundary between land and water, and landforms', 'resolution_m': 60},
+        }
+    }
 
     def __init__(self, spacecraft_id):
-        self.__band_enums = {}
-        self.__band_numbers = {}
-        index = 1
-        if spacecraft_id.value > 7:
-            self.__band_enums[index] = Band.ULTRA_BLUE
-            self.__band_numbers[self.__band_enums[index]] = index
-            index = 2
+        self.__spacecraft_id = spacecraft_id
+        self.__map_enum = {}
+        if spacecraft_id & SpacecraftID.LANDSAT_123_MSS:
+            self.__map_enum = self.__map[SpacecraftID.LANDSAT_123_MSS]
+        elif spacecraft_id & SpacecraftID.LANDSAT_45_MSS:
+            self.__map_enum = self.__map[SpacecraftID.LANDSAT_45_MSS]
+        elif spacecraft_id & SpacecraftID.LANDSAT_457:
+            self.__map_enum = self.__map[SpacecraftID.LANDSAT_457]
+        elif spacecraft_id == SpacecraftID.LANDSAT_8:
+            self.__map_enum = self.__map[SpacecraftID.LANDSAT_8]
+        else:
+            self.__map_enum = None
 
-        for i in range(0, len(self.__band_set_1)):
-            self.__band_enums[index + i] = self.__band_set_1[i]
-            self.__band_numbers[self.__band_enums[index + i]] = index + i
-
-        index = index + len(self.__band_set_1)
-        if spacecraft_id.value < 8:
-            self.__band_enums[index] = Band.THERMAL
-            self.__band_numbers[self.__band_enums[index]] = index
-            index += 1
-
-        for i in range(0, len(self.__band_set_2)):
-            if (spacecraft_id.value < 7 and i > 0) or (spacecraft_id.value < 8 and i > 1):
-                break
-            self.__band_enums[index + i] = self.__band_set_2[i]
-            self.__band_numbers[self.__band_enums[index + i]] = index + i
+        self.__map_number = {}
+        for key in self.__map_enum:
+            self.__map_number[self.__map_enum[key]['number']] = key
 
     def get_band_name(self, band_number):
-        return self.__band_enums[band_number].name
+        return self.__map_number[band_number].name
 
     def get_band_enum(self, band_number):
-        return self.__band_enums[band_number]
+        return self.__map_number[band_number]
 
     def get_band_number(self, band_enum):
-        return self.__band_numbers[band_enum]
+        return self.__map_enum[band_enum]
 
 
 class Imagery:
@@ -159,12 +157,13 @@ class Landsat(Imagery):
     __metadata = None
     __id = None
 
-    def __init__(self, metadata):
+    def __init__(self, metadata: Metadata):
         bucket_name = "gcp-public-data-landsat"
         super().__init__(bucket_name)
         self.band_map = BandMap(metadata.spacecraft_id)
         self.__metadata = metadata
         self.__id = id(self)
+        self.__wgs84_cs = pyproj.Proj(init='epsg:4326')
 
     def __del__(self):
         # log('\nbucket unmounted\n')
@@ -311,7 +310,7 @@ class Landsat(Imagery):
 
         return x_size, y_size, projection, geo_transform
 
-    def get_vrt(self, band_definitions, translate_args=None):
+    def get_vrt(self, band_definitions: list, translate_args=None, extent: tuple=None, xRes=30, yRes=30):
         # TODO move this under __init__? Maybe run it on a separate thread
         if self.storage.mount_sub_folder(self.__metadata, request_key=self.__id) is False:
             return None
@@ -342,6 +341,24 @@ class Landsat(Imagery):
         vrt_dataset.set("rasterXSize", str(max_x))
         vrt_dataset.set("rasterYSize", str(max_y))
         etree.SubElement(vrt_dataset, "SRS").text = projection
+
+        """
+        http://www.gdal.org/gdal_tutorial.html[ 
+        In the particular, but common, case of a "north up" image without any rotation or shearing, 
+        the georeferencing transform takes the following form
+        adfGeoTransform[0] /* top left x */
+        adfGeoTransform[1] /* w-e pixel resolution */
+        adfGeoTransform[2] /* 0 */
+        adfGeoTransform[3] /* top left y */
+        adfGeoTransform[4] /* 0 */
+        adfGeoTransform[5] /* n-s pixel resolution (negative value) */"""
+
+        # TODO this is dangerous, just taking the epsg from the Metadata instead of from the raster. FIXME!!
+
+        proj_cs = pyproj.Proj(init='epsg:{0}'.format(self.__metadata.utm_epsg_code))
+        lon_ul_corner, lat_ul_corner = self.__wgs84_cs(self.__metadata.west_lon, self.__metadata.north_lat)
+        x_ul_corner, y_ul_corner = pyproj.transform(self.__wgs84_cs, proj_cs, lon_ul_corner, lat_ul_corner)
+        geo_transform = (x_ul_corner, xRes, 0, y_ul_corner, 0, -yRes)
         etree.SubElement(vrt_dataset, "GeoTransform").text = ",".join(map("  {:.16e}".format, geo_transform))
 
         return etree.tostring(vrt_dataset, encoding='UTF-8', method='xml')
@@ -428,6 +445,7 @@ LLNppprrrOOYYDDDMM_AA.TIF  where:
     """
 
     def __init__(self, row, base_mount_path='/imagery'):
+        # TODO, this could use a shallow copy? instead of creating an object like this? And thne all the attributes would just call the array indices?
         self.scene_id = row[0]  # STRING	REQUIRED   Unique identifier for a particular Landsat image downlinked to a particular ground station.
         self.product_id = row[1]  # STRING	NULLABLE Unique identifier for a particular scene processed by the USGS at a particular time, or null for pre-collection data.
         self.spacecraft_id = SpacecraftID[row[2].upper()]  # SpacecraftID REQUIRED The spacecraft that acquired this scene: one of 'LANDSAT_4' through 'LANDSAT_8'.
@@ -467,9 +485,8 @@ LLNppprrrOOYYDDDMM_AA.TIF  where:
         # self.thread.start()
         self.__wrs_geometries = WRSGeometries()
 
-    def get_boundary_wkt(self):
+    def get_wrs_polygon(self):
         return self.__wrs_geometries.get_wrs_geometry(self.wrs_path, self.wrs_row, timeout=60)
-        # return "POLYGON (({0} {1}, {2} {1}, {2} {3}, {0} {3}, {0} {1}))".format(*self.bounds)
 
     def get_intersect_wkt(self, other_bounds):
         xmin = self.bounds[0] if self.bounds[0] > other_bounds[0] else other_bounds[0]
@@ -665,13 +682,13 @@ class Storage(metaclass=__Singleton):
         for full_path in self.__mounted_sub_folders:
             self.__unmount_sub_folder(full_path, "", force=True)
 
-    def is_mounted(self, metadata):
+    def is_mounted(self, metadata: Metadata):
         if metadata.full_mount_path in self.__mounted_sub_folders and \
                 self.__mounted_sub_folders[metadata.full_mount_path]:
             return True
         return False
 
-    def mount_sub_folder(self, metadata, request_key):
+    def mount_sub_folder(self, metadata: Metadata, request_key):
         # execute mount command
         # gcsfuse --only-dir LC08/PRE/044/034/LC80440342016259LGN00 gcp-public-data-landsat /landsat
 

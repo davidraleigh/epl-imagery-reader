@@ -5,6 +5,9 @@ import os
 
 import numpy as np
 
+import shapely.geometry
+import requests
+
 from math import isclose
 from lxml import etree
 from osgeo import gdal
@@ -212,7 +215,7 @@ class TestMetadata(unittest.TestCase):
                'gs://gcp-public-data-landsat/LC08/PRE/033/035/LC80330352017072LGN00')
         metadata = Metadata(row)
         self.assertIsNotNone(metadata)
-        geom_obj = metadata.get_boundary_wkt()
+        geom_obj = metadata.get_wrs_polygon()
         self.assertIsNotNone(geom_obj)
         bounding_polygon = box(*metadata.bounds)
         wrs_polygon = shape(geom_obj)
@@ -660,6 +663,45 @@ class TestLandsat(unittest.TestCase):
         nda2 = landsat.fetch_imagery_array([4, 3, 2], scaleParams)
         np.testing.assert_almost_equal(nda, nda2)
         # 'scene_id': 'LC80390332016208LGN00'
+
+    def test_vrt_extent(self):
+        r = requests.get("https://raw.githubusercontent.com/johan/world.geo.json/master/countries/USA/NM/Taos.geo.json")
+        taos_geom = r.json()
+        print(taos_geom)
+
+        taos_shape = shapely.geometry.shape(taos_geom['features'][0]['geometry'])
+
+        metadata_service = MetadataService()
+
+        d_start = date(2017, 3, 12)  # 2017-03-12
+        d_end = date(2017, 3, 19)  # 2017-03-20, epl api is inclusive
+
+        sql_filters = ['collection_number="PRE"']
+        rows = metadata_service.search(
+            SpacecraftID.LANDSAT_8,
+            start_date=d_start,
+            end_date=d_end,
+            bounding_box=taos_shape.bounds,
+            limit=10,
+            sql_filters=sql_filters)
+        print(len(rows))
+        # mounted directory in docker container
+        base_mount_path = '/imagery'
+
+        metadataset = []
+        for row in rows:
+            metadataset.append(Metadata(row, base_mount_path))
+
+        # GDAL helper functions for generating VRT
+        landsat = Landsat(metadataset[0])
+
+        # get a numpy.ndarray from bands for specified imagery
+        band_numbers = [Band.RED, Band.GREEN, Band.BLUE]
+        scaleParams = [[0.0, 65535], [0.0, 65535], [0.0, 65535]]
+        vrt = landsat.get_vrt(band_numbers, extent=taos_shape.bounds)
+
+        self.assertIsNotNone(vrt)
+
 
 
 class TestPixelFunctions(unittest.TestCase):
