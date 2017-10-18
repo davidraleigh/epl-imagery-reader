@@ -240,6 +240,7 @@ LLNppprrrOOYYDDDMM_AA.TIF  where:
         self.total_size = row[16]  # INTEGER	NULLABLE The total size of this scene in bytes.
         self.base_url = row[17]  # STRING	NULLABLE The base URL for this scene in Cloud Storage.
 
+        self.band_map = BandMap(self.spacecraft_id)
         self.center_lat = (self.north_lat - self.south_lat) / 2 + self.south_lat
         self.center_lon = (self.east_lon - self.west_lon) / 2 + self.west_lon
 
@@ -323,14 +324,12 @@ class Imagery:
 
 class Landsat(Imagery):
     # def __init__(self, base_mount_path, bucket_name="gcp-public-data-landsat"):
-    band_map = None
     __metadata = None
     __id = None
 
     def __init__(self, metadata: Metadata):
         bucket_name = "gcp-public-data-landsat"
         super().__init__(bucket_name)
-        self.band_map = BandMap(metadata.spacecraft_id)
         self.__metadata = metadata
         self.__id = id(self)
         self.__wgs84_cs = pyproj.Proj(init='epsg:4326')
@@ -446,7 +445,7 @@ class Landsat(Imagery):
         for band_number in band_definition["band_numbers"]:
             # TODO, I don't like this reuse of this variable
             if isinstance(band_number, Band):
-                band_number = self.band_map.get_number(band_number)
+                band_number = self.__metadata.band_map.get_number(band_number)
 
             elem_simple_source, x_size, y_size, projection, geo_transform, data_type = self.get_source_elem(band_number)
             elem_raster_band.append(elem_simple_source)
@@ -465,7 +464,7 @@ class Landsat(Imagery):
         # # file_path = self.__metadata.full_mount_path + os.path.sep + self.__metadata.scene_id + "_B{}.TIF".format(band)
 
         # I think this needs to be removed.
-        color_interp = self.band_map.get_name(band_number).capitalize()
+        color_interp = self.__metadata.band_map.get_name(band_number).capitalize()
 
         elem_raster_band = etree.SubElement(vrt_dataset, "VRTRasterBand")
 
@@ -498,7 +497,7 @@ class Landsat(Imagery):
             if isinstance(band_definition, dict):
                 x_size, y_size, projection, geo_transform = self.get_function_band_elem(vrt_dataset, band_definition, position_number, 256)
             elif isinstance(band_definition, Band):
-                x_size, y_size, projection, geo_transform = self.get_band_elem(vrt_dataset, self.band_map.get_number(band_definition), position_number, 256)
+                x_size, y_size, projection, geo_transform = self.get_band_elem(vrt_dataset, self.__metadata.band_map.get_number(band_definition), position_number, 256)
             else:
                 x_size, y_size, projection, geo_transform = self.get_band_elem(vrt_dataset, band_definition, position_number, 256)
 
