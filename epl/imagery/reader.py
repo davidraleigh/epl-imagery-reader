@@ -77,8 +77,10 @@ class Band(Enum):
 
 
 class BandMap:
+     # TODO it would be nice to store data type, Byte, Unit16, etc.
     __map = {
         SpacecraftID.LANDSAT_8: {
+            'max_resolution': 30,
             Band.ULTRA_BLUE: {'number': 1, 'wavelength_range': (0.435, 0.451), 'description': 'Coastal and aerosol studies', 'resolution_m': 30},
             Band.BLUE: {'number': 2, 'wavelength_range': (0.452, 0.512), 'description': 'Bathymetric mapping, distinguishing soil from vegetation, and deciduous from coniferous vegetation', 'resolution_m': 30},
             Band.GREEN: {'number': 3, 'wavelength_range': (0.533, 0.590), 'description': 'Emphasizes peak vegetation, which is useful for assessing plant vigor', 'resolution_m': 30},
@@ -92,6 +94,7 @@ class BandMap:
             Band.TIRS2: {'number': 11, 'wavelength_range': (11.50, 12.51), 'description': '100 meter resolution, Improved thermal mapping and estimated soil moisture', 'resolution_m': 30},
         },
         SpacecraftID.LANDSAT_45: {
+            'max_resolution': 30,
             Band.BLUE: {'number': 1, 'wavelength_range': (0.45, 0.52), 'description': 'Bathymetric mapping, distinguishing soil from vegetation, and deciduous from coniferous vegetation', 'resolution_m': 30},
             Band.GREEN: {'number': 2, 'wavelength_range': (0.52, 0.60), 'description': 'Emphasizes peak vegetation, which is useful for assessing plant vigor', 'resolution_m': 30},
             Band.RED: {'number': 3, 'wavelength_range': (0.63, 0.69), 'description': 'Discriminates vegetation slopes', 'resolution_m': 30},
@@ -101,12 +104,14 @@ class BandMap:
             Band.SWIR2: {'number': 7, 'wavelength_range': (2.09, 2.35), 'description': 'Hydrothermally altered rocks associated with mineral deposits', 'resolution_m': 30},
         },
         SpacecraftID.LANDSAT_123_MSS:{
+            'max_resolution': 60,
             Band.GREEN: {'number': 4, 'wavelength_range': (0.5, 0.6), 'description': 'Sediment-laden water, delineates areas of shallow water', 'resolution_m': 60},
             Band.RED: {'number': 5, 'wavelength_range': (0.6, 0.7), 'description': 'Cultural features', 'resolution_m': 60},
             Band.INFRARED1: {'number': 6, 'wavelength_range': (0.7, 0.8), 'description': 'Vegetation boundary between land and water, and landforms', 'resolution_m': 60},
             Band.INFRARED2: {'number': 7, 'wavelength_range': (0.8, 1.1), 'description': 'Penetrates atmospheric haze best, emphasizes vegetation, boundary between land and water, and landforms', 'resolution_m': 60},
         },
         SpacecraftID.LANDSAT_45_MSS: {
+            'max_resolution': 60,
             Band.GREEN: {'number': 1, 'wavelength_range': (0.5, 0.6), 'description': 'Sediment-laden water, delineates areas of shallow water', 'resolution_m': 60},
             Band.RED: {'number': 2, 'wavelength_range': (0.6, 0.7), 'description': 'Cultural features', 'resolution_m': 60},
             Band.INFRARED1: {'number': 3, 'wavelength_range': (0.7, 0.8), 'description': 'Vegetation boundary between land and water, and landforms', 'resolution_m': 60},
@@ -118,43 +123,45 @@ class BandMap:
     __map[SpacecraftID.LANDSAT_7] = copy.copy(__map[SpacecraftID.LANDSAT_45])
     __map[SpacecraftID.LANDSAT_7][Band.PANCHROMATIC] = {'number': 8, 'wavelength_range': (0.52, 0.90), 'description': '15 meter resolution, sharper image definition', 'resolution_m': 15}
 
+    __enum_map = {}
+    for spacecrafID in __map:
+        for band_key in __map[spacecrafID]:
+            if isinstance(__map[spacecrafID][band_key], dict):
+                if spacecrafID not in __enum_map:
+                    __enum_map[spacecrafID] = {}
+                __enum_map[spacecrafID][__map[spacecrafID][band_key]['number']] = band_key
 
-    # TODO this should all be turned into a singleton / Const value
-    def __init__(self, spacecraft_id):
-        self.__spacecraft_id = spacecraft_id
-        self.__description_map = {}
+    def __init__(self, spacecraft_id: SpacecraftID):
         if spacecraft_id & SpacecraftID.LANDSAT_123_MSS:
-            self.__description_map = self.__map[SpacecraftID.LANDSAT_123_MSS]
+            self.__spacecraft_id = SpacecraftID.LANDSAT_123_MSS
         elif spacecraft_id & SpacecraftID.LANDSAT_45_MSS:
-            self.__description_map = self.__map[SpacecraftID.LANDSAT_45_MSS]
+            self.__spacecraft_id = SpacecraftID.LANDSAT_45_MSS
         elif spacecraft_id & SpacecraftID.LANDSAT_45:
-            self.__description_map = self.__map[SpacecraftID.LANDSAT_45]
+            self.__spacecraft_id = SpacecraftID.LANDSAT_45
         elif spacecraft_id & SpacecraftID.LANDSAT_7:
-            self.__description_map = self.__map[SpacecraftID.LANDSAT_7]
+            self.__spacecraft_id = SpacecraftID.LANDSAT_7
         elif spacecraft_id == SpacecraftID.LANDSAT_8:
-            self.__description_map = self.__map[SpacecraftID.LANDSAT_8]
+            self.__spacecraft_id = SpacecraftID.LANDSAT_8
         else:
-            self.__description_map = None
-
-        __map_number = {}
-        for key in self.__description_map:
-            __map_number[self.__description_map[key]['number']] = key
-        self.__enum_map = __map_number
+            self.__spacecraft_id = None
 
     def get_name(self, band_number):
-        return self.__enum_map[band_number].name
+        return self.__enum_map[self.__spacecraft_id][band_number].name
 
     def get_band_enum(self, band_number):
-        return self.__enum_map[band_number]
+        return self.__enum_map[self.__spacecraft_id][band_number]
 
-    def get_number(self, band_enum):
-        return self.__description_map[band_enum]['number']
+    def get_number(self, band_enum: Band):
+        return self.__map[self.__spacecraft_id][band_enum]['number']
 
-    def get_resolution(self, band_enum):
-        return self.__description_map[band_enum]['resolution_m']
+    def get_resolution(self, band_enum: Band):
+        return self.__map[self.__spacecraft_id][band_enum]['resolution_m']
 
     def get_details(self):
-        return self.__description_map
+        return self.__map[self.__spacecraft_id]
+
+    def get_max_resolution(self):
+        return self.__map[self.__spacecraft_id]['max_resolution']
 
 
 class Metadata:
@@ -524,10 +531,11 @@ class Landsat(Imagery):
 
         # TODO this is dangerous, just taking the epsg from the Metadata instead of from the raster. FIXME!!
 
-        # proj_cs = pyproj.Proj(init='epsg:{0}'.format(self.__metadata.utm_epsg_code))
-        # lon_ul_corner, lat_ul_corner = self.__wgs84_cs(self.__metadata.west_lon, self.__metadata.north_lat)
-        # x_ul_corner, y_ul_corner = pyproj.transform(self.__wgs84_cs, proj_cs, lon_ul_corner, lat_ul_corner)
-        # geo_transform = (x_ul_corner, xRes, 0, y_ul_corner, 0, -yRes)
+        proj_cs = pyproj.Proj(init='epsg:{0}'.format(self.__metadata.utm_epsg_code))
+        lon_ul_corner, lat_ul_corner = self.__wgs84_cs(self.__metadata.west_lon, self.__metadata.north_lat)
+        x_ul_corner, y_ul_corner = pyproj.transform(self.__wgs84_cs, proj_cs, lon_ul_corner, lat_ul_corner, radians=True)
+        resolution = self.__metadata.band_map.get_max_resolution()
+        geo_transform = (x_ul_corner, resolution, 0, y_ul_corner, 0, -resolution)
         etree.SubElement(vrt_dataset, "GeoTransform").text = ",".join(map("  {:.16e}".format, geo_transform))
 
         return etree.tostring(vrt_dataset, encoding='UTF-8', method='xml')
