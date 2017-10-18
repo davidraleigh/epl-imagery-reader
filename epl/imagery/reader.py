@@ -12,6 +12,8 @@ import math
 import pyproj
 import copy
 
+from pprint import pprint
+
 from osgeo import gdal
 from urllib.parse import urlparse
 from lxml import etree
@@ -116,6 +118,8 @@ class BandMap:
     __map[SpacecraftID.LANDSAT_7] = copy.copy(__map[SpacecraftID.LANDSAT_45])
     __map[SpacecraftID.LANDSAT_7][Band.PANCHROMATIC] = {'number': 8, 'wavelength_range': (0.52, 0.90), 'description': '15 meter resolution, sharper image definition', 'resolution_m': 15}
 
+
+    # TODO this should all be turned into a singleton / Const value
     def __init__(self, spacecraft_id):
         self.__spacecraft_id = spacecraft_id
         self.__description_map = {}
@@ -149,6 +153,8 @@ class BandMap:
     def get_resolution(self, band_enum):
         return self.__description_map[band_enum]['resolution_m']
 
+    def get_details(self):
+        return self.__description_map
 
 
 class Metadata:
@@ -519,10 +525,10 @@ class Landsat(Imagery):
 
         # TODO this is dangerous, just taking the epsg from the Metadata instead of from the raster. FIXME!!
 
-        proj_cs = pyproj.Proj(init='epsg:{0}'.format(self.__metadata.utm_epsg_code))
-        lon_ul_corner, lat_ul_corner = self.__wgs84_cs(self.__metadata.west_lon, self.__metadata.north_lat)
-        x_ul_corner, y_ul_corner = pyproj.transform(self.__wgs84_cs, proj_cs, lon_ul_corner, lat_ul_corner)
-        geo_transform = (x_ul_corner, xRes, 0, y_ul_corner, 0, -yRes)
+        # proj_cs = pyproj.Proj(init='epsg:{0}'.format(self.__metadata.utm_epsg_code))
+        # lon_ul_corner, lat_ul_corner = self.__wgs84_cs(self.__metadata.west_lon, self.__metadata.north_lat)
+        # x_ul_corner, y_ul_corner = pyproj.transform(self.__wgs84_cs, proj_cs, lon_ul_corner, lat_ul_corner)
+        # geo_transform = (x_ul_corner, xRes, 0, y_ul_corner, 0, -yRes)
         etree.SubElement(vrt_dataset, "GeoTransform").text = ",".join(map("  {:.16e}".format, geo_transform))
 
         return etree.tostring(vrt_dataset, encoding='UTF-8', method='xml')

@@ -338,6 +338,10 @@ class TestBandMap(unittest.TestCase):
             self.assertEqual(band_map.get_resolution(val), 30.0)
 
     def test_landsat_5_exceptions(self):
+        band_map_2 = BandMap(SpacecraftID.LANDSAT_7)
+        self.assertEqual(band_map_2.get_number(Band.PANCHROMATIC), 8)
+        self.assertEqual(band_map_2.get_band_enum(8), Band.PANCHROMATIC)
+        self.assertEqual(band_map_2.get_resolution(Band.PANCHROMATIC), 15.0)
         band_map = BandMap(SpacecraftID.LANDSAT_5)
         self.assertRaises(KeyError, lambda: band_map.get_number(Band.CIRRUS))
         self.assertRaises(KeyError, lambda: band_map.get_number(Band.PANCHROMATIC))
