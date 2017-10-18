@@ -14,6 +14,7 @@ import copy
 
 from pprint import pprint
 
+from osgeo import osr
 from osgeo import gdal
 from urllib.parse import urlparse
 from lxml import etree
@@ -191,21 +192,10 @@ class RasterBandMetadata:
         for attr, value in self.__dict__.items():
             yield attr, value
 
-    def get_geotransform(self, extent):
-        """
-        http://www.gdal.org/gdal_tutorial.html[
-        In the particular, but common, case of a "north up" image without any rotation or shearing,
-        the georeferencing transform takes the following form
-        adfGeoTransform[0] /* top left x */
-        adfGeoTransform[1] /* w-e pixel resolution */
-        adfGeoTransform[2] /* 0 */
-        adfGeoTransform[3] /* top left y */
-        adfGeoTransform[4] /* 0 */
-        adfGeoTransform[5] /* n-s pixel resolution (negative value) */"""
-        return None
-
 
 class RasterMetadata:
+    __wgs84_cs = pyproj.Proj(init='epsg:4326')
+
     def __init__(self):
         self.raster_band_metadata = {}
         # TODO there needs to be a test to make sure that all of these items are length 1. They shouldn't be different, right?
@@ -215,24 +205,6 @@ class RasterMetadata:
         self.y_size = None
         self.geo_transform = None
         self.data_id = None
-
-    def __check_conflicts(self, raster_band_metadata: RasterBandMetadata):
-        if self.projection and self.projection is not raster_band_metadata.projection:
-            raise Exception("differing projections")
-        if self.data_type and self.data_type is not raster_band_metadata.data_type:
-            raise Exception("differing projections")
-        if self.x_size and self.x_size is not raster_band_metadata.x_size:
-            raise Exception("differing projections")
-        if self.y_size and self.y_size is not raster_band_metadata.y_size:
-            raise Exception("differing projections")
-        if self.geo_transform and self.geo_transform is not raster_band_metadata.geo_transform:
-            raise Exception("differing projections")
-
-    def __getattr__(self, attrname):
-        return self.__dict__[attrname]
-
-    def __setattr__(self, key, value):
-        self.__dict__[key] = value
 
     def add_metadata(self, raster_band_metadata: RasterBandMetadata):
         self.raster_band_metadata[raster_band_metadata.band_number] = raster_band_metadata
@@ -253,10 +225,39 @@ class RasterMetadata:
     def contains(self, band_number):
         return band_number in self.raster_band_metadata
 
+    def get_geotransform(self, extent=None, extent_cs=None):
+        if not extent:
+            return self.geo_transform
+
+        """
+        http://www.gdal.org/gdal_tutorial.html[
+        In the particular, but common, case of a "north up" image without any rotation or shearing,
+        the georeferencing transform takes the following form
+        adfGeoTransform[0] /* top left x */
+        adfGeoTransform[1] /* w-e pixel resolution */
+        adfGeoTransform[2] /* 0 */
+        adfGeoTransform[3] /* top left y */
+        adfGeoTransform[4] /* 0 */
+        adfGeoTransform[5] /* n-s pixel resolution (negative value) */"""
+
+        srs = osr.SpatialReference()
+        wkt_text = self.projection
+        # Imports WKT to Spatial Reference Object
+        srs.ImportFromWkt(wkt_text)
+        proj_cs = pyproj.Proj(srs.ExportToProj4())
+        if not extent_cs:
+            extent_cs = self.__wgs84_cs
+
+        lon_ul_corner, lat_ul_corner = extent_cs(extent[0], extent[3])
+        x_ul_corner, y_ul_corner = pyproj.transform(self.__wgs84_cs, proj_cs, lon_ul_corner, lat_ul_corner, radians=True)
+        # resolution = self.__metadata.band_map.get_max_resolution()
+        geo_transform = (x_ul_corner, self.geo_transform[1], 0, y_ul_corner, 0, self.geo_transform[5])
+        return geo_transform
+
+
 # TODO rename as LandsatMetadata
 class Metadata:
     __storage_client = storage.Client()
-
     """
     LXSS_LLLL_PPPRRR_YYYYMMDD_yyyymmdd_CC_TX_BN.TIF where:
      L           = Landsat
@@ -315,7 +316,6 @@ LLNppprrrOOYYDDDMM_AA.TIF  where:
           WO          = processing history file
      TIF         = GeoTIFF file extension
     """
-
     def __init__(self, row, base_mount_path='/imagery'):
         # TODO, this could use a shallow copy? instead of creating an object like this? And thne all the attributes would just call the array indices?
         self.scene_id = row[0]  # STRING	REQUIRED   Unique identifier for a particular Landsat image downlinked to a particular ground station.
@@ -429,7 +429,6 @@ class Landsat(Imagery):
         super().__init__(bucket_name)
         self.__metadata = metadata
         self.__id = id(self)
-        self.__wgs84_cs = pyproj.Proj(init='epsg:4326')
         self.__raster_metadata = RasterMetadata()
 
     def __del__(self):
@@ -577,26 +576,8 @@ class Landsat(Imagery):
 
         self.get_band_metadata(band_definitions)
 
-        """
-        http://www.gdal.org/gdal_tutorial.html[ 
-        In the particular, but common, case of a "north up" image without any rotation or shearing, 
-        the georeferencing transform takes the following form
-        adfGeoTransform[0] /* top left x */
-        adfGeoTransform[1] /* w-e pixel resolution */
-        adfGeoTransform[2] /* 0 */
-        adfGeoTransform[3] /* top left y */
-        adfGeoTransform[4] /* 0 */
-        adfGeoTransform[5] /* n-s pixel resolution (negative value) */"""
-
-
-        # proj_cs = pyproj.Proj(init='epsg:{0}'.format(self.__metadata.utm_epsg_code))
-        # lon_ul_corner, lat_ul_corner = self.__wgs84_cs(self.__metadata.west_lon, self.__metadata.north_lat)
-        # x_ul_corner, y_ul_corner = pyproj.transform(self.__wgs84_cs, proj_cs, lon_ul_corner, lat_ul_corner, radians=True)
-        # resolution = self.__metadata.band_map.get_max_resolution()
-        # geo_transform = (x_ul_corner, resolution, 0, y_ul_corner, 0, -resolution)
-
-        etree.SubElement(vrt_dataset, "GeoTransform").text = ",".join(map("  {:.16e}".format, self.__raster_metadata.geo_transform))
-
+        geo_transform = self.__raster_metadata.get_geotransform(extent)
+        etree.SubElement(vrt_dataset, "GeoTransform").text = ",".join(map("  {:.16e}".format, geo_transform))
         vrt_dataset.set("rasterXSize", str(self.__raster_metadata.x_size))
         vrt_dataset.set("rasterYSize", str(self.__raster_metadata.y_size))
         etree.SubElement(vrt_dataset, "SRS").text = self.__raster_metadata.projection
@@ -614,8 +595,8 @@ class Landsat(Imagery):
 
         return etree.tostring(vrt_dataset, encoding='UTF-8', method='xml')
 
-    def __get_ndarray(self, band_definitions, scaleParams=None, additional_param=None):
-        vrt = self.get_vrt(band_definitions)
+    def __get_ndarray(self, band_definitions, scaleParams=None, extent: tuple=None, additional_param=None):
+        vrt = self.get_vrt(band_definitions, extent=extent)
         # http://gdal.org/python/
         # http://gdal.org/python/osgeo.gdal-module.html#TranslateOptions
         # vrt_projected = gdal.Translate('', vrt, of="VRT", scaleParams=[], ot="Byte")
@@ -772,7 +753,7 @@ class Storage(metaclass=__Singleton):
     bucket = ""
     __mounted_sub_folders = None
 
-    def __init__(self, bucket_name):
+    def __init__(self, bucket_name="gcp-public-data-landsat"):
         self.bucket = bucket_name
         self.__mounted_sub_folders = {}
 
@@ -786,7 +767,7 @@ class Storage(metaclass=__Singleton):
             return True
         return False
 
-    def mount_sub_folder(self, metadata: Metadata, request_key):
+    def mount_sub_folder(self, metadata: Metadata, request_key="temp"):
         # execute mount command
         # gcsfuse --only-dir LC08/PRE/044/034/LC80440342016259LGN00 gcp-public-data-landsat /landsat
 

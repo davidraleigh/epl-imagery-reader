@@ -13,7 +13,9 @@ from lxml import etree
 from osgeo import gdal
 from urllib.parse import urlparse
 from datetime import date
-from epl.imagery.reader import MetadataService, Landsat, Storage, SpacecraftID, Metadata, BandMap, Band, WRSGeometries
+from epl.imagery.reader import MetadataService, Landsat,\
+    Storage, SpacecraftID, Metadata, BandMap, Band, \
+    WRSGeometries, RasterBandMetadata, RasterMetadata
 
 from shapely.wkt import loads
 from shapely.geometry import shape
@@ -1022,3 +1024,97 @@ class TestWRSGeometries(unittest.TestCase):
             self.assertIsNotNone(geom_obj)
             s = shape(geom_obj)
             self.assertAlmostEqual(geom_expected_area, s.area, 5)
+
+
+class TestRasterMetadata(unittest.TestCase):
+    base_mount_path = '/imagery'
+    metadata_service = None
+
+    def setUp(self):
+        self.metadata_service = MetadataService()
+
+    def test_add_metadata_error(self):
+        d_start = date(2015, 6, 24)
+        d_end = date(2016, 6, 24)
+        bounding_box = (-115.927734375, 34.52466147177172, -78.31054687499999, 44.84029065139799)
+        sql_filters = ['data_type="L1T"']
+        rows = self.metadata_service.search(SpacecraftID.LANDSAT_8,
+                                            start_date=d_start,
+                                            end_date=d_end,
+                                            bounding_box=bounding_box,
+                                            limit=2,
+                                            sql_filters=sql_filters)
+
+        metadata_1 = Metadata(rows[0], self.base_mount_path)
+        metadata_2 = Metadata(rows[1], self.base_mount_path)
+
+        bands = [Band.RED, Band.BLUE, Band.GREEN]
+
+        band_map = BandMap(SpacecraftID.LANDSAT_8)
+
+        raster_metadata = RasterMetadata()
+
+        storage = Storage()
+        storage.mount_sub_folder(metadata_1)
+        storage.mount_sub_folder(metadata_2)
+
+        for band in bands:
+            band_number = band_map.get_number(band)
+            raster_band_metadata_1 = RasterBandMetadata(metadata_1.product_id, metadata_1.scene_id, metadata_1.full_mount_path, band_number)
+            raster_band_metadata_2 = RasterBandMetadata(metadata_2.product_id, metadata_2.scene_id, metadata_2.full_mount_path, band_number)
+            raster_metadata.add_metadata(raster_band_metadata_1)
+            self.assertRaises(Exception, lambda: raster_metadata.add_metadata(raster_band_metadata_2))
+
+    def test_metadata_extent(self):
+        r = requests.get("https://raw.githubusercontent.com/johan/world.geo.json/master/countries/USA/NM/Taos.geo.json")
+        taos_geom = r.json()
+        print(taos_geom)
+
+        taos_shape = shapely.geometry.shape(taos_geom['features'][0]['geometry'])
+
+        metadata_service = MetadataService()
+
+        d_start = date(2017, 3, 12)  # 2017-03-12
+        d_end = date(2017, 3, 19)  # 2017-03-20, epl api is inclusive
+
+        sql_filters = ['collection_number="PRE"']
+        rows = metadata_service.search(
+            SpacecraftID.LANDSAT_8,
+            start_date=d_start,
+            end_date=d_end,
+            bounding_box=taos_shape.bounds,
+            limit=10,
+            sql_filters=sql_filters)
+        print(len(rows))
+
+        metadata_1 = Metadata(rows[0], self.base_mount_path)
+        metadata_2 = Metadata(rows[1], self.base_mount_path)
+
+        bands = [Band.RED, Band.BLUE, Band.GREEN]
+
+        band_map = BandMap(SpacecraftID.LANDSAT_8)
+
+        raster_metadata = RasterMetadata()
+
+        storage = Storage()
+        storage.mount_sub_folder(metadata_1)
+        storage.mount_sub_folder(metadata_2)
+
+        for band in bands:
+            band_number = band_map.get_number(band)
+            raster_band_metadata_1 = RasterBandMetadata(metadata_1.product_id, metadata_1.scene_id, metadata_1.full_mount_path, band_number)
+            raster_metadata.add_metadata(raster_band_metadata_1)
+
+        # GDAL helper functions for generating VRT
+        landsat = Landsat(metadata_1)
+
+        # get a numpy.ndarray from bands for specified imagery
+        band_numbers = [Band.RED, Band.GREEN, Band.BLUE]
+        scaleParams = [[0.0, 65535], [0.0, 65535], [0.0, 65535]]
+        vrt = landsat.get_vrt(band_numbers, extent=taos_shape.bounds)
+
+        dataset = gdal.Open(vrt)
+        geo_transform = dataset.GetGeoTransform()
+
+        self.assertEqual(geo_transform, raster_metadata.get_geotransform(taos_shape.bounds))
+        self.assertNotEqual(geo_transform, raster_metadata.get_geotransform())
