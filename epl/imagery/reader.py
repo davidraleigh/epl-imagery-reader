@@ -10,6 +10,7 @@ import shapefile
 
 import math
 import pyproj
+import copy
 
 from osgeo import gdal
 from urllib.parse import urlparse
@@ -51,7 +52,6 @@ class SpacecraftID(IntEnum):
     LANDSAT_5 = 64
     LANDSAT_45 = 96
     LANDSAT_7 = 128
-    LANDSAT_457 = 224
     LANDSAT_8 = 256
     ALL = 512
 
@@ -77,7 +77,7 @@ class Band(Enum):
 class BandMap:
     __map = {
         SpacecraftID.LANDSAT_8: {
-            Band.ULTRA_BLUE: {'number': 1, 'wavelenght_range': (0.435, 0.451), 'description': 'Coastal and aerosol studies', 'resolution_m': 30},
+            Band.ULTRA_BLUE: {'number': 1, 'wavelength_range': (0.435, 0.451), 'description': 'Coastal and aerosol studies', 'resolution_m': 30},
             Band.BLUE: {'number': 2, 'wavelength_range': (0.452, 0.512), 'description': 'Bathymetric mapping, distinguishing soil from vegetation, and deciduous from coniferous vegetation', 'resolution_m': 30},
             Band.GREEN: {'number': 3, 'wavelength_range': (0.533, 0.590), 'description': 'Emphasizes peak vegetation, which is useful for assessing plant vigor', 'resolution_m': 30},
             Band.RED: {'number': 4, 'wavelength_range': (0.636, 0.673), 'description': 'Discriminates vegetation slopes', 'resolution_m': 30},
@@ -89,15 +89,14 @@ class BandMap:
             Band.TIRS1: {'number': 10, 'wavelength_range': (10.60, 11.19), 'description': '100 meter resolution, thermal mapping and estimated soil moisture', 'resolution_m': 30},
             Band.TIRS2: {'number': 11, 'wavelength_range': (11.50, 12.51), 'description': '100 meter resolution, Improved thermal mapping and estimated soil moisture', 'resolution_m': 30},
         },
-        SpacecraftID.LANDSAT_457: {
+        SpacecraftID.LANDSAT_45: {
             Band.BLUE: {'number': 1, 'wavelength_range': (0.45, 0.52), 'description': 'Bathymetric mapping, distinguishing soil from vegetation, and deciduous from coniferous vegetation', 'resolution_m': 30},
             Band.GREEN: {'number': 2, 'wavelength_range': (0.52, 0.60), 'description': 'Emphasizes peak vegetation, which is useful for assessing plant vigor', 'resolution_m': 30},
             Band.RED: {'number': 3, 'wavelength_range': (0.63, 0.69), 'description': 'Discriminates vegetation slopes', 'resolution_m': 30},
-            Band.NIR: {'number': 4, 'wavelenght_range': (0.77, 0.90), 'description': 'Emphasizes biomass content and shorelines', 'resolution_m': 30},
+            Band.NIR: {'number': 4, 'wavelength_range': (0.77, 0.90), 'description': 'Emphasizes biomass content and shorelines', 'resolution_m': 30},
             Band.SWIR1: {'number': 5, 'wavelength_range': (1.55, 1.75), 'description': 'Discriminates moisture content of soil and vegetation; penetrates thin clouds', 'resolution_m': 30},
             Band.THERMAL: {'number': 6, 'wavelength_range': (10.40, 12.50), 'description': 'Thermal mapping and estimated soil moisture (60m downsample Landsat7, 120m downsample landsat 4&5)', 'resolution_m': 30},
             Band.SWIR2: {'number': 7, 'wavelength_range': (2.09, 2.35), 'description': 'Hydrothermally altered rocks associated with mineral deposits', 'resolution_m': 30},
-            Band.PANCHROMATIC: {'number': 8, 'wavelength_range': (0.52, 0.90), 'description': '15 meter resolution, sharper image definition', 'resolution_m': 15},
         },
         SpacecraftID.LANDSAT_123_MSS:{
             Band.GREEN: {'number': 4, 'wavelength_range': (0.5, 0.6), 'description': 'Sediment-laden water, delineates areas of shallow water', 'resolution_m': 60},
@@ -113,32 +112,43 @@ class BandMap:
         }
     }
 
+    # shallow copy
+    __map[SpacecraftID.LANDSAT_7] = copy.copy(__map[SpacecraftID.LANDSAT_45])
+    __map[SpacecraftID.LANDSAT_7][Band.PANCHROMATIC] = {'number': 8, 'wavelength_range': (0.52, 0.90), 'description': '15 meter resolution, sharper image definition', 'resolution_m': 15}
+
     def __init__(self, spacecraft_id):
         self.__spacecraft_id = spacecraft_id
-        self.__map_enum = {}
+        self.__description_map = {}
         if spacecraft_id & SpacecraftID.LANDSAT_123_MSS:
-            self.__map_enum = self.__map[SpacecraftID.LANDSAT_123_MSS]
+            self.__description_map = self.__map[SpacecraftID.LANDSAT_123_MSS]
         elif spacecraft_id & SpacecraftID.LANDSAT_45_MSS:
-            self.__map_enum = self.__map[SpacecraftID.LANDSAT_45_MSS]
-        elif spacecraft_id & SpacecraftID.LANDSAT_457:
-            self.__map_enum = self.__map[SpacecraftID.LANDSAT_457]
+            self.__description_map = self.__map[SpacecraftID.LANDSAT_45_MSS]
+        elif spacecraft_id & SpacecraftID.LANDSAT_45:
+            self.__description_map = self.__map[SpacecraftID.LANDSAT_45]
+        elif spacecraft_id & SpacecraftID.LANDSAT_7:
+            self.__description_map = self.__map[SpacecraftID.LANDSAT_7]
         elif spacecraft_id == SpacecraftID.LANDSAT_8:
-            self.__map_enum = self.__map[SpacecraftID.LANDSAT_8]
+            self.__description_map = self.__map[SpacecraftID.LANDSAT_8]
         else:
-            self.__map_enum = None
+            self.__description_map = None
 
-        self.__map_number = {}
-        for key in self.__map_enum:
-            self.__map_number[self.__map_enum[key]['number']] = key
+        __map_number = {}
+        for key in self.__description_map:
+            __map_number[self.__description_map[key]['number']] = key
+        self.__enum_map = __map_number
 
-    def get_band_name(self, band_number):
-        return self.__map_number[band_number].name
+    def get_name(self, band_number):
+        return self.__enum_map[band_number].name
 
     def get_band_enum(self, band_number):
-        return self.__map_number[band_number]
+        return self.__enum_map[band_number]
 
-    def get_band_number(self, band_enum):
-        return self.__map_enum[band_enum]
+    def get_number(self, band_enum):
+        return self.__description_map[band_enum]['number']
+
+    def get_resolution(self, band_enum):
+        return self.__description_map[band_enum]['resolution_m']
+
 
 
 class Metadata:
@@ -430,7 +440,7 @@ class Landsat(Imagery):
         for band_number in band_definition["band_numbers"]:
             # TODO, I don't like this reuse of this variable
             if isinstance(band_number, Band):
-                band_number = self.band_map.get_band_number(band_number)
+                band_number = self.band_map.get_number(band_number)
 
             elem_simple_source, x_size, y_size, projection, geo_transform, data_type = self.get_source_elem(band_number)
             elem_raster_band.append(elem_simple_source)
@@ -449,7 +459,7 @@ class Landsat(Imagery):
         # # file_path = self.__metadata.full_mount_path + os.path.sep + self.__metadata.scene_id + "_B{}.TIF".format(band)
 
         # I think this needs to be removed.
-        color_interp = self.band_map.get_band_name(band_number).capitalize()
+        color_interp = self.band_map.get_name(band_number).capitalize()
 
         elem_raster_band = etree.SubElement(vrt_dataset, "VRTRasterBand")
 
@@ -482,7 +492,7 @@ class Landsat(Imagery):
             if isinstance(band_definition, dict):
                 x_size, y_size, projection, geo_transform = self.get_function_band_elem(vrt_dataset, band_definition, position_number, 256)
             elif isinstance(band_definition, Band):
-                x_size, y_size, projection, geo_transform = self.get_band_elem(vrt_dataset, self.band_map.get_band_number(band_definition), position_number, 256)
+                x_size, y_size, projection, geo_transform = self.get_band_elem(vrt_dataset, self.band_map.get_number(band_definition), position_number, 256)
             else:
                 x_size, y_size, projection, geo_transform = self.get_band_elem(vrt_dataset, band_definition, position_number, 256)
 
