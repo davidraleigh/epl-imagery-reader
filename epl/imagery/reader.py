@@ -55,6 +55,7 @@ class SpacecraftID(IntEnum):
     LANDSAT_8 = 256
     ALL = 512
 
+
 class Band(Enum):
     # Crazy Values so that the Band.<ENUM>.value isn't used for anything
     ULTRA_BLUE = -1000
@@ -138,6 +139,159 @@ class BandMap:
 
     def get_band_number(self, band_enum):
         return self.__map_enum[band_enum]
+
+
+class Metadata:
+    __storage_client = storage.Client()
+
+    """
+    LXSS_LLLL_PPPRRR_YYYYMMDD_yyyymmdd_CC_TX_BN.TIF where:
+     L           = Landsat
+     X           = Sensor (E for ETM+ data; T for TM data; M for MSS)
+     SS          = Satellite (07 = Landsat 7, 05 = Landsat 5, etc.)
+     LLLL        = processing level (L1TP for Precision Terrain;
+                                     L1GT for Systematic Terrain;
+                                     L1GS for Systematic only)
+     PPP         = starting path of the product
+     RRR         = starting and ending rows of the product
+     YYYY        = acquisition year
+     MM          = acquisition month
+     DD          = acquisition day
+     yyyy        = processing year
+     mm          = processing month
+     dd          = processing day
+     CC          = collection number
+     TX          = collection category (RT for real-time; T1 for Tier 1;
+                                        T2 for Tier 2)
+     BN          = file type:
+          B1         = band 1
+          B2         = band 2
+          B3         = band 3
+          B4         = band 4
+          B5         = band 5
+          B6_VCID_1  = band 6L (low gain)  (ETM+)
+          B6_VCID_2  = band 6H (high gain) (ETM+)
+          B6         = band 6 (TM and MSS)
+          B7         = band 7
+          B8         = band 8 (ETM+)
+          MTL        = Level-1 metadata
+          GCP        = ground control points
+     TIF         = GeoTIFF file extension
+
+The file naming convention for Landsat 4-5 NLAPS-processed GeoTIFF data
+is as follows:
+
+LLNppprrrOOYYDDDMM_AA.TIF  where:
+     LL          = Landsat sensor (LT for TM data)
+     N           = satellite number
+     ppp         = starting path of the product
+     rrr         = starting row of the product
+     OO          = WRS row offset (set to 00)
+     YY          = last two digits of the year of
+                   acquisition
+     DDD         = Julian date of acquisition
+     MM          = instrument mode (10 for MSS; 50 for TM)
+     AA          = file type:
+          B1          = band 1
+          B2          = band 2
+          B3          = band 3
+          B4          = band 4
+          B5          = band 5
+          B6          = band 6
+          B7          = band 7
+          WO          = processing history file
+     TIF         = GeoTIFF file extension
+    """
+
+    def __init__(self, row, base_mount_path='/imagery'):
+        # TODO, this could use a shallow copy? instead of creating an object like this? And thne all the attributes would just call the array indices?
+        self.scene_id = row[0]  # STRING	REQUIRED   Unique identifier for a particular Landsat image downlinked to a particular ground station.
+        self.product_id = row[1]  # STRING	NULLABLE Unique identifier for a particular scene processed by the USGS at a particular time, or null for pre-collection data.
+        self.spacecraft_id = SpacecraftID[row[2].upper()]  # SpacecraftID REQUIRED The spacecraft that acquired this scene: one of 'LANDSAT_4' through 'LANDSAT_8'.
+        self.sensor_id = row[3]  # STRING	NULLABLE The type of spacecraft sensor that acquired this scene: 'TM' for the Thematic Mapper, 'ETM' for the Enhanced Thematic Mapper+, or 'OLI/TIRS' for the Operational Land Imager and Thermal Infrared Sensor.
+        self.date_acquired = row[4]  # STRING	NULLABLE The date on which this scene was acquired (UTC).
+        self.sensing_time = row[5]  # STRING	NULLABLE The approximate time at which this scene was acquired (UTC).
+        self.collection_number = row[6]  # STRING	NULLABLE The Landsat collection that this image belongs to, e.g. '01' for Collection 1 or 'PRE' for pre-collection data.
+        self.collection_category = row[7]  # STRING	NULLABLE Indicates the processing level of the image: 'RT' for real-time, 'T1' for Tier 1, 'T2' for Tier 2, and 'N/A' for pre-collection data. RT images will be replaced with Tier 1 or Tier 2 images as they become available.
+        self.data_type = row[8]  # STRING	NULLABLE The type of processed image, e.g. 'L1T' for Level 1 terrain-corrected images.
+        self.wrs_path = row[9]  # INTEGER	NULLABLE The path number of this scene's location in the Worldwide Reference System (WRS).
+        self.wrs_row = row[10]  # INTEGER	NULLABLE The row number of this scene's location in the Worldwide Reference System (WRS).
+        self.cloud_cover = row[11]  # FLOAT	NULLABLE Estimated percentage of this scene affected by cloud cover.
+        self.north_lat = row[12]  # FLOAT	NULLABLE The northern latitude of the bounding box of this scene.
+        self.south_lat = row[13]  # FLOAT	NULLABLE The southern latitude of the bounding box of this scene.
+        self.west_lon = row[14]  # FLOAT	NULLABLE The western longitude of the bounding box of this scene.
+        self.east_lon = row[15]  # FLOAT	NULLABLE The eastern longitude of the bounding box of this scene.
+        self.total_size = row[16]  # INTEGER	NULLABLE The total size of this scene in bytes.
+        self.base_url = row[17]  # STRING	NULLABLE The base URL for this scene in Cloud Storage.
+
+        self.center_lat = (self.north_lat - self.south_lat) / 2 + self.south_lat
+        self.center_lon = (self.east_lon - self.west_lon) / 2 + self.west_lon
+
+        self.utm_epsg_code = self.get_utm_epsg_code(self.center_lon, self.center_lat)
+
+        #  (minx, miny, maxx, maxy)
+        self.bounds = (self.west_lon, self.south_lat, self.east_lon, self.north_lat)
+
+        gsurl = urlparse(self.base_url)
+        self.bucket_name = gsurl[1]
+        self.data_prefix = gsurl[2]
+        self.full_mount_path = base_mount_path.rstrip("\/") + os.path.sep + self.data_prefix.strip("\/")
+        self.base_mount_path = base_mount_path
+
+        # self.__file_list = None
+        # self.thread = threading.Thread(target=self.__query_file_list(), args=())
+        # self.thread.daemon = True
+        # self.thread.start()
+        self.__wrs_geometries = WRSGeometries()
+
+    def get_wrs_polygon(self):
+        return self.__wrs_geometries.get_wrs_geometry(self.wrs_path, self.wrs_row, timeout=60)
+
+    def get_intersect_wkt(self, other_bounds):
+        xmin = self.bounds[0] if self.bounds[0] > other_bounds[0] else other_bounds[0]
+        ymin = self.bounds[1] if self.bounds[1] > other_bounds[1] else other_bounds[1]
+
+        xmax = self.bounds[2] if self.bounds[2] < other_bounds[2] else other_bounds[2]
+        ymax = self.bounds[3] if self.bounds[3] < other_bounds[3] else other_bounds[3]
+
+        return "POLYGON (({0} {1}, {2} {1}, {2} {3}, {0} {3}, {0} {1}))".format(xmin, ymin, xmax, ymax)
+
+    @staticmethod
+    def get_utm_epsg_code(longitude, latitude):
+        # TODO yield alternative if perfectly at 6 degree interval
+        # TODO throw or wrap if longitude greater than 180 or less than -180
+
+        # epsg code for N1 32601
+        epsg_code = 32601
+        if latitude < 0:
+            # epsg code for S1 32701
+            epsg_code += 100
+
+        diff = longitude + 180
+
+        # TODO ugly
+        if diff == 0:
+            return epsg_code
+
+        # 6 degrees of separation between zones, started with zone one, so subtract 1
+        bump = int(math.ceil(diff / 6)) - 1
+
+        return epsg_code + bump
+
+    def get_file_list(self, timeout=4):
+        # 4 second timeout on info
+        # self.thread.join(timeout=timeout)
+        # TODO if empty throw a warning?
+        return []
+
+    def __query_file_list(self):
+        bucket = self.__storage_client.list_buckets(prefix=self.bucket_name + self.data_prefix)
+        results = []
+        for i in bucket:
+            results.append(i)
+        self.__file_list = results
+        # def __get_file_list(self):
+        #     self.__file_list = None
 
 
 class Imagery:
@@ -380,159 +534,6 @@ class Landsat(Imagery):
 
 class Sentinel2:
     bucket_name = ""
-
-
-class Metadata:
-    __storage_client = storage.Client()
-
-    """
-    LXSS_LLLL_PPPRRR_YYYYMMDD_yyyymmdd_CC_TX_BN.TIF where:
-     L           = Landsat
-     X           = Sensor (E for ETM+ data; T for TM data; M for MSS)
-     SS          = Satellite (07 = Landsat 7, 05 = Landsat 5, etc.)
-     LLLL        = processing level (L1TP for Precision Terrain;
-                                     L1GT for Systematic Terrain;
-                                     L1GS for Systematic only)
-     PPP         = starting path of the product
-     RRR         = starting and ending rows of the product
-     YYYY        = acquisition year
-     MM          = acquisition month
-     DD          = acquisition day
-     yyyy        = processing year
-     mm          = processing month
-     dd          = processing day
-     CC          = collection number
-     TX          = collection category (RT for real-time; T1 for Tier 1;
-                                        T2 for Tier 2)
-     BN          = file type:
-          B1         = band 1
-          B2         = band 2
-          B3         = band 3
-          B4         = band 4
-          B5         = band 5
-          B6_VCID_1  = band 6L (low gain)  (ETM+)
-          B6_VCID_2  = band 6H (high gain) (ETM+)
-          B6         = band 6 (TM and MSS)
-          B7         = band 7
-          B8         = band 8 (ETM+)
-          MTL        = Level-1 metadata
-          GCP        = ground control points
-     TIF         = GeoTIFF file extension
-
-The file naming convention for Landsat 4-5 NLAPS-processed GeoTIFF data
-is as follows:
-
-LLNppprrrOOYYDDDMM_AA.TIF  where:
-     LL          = Landsat sensor (LT for TM data)
-     N           = satellite number
-     ppp         = starting path of the product
-     rrr         = starting row of the product
-     OO          = WRS row offset (set to 00)
-     YY          = last two digits of the year of
-                   acquisition
-     DDD         = Julian date of acquisition
-     MM          = instrument mode (10 for MSS; 50 for TM)
-     AA          = file type:
-          B1          = band 1
-          B2          = band 2
-          B3          = band 3
-          B4          = band 4
-          B5          = band 5
-          B6          = band 6
-          B7          = band 7
-          WO          = processing history file
-     TIF         = GeoTIFF file extension
-    """
-
-    def __init__(self, row, base_mount_path='/imagery'):
-        # TODO, this could use a shallow copy? instead of creating an object like this? And thne all the attributes would just call the array indices?
-        self.scene_id = row[0]  # STRING	REQUIRED   Unique identifier for a particular Landsat image downlinked to a particular ground station.
-        self.product_id = row[1]  # STRING	NULLABLE Unique identifier for a particular scene processed by the USGS at a particular time, or null for pre-collection data.
-        self.spacecraft_id = SpacecraftID[row[2].upper()]  # SpacecraftID REQUIRED The spacecraft that acquired this scene: one of 'LANDSAT_4' through 'LANDSAT_8'.
-        self.sensor_id = row[3]  # STRING	NULLABLE The type of spacecraft sensor that acquired this scene: 'TM' for the Thematic Mapper, 'ETM' for the Enhanced Thematic Mapper+, or 'OLI/TIRS' for the Operational Land Imager and Thermal Infrared Sensor.
-        self.date_acquired = row[4]  # STRING	NULLABLE The date on which this scene was acquired (UTC).
-        self.sensing_time = row[5]  # STRING	NULLABLE The approximate time at which this scene was acquired (UTC).
-        self.collection_number = row[6]  # STRING	NULLABLE The Landsat collection that this image belongs to, e.g. '01' for Collection 1 or 'PRE' for pre-collection data.
-        self.collection_category = row[7]  # STRING	NULLABLE Indicates the processing level of the image: 'RT' for real-time, 'T1' for Tier 1, 'T2' for Tier 2, and 'N/A' for pre-collection data. RT images will be replaced with Tier 1 or Tier 2 images as they become available.
-        self.data_type = row[8]  # STRING	NULLABLE The type of processed image, e.g. 'L1T' for Level 1 terrain-corrected images.
-        self.wrs_path = row[9]  # INTEGER	NULLABLE The path number of this scene's location in the Worldwide Reference System (WRS).
-        self.wrs_row = row[10]  # INTEGER	NULLABLE The row number of this scene's location in the Worldwide Reference System (WRS).
-        self.cloud_cover = row[11]  # FLOAT	NULLABLE Estimated percentage of this scene affected by cloud cover.
-        self.north_lat = row[12]  # FLOAT	NULLABLE The northern latitude of the bounding box of this scene.
-        self.south_lat = row[13]  # FLOAT	NULLABLE The southern latitude of the bounding box of this scene.
-        self.west_lon = row[14]  # FLOAT	NULLABLE The western longitude of the bounding box of this scene.
-        self.east_lon = row[15]  # FLOAT	NULLABLE The eastern longitude of the bounding box of this scene.
-        self.total_size = row[16]  # INTEGER	NULLABLE The total size of this scene in bytes.
-        self.base_url = row[17]  # STRING	NULLABLE The base URL for this scene in Cloud Storage.
-
-        self.center_lat = (self.north_lat - self.south_lat) / 2 + self.south_lat
-        self.center_lon = (self.east_lon - self.west_lon) / 2 + self.west_lon
-
-        self.utm_epsg_code = self.get_utm_epsg_code(self.center_lon, self.center_lat)
-
-        #  (minx, miny, maxx, maxy)
-        self.bounds = (self.west_lon, self.south_lat, self.east_lon, self.north_lat)
-
-        gsurl = urlparse(self.base_url)
-        self.bucket_name = gsurl[1]
-        self.data_prefix = gsurl[2]
-        self.full_mount_path = base_mount_path.rstrip("\/") + os.path.sep + self.data_prefix.strip("\/")
-        self.base_mount_path = base_mount_path
-
-        # self.__file_list = None
-        # self.thread = threading.Thread(target=self.__query_file_list(), args=())
-        # self.thread.daemon = True
-        # self.thread.start()
-        self.__wrs_geometries = WRSGeometries()
-
-    def get_wrs_polygon(self):
-        return self.__wrs_geometries.get_wrs_geometry(self.wrs_path, self.wrs_row, timeout=60)
-
-    def get_intersect_wkt(self, other_bounds):
-        xmin = self.bounds[0] if self.bounds[0] > other_bounds[0] else other_bounds[0]
-        ymin = self.bounds[1] if self.bounds[1] > other_bounds[1] else other_bounds[1]
-
-        xmax = self.bounds[2] if self.bounds[2] < other_bounds[2] else other_bounds[2]
-        ymax = self.bounds[3] if self.bounds[3] < other_bounds[3] else other_bounds[3]
-
-        return "POLYGON (({0} {1}, {2} {1}, {2} {3}, {0} {3}, {0} {1}))".format(xmin, ymin, xmax, ymax)
-
-    @staticmethod
-    def get_utm_epsg_code(longitude, latitude):
-        # TODO yield alternative if perfectly at 6 degree interval
-        # TODO throw or wrap if longitude greater than 180 or less than -180
-
-        # epsg code for N1 32601
-        epsg_code = 32601
-        if latitude < 0:
-            # epsg code for S1 32701
-            epsg_code += 100
-
-        diff = longitude + 180
-
-        # TODO ugly
-        if diff == 0:
-            return epsg_code
-
-        # 6 degrees of separation between zones, started with zone one, so subtract 1
-        bump = int(math.ceil(diff / 6)) - 1
-
-        return epsg_code + bump
-
-    def get_file_list(self, timeout=4):
-        # 4 second timeout on info
-        # self.thread.join(timeout=timeout)
-        # TODO if empty throw a warning?
-        return []
-
-    def __query_file_list(self):
-        bucket = self.__storage_client.list_buckets(prefix=self.bucket_name + self.data_prefix)
-        results = []
-        for i in bucket:
-            results.append(i)
-        self.__file_list = results
-        # def __get_file_list(self):
-        #     self.__file_list = None
 
 
 class MetadataService(metaclass=__Singleton):
