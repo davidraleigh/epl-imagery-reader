@@ -535,7 +535,7 @@ class Landsat(Imagery):
         lon_ul_corner, lat_ul_corner = self.__wgs84_cs(self.__metadata.west_lon, self.__metadata.north_lat)
         x_ul_corner, y_ul_corner = pyproj.transform(self.__wgs84_cs, proj_cs, lon_ul_corner, lat_ul_corner, radians=True)
         resolution = self.__metadata.band_map.get_max_resolution()
-        geo_transform = (x_ul_corner, resolution, 0, y_ul_corner, 0, -resolution)
+        # geo_transform = (x_ul_corner, resolution, 0, y_ul_corner, 0, -resolution)
         etree.SubElement(vrt_dataset, "GeoTransform").text = ",".join(map("  {:.16e}".format, geo_transform))
 
         return etree.tostring(vrt_dataset, encoding='UTF-8', method='xml')
