@@ -165,96 +165,6 @@ class BandMap:
         return self.__map[self.__spacecraft_id]['max_resolution']
 
 
-class RasterBandMetadata:
-    def __init__(self, product_id, scene_id, full_mount_path, band_number):
-        # TODO more elegant please
-        name_prefix = product_id
-        if not product_id:
-            name_prefix = scene_id
-
-        file_path = "{0}/{1}_B{2}.TIF".format(full_mount_path, name_prefix, band_number)
-
-        dataset = gdal.Open(file_path)
-
-        self.data_type = gdal.GetDataTypeName(dataset.GetRasterBand(1).DataType)
-        self.x_size = dataset.RasterXSize
-        self.y_size = dataset.RasterYSize
-        self.projection = dataset.GetProjection()
-        self.geo_transform = dataset.GetGeoTransform()
-        self.data_id = name_prefix
-
-        del dataset
-
-        self.band_number = band_number
-        self.file_path = file_path
-
-    def __iter__(self):
-        for attr, value in self.__dict__.items():
-            yield attr, value
-
-
-class RasterMetadata:
-    __wgs84_cs = pyproj.Proj(init='epsg:4326')
-
-    def __init__(self):
-        self.raster_band_metadata = {}
-        # TODO there needs to be a test to make sure that all of these items are length 1. They shouldn't be different, right?
-        self.projection = None
-        self.data_type = None
-        self.x_size = None
-        self.y_size = None
-        self.geo_transform = None
-        self.data_id = None
-
-    def add_metadata(self, raster_band_metadata: RasterBandMetadata):
-        self.raster_band_metadata[raster_band_metadata.band_number] = raster_band_metadata
-
-        for key, value in raster_band_metadata:
-            if key in ['file_path', 'band_number']:
-                continue
-            self_value = getattr(self, key)
-            # if not None and not equal
-            if self_value and self_value != value:
-                raise Exception("key {0} differs between RasterBandMetadata and RasterMetadata\nRasterBandMetadata: {1}\nRasterBand: {2}\n".format(key, value, self_value))
-            if not self_value:
-                setattr(self, key, getattr(raster_band_metadata, key))
-
-    def get_metadata(self, band_number):
-        return self.raster_band_metadata[band_number]
-
-    def contains(self, band_number):
-        return band_number in self.raster_band_metadata
-
-    def get_geotransform(self, extent=None, extent_cs=None):
-        if not extent:
-            return self.geo_transform
-
-        """
-        http://www.gdal.org/gdal_tutorial.html[
-        In the particular, but common, case of a "north up" image without any rotation or shearing,
-        the georeferencing transform takes the following form
-        adfGeoTransform[0] /* top left x */
-        adfGeoTransform[1] /* w-e pixel resolution */
-        adfGeoTransform[2] /* 0 */
-        adfGeoTransform[3] /* top left y */
-        adfGeoTransform[4] /* 0 */
-        adfGeoTransform[5] /* n-s pixel resolution (negative value) */"""
-
-        srs = osr.SpatialReference()
-        wkt_text = self.projection
-        # Imports WKT to Spatial Reference Object
-        srs.ImportFromWkt(wkt_text)
-        proj_cs = pyproj.Proj(srs.ExportToProj4())
-        if not extent_cs:
-            extent_cs = self.__wgs84_cs
-
-        lon_ul_corner, lat_ul_corner = extent_cs(extent[0], extent[3])
-        x_ul_corner, y_ul_corner = pyproj.transform(self.__wgs84_cs, proj_cs, lon_ul_corner, lat_ul_corner, radians=True)
-        # resolution = self.__metadata.band_map.get_max_resolution()
-        geo_transform = (x_ul_corner, self.geo_transform[1], 0, y_ul_corner, 0, self.geo_transform[5])
-        return geo_transform
-
-
 # TODO rename as LandsatMetadata
 class Metadata:
     __storage_client = storage.Client()
@@ -406,6 +316,96 @@ LLNppprrrOOYYDDDMM_AA.TIF  where:
         self.__file_list = results
         # def __get_file_list(self):
         #     self.__file_list = None
+
+
+class RasterBandMetadata:
+    def __init__(self, metadata: Metadata, band_number):
+        # TODO more elegant please
+        name_prefix = metadata.product_id
+        if not metadata.product_id:
+            name_prefix = metadata.scene_id
+
+        file_path = "{0}/{1}_B{2}.TIF".format(metadata.full_mount_path, name_prefix, band_number)
+
+        dataset = gdal.Open(file_path)
+
+        self.data_type = gdal.GetDataTypeName(dataset.GetRasterBand(1).DataType)
+        self.x_size = dataset.RasterXSize
+        self.y_size = dataset.RasterYSize
+        self.projection = dataset.GetProjection()
+        self.geo_transform = dataset.GetGeoTransform()
+        self.data_id = name_prefix
+
+        del dataset
+
+        self.band_number = band_number
+        self.file_path = file_path
+
+    def __iter__(self):
+        for attr, value in self.__dict__.items():
+            yield attr, value
+
+
+class RasterMetadata:
+    __wgs84_cs = pyproj.Proj(init='epsg:4326')
+
+    def __init__(self):
+        self.raster_band_metadata = {}
+        # TODO there needs to be a test to make sure that all of these items are length 1. They shouldn't be different, right?
+        self.projection = None
+        self.data_type = None
+        self.x_size = None
+        self.y_size = None
+        self.geo_transform = None
+        self.data_id = None
+
+    def add_metadata(self, raster_band_metadata: RasterBandMetadata):
+        self.raster_band_metadata[raster_band_metadata.band_number] = raster_band_metadata
+
+        for key, value in raster_band_metadata:
+            if key in ['file_path', 'band_number']:
+                continue
+            self_value = getattr(self, key)
+            # if not None and not equal
+            if self_value and self_value != value:
+                raise Exception("key {0} differs between RasterBandMetadata and RasterMetadata\nRasterBandMetadata: {1}\nRasterBand: {2}\n".format(key, value, self_value))
+            if not self_value:
+                setattr(self, key, getattr(raster_band_metadata, key))
+
+    def get_metadata(self, band_number):
+        return self.raster_band_metadata[band_number]
+
+    def contains(self, band_number):
+        return band_number in self.raster_band_metadata
+
+    def get_geotransform(self, extent=None, extent_cs=None):
+        if not extent:
+            return self.geo_transform
+
+        """
+        http://www.gdal.org/gdal_tutorial.html[
+        In the particular, but common, case of a "north up" image without any rotation or shearing,
+        the georeferencing transform takes the following form
+        adfGeoTransform[0] /* top left x */
+        adfGeoTransform[1] /* w-e pixel resolution */
+        adfGeoTransform[2] /* 0 */
+        adfGeoTransform[3] /* top left y */
+        adfGeoTransform[4] /* 0 */
+        adfGeoTransform[5] /* n-s pixel resolution (negative value) */"""
+
+        srs = osr.SpatialReference()
+        wkt_text = self.projection
+        # Imports WKT to Spatial Reference Object
+        srs.ImportFromWkt(wkt_text)
+        proj_cs = pyproj.Proj(srs.ExportToProj4())
+        if not extent_cs:
+            extent_cs = self.__wgs84_cs
+
+        lon_ul_corner, lat_ul_corner = extent_cs(extent[0], extent[3])
+        x_ul_corner, y_ul_corner = pyproj.transform(self.__wgs84_cs, proj_cs, lon_ul_corner, lat_ul_corner)
+        # resolution = self.__metadata.band_map.get_max_resolution()
+        geo_transform = (x_ul_corner, self.geo_transform[1], 0, y_ul_corner, 0, self.geo_transform[5])
+        return geo_transform
 
 
 class Imagery:
@@ -560,10 +560,7 @@ class Landsat(Imagery):
             if self.__raster_metadata.contains(band_number) or force_update:
                 continue
 
-            self.__raster_metadata.add_metadata(RasterBandMetadata(self.__metadata.product_id,
-                                                                   self.__metadata.scene_id,
-                                                                   self.__metadata.full_mount_path,
-                                                                   band_number))
+            self.__raster_metadata.add_metadata(RasterBandMetadata(self.__metadata, band_number))
 
     def get_vrt(self, band_definitions: list, translate_args=None, extent: tuple=None, xRes=30, yRes=30):
         # TODO move this under __init__? Maybe run it on a separate thread

@@ -1060,8 +1060,8 @@ class TestRasterMetadata(unittest.TestCase):
 
         for band in bands:
             band_number = band_map.get_number(band)
-            raster_band_metadata_1 = RasterBandMetadata(metadata_1.product_id, metadata_1.scene_id, metadata_1.full_mount_path, band_number)
-            raster_band_metadata_2 = RasterBandMetadata(metadata_2.product_id, metadata_2.scene_id, metadata_2.full_mount_path, band_number)
+            raster_band_metadata_1 = RasterBandMetadata(metadata_1, band_number)
+            raster_band_metadata_2 = RasterBandMetadata(metadata_2, band_number)
             raster_metadata.add_metadata(raster_band_metadata_1)
             self.assertRaises(Exception, lambda: raster_metadata.add_metadata(raster_band_metadata_2))
 
@@ -1102,7 +1102,7 @@ class TestRasterMetadata(unittest.TestCase):
 
         for band in bands:
             band_number = band_map.get_number(band)
-            raster_band_metadata_1 = RasterBandMetadata(metadata_1.product_id, metadata_1.scene_id, metadata_1.full_mount_path, band_number)
+            raster_band_metadata_1 = RasterBandMetadata(metadata_1, band_number)
             raster_metadata.add_metadata(raster_band_metadata_1)
 
         # GDAL helper functions for generating VRT
@@ -1118,3 +1118,9 @@ class TestRasterMetadata(unittest.TestCase):
 
         self.assertEqual(geo_transform, raster_metadata.get_geotransform(taos_shape.bounds))
         self.assertNotEqual(geo_transform, raster_metadata.get_geotransform())
+
+        # TODO test band values for SrcRect
+
+        # TODO test vs. something that autatically clips by extent and exports to vrt
+
+        # TODO test by getting extent of vrt, projecting back to wgs 84 and making sure it is contained by taos_geom
