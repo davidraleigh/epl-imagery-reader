@@ -271,6 +271,7 @@ LLNppprrrOOYYDDDMM_AA.TIF  where:
     def get_wrs_polygon(self):
         return self.__wrs_geometries.get_wrs_geometry(self.wrs_path, self.wrs_row, timeout=60)
 
+    # TODO, probably remove this?
     def get_intersect_wkt(self, other_bounds):
         xmin = self.bounds[0] if self.bounds[0] > other_bounds[0] else other_bounds[0]
         ymin = self.bounds[1] if self.bounds[1] > other_bounds[1] else other_bounds[1]
@@ -353,11 +354,13 @@ class RasterMetadata:
         self.raster_band_metadata = {}
         # TODO there needs to be a test to make sure that all of these items are length 1. They shouldn't be different, right?
         self.projection = None
+        self.proj_cs = None
         self.data_type = None
         self.x_size = None
         self.y_size = None
         self.geo_transform = None
         self.data_id = None
+        self.bounds = None
 
     def add_metadata(self, raster_band_metadata: RasterBandMetadata):
         self.raster_band_metadata[raster_band_metadata.band_number] = raster_band_metadata
@@ -378,6 +381,45 @@ class RasterMetadata:
     def contains(self, band_number):
         return band_number in self.raster_band_metadata
 
+    def get_bounds(self, other_bounds=None, other_cs=None):
+        if not self.geo_transform:
+            return None
+
+        if not self.bounds:
+            xmin = self.geo_transform[0]
+            ymax = self.geo_transform[3]
+
+            # self.geo_transform[1] is positive
+            xmax = xmin + self.x_size * self.geo_transform[1]
+
+            # self.geo_transform[5] is negative
+            ymin = ymax + self.y_size * self.geo_transform[5]
+            self.bounds = xmin, ymin, xmax, ymax
+
+        if not other_bounds:
+            return self.bounds
+
+        other_bounds_projected = other_bounds
+        if other_cs:
+            if not self.proj_cs:
+                srs = osr.SpatialReference()
+                wkt_text = self.projection
+                # Imports WKT to Spatial Reference Object
+                srs.ImportFromWkt(wkt_text)
+                self.proj_cs = pyproj.Proj(srs.ExportToProj4())
+
+            xminproj, yminproj = pyproj.transform(other_cs, self.proj_cs, other_bounds[0], other_bounds[1])
+            xmaxproj, ymaxproj = pyproj.transform(other_cs, self.proj_cs, other_bounds[2], other_bounds[3])
+            other_bounds_projected = xminproj, yminproj, xmaxproj, ymaxproj
+
+        xmin = self.bounds[0] if self.bounds[0] > other_bounds_projected[0] else other_bounds_projected[0]
+        ymin = self.bounds[1] if self.bounds[1] > other_bounds_projected[1] else other_bounds_projected[1]
+
+        xmax = self.bounds[2] if self.bounds[2] < other_bounds_projected[2] else other_bounds_projected[2]
+        ymax = self.bounds[3] if self.bounds[3] < other_bounds_projected[3] else other_bounds_projected[3]
+
+        return xmin, ymin, xmax, ymax
+
     def get_geotransform(self, extent=None, extent_cs=None):
         if not extent:
             return self.geo_transform
@@ -393,18 +435,12 @@ class RasterMetadata:
         adfGeoTransform[4] /* 0 */
         adfGeoTransform[5] /* n-s pixel resolution (negative value) */"""
 
-        srs = osr.SpatialReference()
-        wkt_text = self.projection
-        # Imports WKT to Spatial Reference Object
-        srs.ImportFromWkt(wkt_text)
-        proj_cs = pyproj.Proj(srs.ExportToProj4())
         if not extent_cs:
             extent_cs = self.__wgs84_cs
+        clipped_bounds = self.get_bounds(extent, extent_cs)
 
-        lon_ul_corner, lat_ul_corner = extent_cs(extent[0], extent[3])
-        x_ul_corner, y_ul_corner = pyproj.transform(self.__wgs84_cs, proj_cs, lon_ul_corner, lat_ul_corner)
         # resolution = self.__metadata.band_map.get_max_resolution()
-        geo_transform = (x_ul_corner, self.geo_transform[1], 0, y_ul_corner, 0, self.geo_transform[5])
+        geo_transform = (clipped_bounds[0], self.geo_transform[1], 0, clipped_bounds[3], 0, self.geo_transform[5])
         return geo_transform
 
 

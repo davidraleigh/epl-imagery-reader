@@ -7,6 +7,7 @@ import numpy as np
 
 import shapely.geometry
 import requests
+import pyproj
 
 from math import isclose
 from lxml import etree
@@ -985,7 +986,7 @@ def ndvi_numpy(in_ar, out_ar, xoff, yoff, xsize, ysize, raster_xsize, raster_ysi
     #     # gdal_translate -of VRT -ot Byte -scale -tr 60 60 rgb.vrt rgb_byte_scaled.vrt
     #
     #     self.assertTrue(True)
-    #     sql_filters = ['scene_id="LC80390332016208LGN00"']
+    #     sql_filters = ['scene_id="LC80330342017072LGN00"']
     #     metadata_service = MetadataService()
     #     rows = metadata_service.search(SpacecraftID.LANDSAT_8, sql_filters=sql_filters)
     #
@@ -1064,6 +1065,43 @@ class TestRasterMetadata(unittest.TestCase):
             raster_band_metadata_2 = RasterBandMetadata(metadata_2, band_number)
             raster_metadata.add_metadata(raster_band_metadata_1)
             self.assertRaises(Exception, lambda: raster_metadata.add_metadata(raster_band_metadata_2))
+
+    def test_bounds(self):
+
+        metadata_service = MetadataService()
+        sql_filters = ['scene_id="LC80330342017072LGN00"', 'collection_number="PRE"']
+        rows = metadata_service.search(
+            SpacecraftID.LANDSAT_8,
+            sql_filters=sql_filters)
+        self.assertEqual(len(rows), 1)
+
+        metadata = Metadata(rows[0])
+
+        bands = [Band.RED, Band.BLUE, Band.GREEN]
+
+        band_map = BandMap(SpacecraftID.LANDSAT_8)
+
+        raster_metadata = RasterMetadata()
+
+        storage = Storage()
+        storage.mount_sub_folder(metadata)
+
+        for band in bands:
+            band_number = band_map.get_number(band)
+            raster_band_metadata_1 = RasterBandMetadata(metadata, band_number)
+            raster_metadata.add_metadata(raster_band_metadata_1)
+
+        boundary = raster_metadata.get_bounds()
+        self.assertIsNotNone(boundary)
+
+        r = requests.get("https://raw.githubusercontent.com/johan/world.geo.json/master/countries/USA/NM/Taos.geo.json")
+        taos_geom = r.json()
+        taos_shape = shapely.geometry.shape(taos_geom['features'][0]['geometry'])
+        boundary_clipped = raster_metadata.get_bounds(taos_shape.bounds, pyproj.Proj(init='epsg:4326'))
+        self.assertIsNotNone(boundary_clipped)
+        big_box = shapely.geometry.box(*boundary)
+        small_box = shapely.geometry.box(*boundary_clipped)
+        self.assertTrue(big_box.contains(small_box))
 
     def test_metadata_extent(self):
         r = requests.get("https://raw.githubusercontent.com/johan/world.geo.json/master/countries/USA/NM/Taos.geo.json")
