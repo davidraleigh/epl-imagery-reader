@@ -52,7 +52,9 @@ def xml_compare(x1, x2, tag_tolerances={}):
     if x1.tag != x2.tag:
         return False, '\nTags do not match: %s and %s' % (x1.tag, x2.tag)
     for name, value in x1.attrib.items():
-        if x2.attrib.get(name) != value:
+        tolerance = tag_tolerances[name] if name in tag_tolerances else None
+        if not text_compare(x2.attrib.get(name), value, tolerance):
+        # if x2.attrib.get(name) != value:
             return False, '\nAttributes do not match: %s=%r, %s=%r' % (name, value, name, x2.attrib.get(name))
     for name in x2.attrib.keys():
         if name not in x1.attrib:
@@ -1059,15 +1061,17 @@ class TestRasterMetadata(unittest.TestCase):
         storage.mount_sub_folder(metadata_1)
         storage.mount_sub_folder(metadata_2)
 
+        second = False
         for band in bands:
             band_number = band_map.get_number(band)
-            raster_band_metadata_1 = RasterBandMetadata(metadata_1, band_number)
-            raster_band_metadata_2 = RasterBandMetadata(metadata_2, band_number)
-            raster_metadata.add_metadata(raster_band_metadata_1)
-            self.assertRaises(Exception, lambda: raster_metadata.add_metadata(raster_band_metadata_2))
 
+            if second:
+                self.assertRaises(Exception, lambda: raster_metadata.add_metadata(band_number, metadata_2))
+            raster_metadata.add_metadata(band_number, metadata_1)
+            second = True
+
+    # @unittest.skip("changed how bounds are queried")
     def test_bounds(self):
-
         metadata_service = MetadataService()
         sql_filters = ['scene_id="LC80330342017072LGN00"', 'collection_number="PRE"']
         rows = metadata_service.search(
@@ -1088,19 +1092,18 @@ class TestRasterMetadata(unittest.TestCase):
 
         for band in bands:
             band_number = band_map.get_number(band)
-            raster_band_metadata_1 = RasterBandMetadata(metadata, band_number)
-            raster_metadata.add_metadata(raster_band_metadata_1)
+            raster_metadata.add_metadata(band_number, metadata)
 
-        boundary = raster_metadata.get_bounds()
+        boundary = raster_metadata.bounds
         self.assertIsNotNone(boundary)
 
         r = requests.get("https://raw.githubusercontent.com/johan/world.geo.json/master/countries/USA/NM/Taos.geo.json")
         taos_geom = r.json()
         taos_shape = shapely.geometry.shape(taos_geom['features'][0]['geometry'])
-        boundary_clipped = raster_metadata.get_bounds(taos_shape.bounds, pyproj.Proj(init='epsg:4326'))
-        self.assertIsNotNone(boundary_clipped)
+        clipped_raster = raster_metadata.calculate_clipped(taos_shape.bounds, pyproj.Proj(init='epsg:4326'))
+        self.assertIsNotNone(clipped_raster.bounds)
         big_box = shapely.geometry.box(*boundary)
-        small_box = shapely.geometry.box(*boundary_clipped)
+        small_box = shapely.geometry.box(*clipped_raster.bounds)
         self.assertTrue(big_box.contains(small_box))
 
     def test_metadata_extent(self):
@@ -1111,51 +1114,51 @@ class TestRasterMetadata(unittest.TestCase):
         taos_shape = shapely.geometry.shape(taos_geom['features'][0]['geometry'])
 
         metadata_service = MetadataService()
-
-        d_start = date(2017, 3, 12)  # 2017-03-12
-        d_end = date(2017, 3, 19)  # 2017-03-20, epl api is inclusive
-
-        sql_filters = ['collection_number="PRE"']
+        sql_filters = ['scene_id="LC80330342017072LGN00"', 'collection_number="PRE"']
         rows = metadata_service.search(
             SpacecraftID.LANDSAT_8,
-            start_date=d_start,
-            end_date=d_end,
-            bounding_box=taos_shape.bounds,
-            limit=10,
             sql_filters=sql_filters)
-        print(len(rows))
+        self.assertEqual(len(rows), 1)
 
-        metadata_1 = Metadata(rows[0], self.base_mount_path)
-        metadata_2 = Metadata(rows[1], self.base_mount_path)
-
-        bands = [Band.RED, Band.BLUE, Band.GREEN]
-
-        band_map = BandMap(SpacecraftID.LANDSAT_8)
-
-        raster_metadata = RasterMetadata()
-
-        storage = Storage()
-        storage.mount_sub_folder(metadata_1)
-        storage.mount_sub_folder(metadata_2)
-
-        for band in bands:
-            band_number = band_map.get_number(band)
-            raster_band_metadata_1 = RasterBandMetadata(metadata_1, band_number)
-            raster_metadata.add_metadata(raster_band_metadata_1)
+        metadata = Metadata(rows[0], self.base_mount_path)
 
         # GDAL helper functions for generating VRT
-        landsat = Landsat(metadata_1)
+        landsat = Landsat(metadata)
 
         # get a numpy.ndarray from bands for specified imagery
         band_numbers = [Band.RED, Band.GREEN, Band.BLUE]
         scaleParams = [[0.0, 65535], [0.0, 65535], [0.0, 65535]]
         vrt = landsat.get_vrt(band_numbers, extent=taos_shape.bounds)
 
+        with open('clipped_LC80330342017072LGN00.vrt', 'r') as myfile:
+            data = myfile.read()
+            expected = etree.XML(data)
+            actual = etree.XML(vrt)
+            result, message = xml_compare(expected, actual, {"GeoTransform": 1e-10, "xOff": 1e-10, "yOff": 1e-10})
+            self.assertTrue(result, message)
+
         dataset = gdal.Open(vrt)
         geo_transform = dataset.GetGeoTransform()
 
-        self.assertEqual(geo_transform, raster_metadata.get_geotransform(taos_shape.bounds))
-        self.assertNotEqual(geo_transform, raster_metadata.get_geotransform())
+        # self.assertEqual(geo_transform, raster_metadata.get_geotransform(taos_shape.bounds))
+        # self.assertNotEqual(geo_transform, raster_metadata.get_geotransform())
+
+        """
+        gdal command for creating test data--/Users/davidraleigh/code/echopark/gcp-landsat-reader/test/clipped_LC80330342017072LGN00.vrt
+        
+        gdalbuildvrt -te 404696.67322238116 4028985.0 482408.22401454527 4094313.7809402538 
+        -separate rgb_clipped.vrt 
+        /imagery/LC08/PRE/033/034/LC80330342017072LGN00/LC80330342017072LGN00_B4.TIF 
+        /imagery/LC08/PRE/033/034/LC80330342017072LGN00/LC80330342017072LGN00_B3.TIF 
+        /imagery/LC08/PRE/033/034/LC80330342017072LGN00/LC80330342017072LGN00_B2.TIF
+        
+        
+        gdal command for creating test data--
+        gdal_translate -ot Byte -tr 60 60 -of VRT -scale 0 65535 0 255 
+        /opt/src/gcp-imagery-reader/rgb_clipped.vrt 
+        /opt/src/gcp-imagery-reader/rgb_clipped_translated.vrt
+        
+        """
 
         # TODO test band values for SrcRect
 

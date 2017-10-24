@@ -1,0 +1,37 @@
+<VRTDataset rasterXSize="1295" rasterYSize="1089">
+  <SRS>PROJCS["WGS 84 / UTM zone 13N",GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563,AUTHORITY["EPSG","7030"]],AUTHORITY["EPSG","6326"]],PRIMEM["Greenwich",0,AUTHORITY["EPSG","8901"]],UNIT["degree",0.0174532925199433,AUTHORITY["EPSG","9122"]],AUTHORITY["EPSG","4326"]],PROJECTION["Transverse_Mercator"],PARAMETER["latitude_of_origin",0],PARAMETER["central_meridian",-105],PARAMETER["scale_factor",0.9996],PARAMETER["false_easting",500000],PARAMETER["false_northing",0],UNIT["metre",1,AUTHORITY["EPSG","9001"]],AXIS["Easting",EAST],AXIS["Northing",NORTH],AUTHORITY["EPSG","32613"]]</SRS>
+  <GeoTransform>  4.0469667322238116e+05,  6.0000000000000000e+01,  0.0000000000000000e+00,  4.0943137809402538e+06,  0.0000000000000000e+00, -6.0000000000000000e+01</GeoTransform>
+  <VRTRasterBand dataType="Byte" band="1">
+    <ComplexSource>
+      <SourceFilename relativeToVRT="1">rgb_clipped.vrt</SourceFilename>
+      <SourceBand>1</SourceBand>
+      <SourceProperties RasterXSize="2590" RasterYSize="2178" DataType="UInt16" BlockXSize="128" BlockYSize="128" />
+      <SrcRect xOff="0" yOff="0" xSize="2590" ySize="2178" />
+      <DstRect xOff="0" yOff="0" xSize="1295" ySize="1089" />
+      <ScaleOffset>0</ScaleOffset>
+      <ScaleRatio>0.00389105</ScaleRatio>
+    </ComplexSource>
+  </VRTRasterBand>
+  <VRTRasterBand dataType="Byte" band="2">
+    <ComplexSource>
+      <SourceFilename relativeToVRT="1">rgb_clipped.vrt</SourceFilename>
+      <SourceBand>2</SourceBand>
+      <SourceProperties RasterXSize="2590" RasterYSize="2178" DataType="UInt16" BlockXSize="128" BlockYSize="128" />
+      <SrcRect xOff="0" yOff="0" xSize="2590" ySize="2178" />
+      <DstRect xOff="0" yOff="0" xSize="1295" ySize="1089" />
+      <ScaleOffset>0</ScaleOffset>
+      <ScaleRatio>0.00389105</ScaleRatio>
+    </ComplexSource>
+  </VRTRasterBand>
+  <VRTRasterBand dataType="Byte" band="3">
+    <ComplexSource>
+      <SourceFilename relativeToVRT="1">rgb_clipped.vrt</SourceFilename>
+      <SourceBand>3</SourceBand>
+      <SourceProperties RasterXSize="2590" RasterYSize="2178" DataType="UInt16" BlockXSize="128" BlockYSize="128" />
+      <SrcRect xOff="0" yOff="0" xSize="2590" ySize="2178" />
+      <DstRect xOff="0" yOff="0" xSize="1295" ySize="1089" />
+      <ScaleOffset>0</ScaleOffset>
+      <ScaleRatio>0.00389105</ScaleRatio>
+    </ComplexSource>
+  </VRTRasterBand>
+</VRTDataset>

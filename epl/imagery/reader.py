@@ -319,110 +319,86 @@ LLNppprrrOOYYDDDMM_AA.TIF  where:
         #     self.__file_list = None
 
 
-class RasterBandMetadata:
-    def __init__(self, metadata: Metadata, band_number):
-        # TODO more elegant please
-        name_prefix = metadata.product_id
-        if not metadata.product_id:
-            name_prefix = metadata.scene_id
-
-        file_path = "{0}/{1}_B{2}.TIF".format(metadata.full_mount_path, name_prefix, band_number)
-
-        dataset = gdal.Open(file_path)
-
-        self.data_type = gdal.GetDataTypeName(dataset.GetRasterBand(1).DataType)
-        self.x_size = dataset.RasterXSize
-        self.y_size = dataset.RasterYSize
-        self.projection = dataset.GetProjection()
-        self.geo_transform = dataset.GetGeoTransform()
-        self.data_id = name_prefix
-
-        del dataset
-
-        self.band_number = band_number
-        self.file_path = file_path
-
-    def __iter__(self):
-        for attr, value in self.__dict__.items():
-            yield attr, value
-
-
-class RasterMetadata:
-    __wgs84_cs = pyproj.Proj(init='epsg:4326')
-
-    def __init__(self):
-        self.raster_band_metadata = {}
-        # TODO there needs to be a test to make sure that all of these items are length 1. They shouldn't be different, right?
+class __RasterMetadata:
+    # TODO, maybe there should be setters and getters to prevent problems?
+    def __init__(self, band_number: int=None, metadata: Metadata=None):
         self.projection = None
         self.proj_cs = None
         self.data_type = None
-        self.x_size = None
-        self.y_size = None
+
+        self.x_src_size = None
+        self.y_src_size = None
+        self.x_dst_size = None
+        self.y_dst_size = None
+
+        self.x_dst_offset = 0
+        self.y_dst_offset = 0
+        self.x_src_offset = 0
+        self.y_src_offset = 0
         self.geo_transform = None
         self.data_id = None
         self.bounds = None
+        if metadata:
+            # TODO more elegant please
+            name_prefix = metadata.product_id
+            if not metadata.product_id:
+                name_prefix = metadata.scene_id
 
-    def add_metadata(self, raster_band_metadata: RasterBandMetadata):
-        self.raster_band_metadata[raster_band_metadata.band_number] = raster_band_metadata
+            file_path = "{0}/{1}_B{2}.TIF".format(metadata.full_mount_path, name_prefix, band_number)
 
-        for key, value in raster_band_metadata:
-            if key in ['file_path', 'band_number']:
-                continue
-            self_value = getattr(self, key)
-            # if not None and not equal
-            if self_value and self_value != value:
-                raise Exception("key {0} differs between RasterBandMetadata and RasterMetadata\nRasterBandMetadata: {1}\nRasterBand: {2}\n".format(key, value, self_value))
-            if not self_value:
-                setattr(self, key, getattr(raster_band_metadata, key))
+            dataset = gdal.Open(file_path)
 
-    def get_metadata(self, band_number):
-        return self.raster_band_metadata[band_number]
+            self.data_type = gdal.GetDataTypeName(dataset.GetRasterBand(1).DataType)
 
-    def contains(self, band_number):
-        return band_number in self.raster_band_metadata
+            self.x_src_size = dataset.RasterXSize
+            self.y_src_size = dataset.RasterYSize
+            self.x_dst_size = dataset.RasterXSize
+            self.y_dst_size = dataset.RasterYSize
 
-    def get_bounds(self, other_bounds=None, other_cs=None):
-        if not self.geo_transform:
-            return None
+            self.projection = dataset.GetProjection()
+            self.geo_transform = dataset.GetGeoTransform()
+            self.data_id = name_prefix
 
-        if not self.bounds:
+            del dataset
+
             xmin = self.geo_transform[0]
             ymax = self.geo_transform[3]
-
             # self.geo_transform[1] is positive
-            xmax = xmin + self.x_size * self.geo_transform[1]
-
+            xmax = xmin + self.x_src_size * self.geo_transform[1]
             # self.geo_transform[5] is negative
-            ymin = ymax + self.y_size * self.geo_transform[5]
+            ymin = ymax + self.y_src_size * self.geo_transform[5]
             self.bounds = xmin, ymin, xmax, ymax
 
-        if not other_bounds:
-            return self.bounds
+            srs = osr.SpatialReference()
+            wkt_text = self.projection
+            # Imports WKT to Spatial Reference Object
+            srs.ImportFromWkt(wkt_text)
+            self.proj_cs = pyproj.Proj(srs.ExportToProj4())
+
+            self.file_path = file_path
+
+    def clip_by_boundary(self, other_bounds, other_cs=None):
+        # TODO throw exception
+        # if not self.geo_transform:
+        #     return None
 
         other_bounds_projected = other_bounds
-        if other_cs:
-            if not self.proj_cs:
-                srs = osr.SpatialReference()
-                wkt_text = self.projection
-                # Imports WKT to Spatial Reference Object
-                srs.ImportFromWkt(wkt_text)
-                self.proj_cs = pyproj.Proj(srs.ExportToProj4())
 
+        if other_cs:
             xminproj, yminproj = pyproj.transform(other_cs, self.proj_cs, other_bounds[0], other_bounds[1])
             xmaxproj, ymaxproj = pyproj.transform(other_cs, self.proj_cs, other_bounds[2], other_bounds[3])
             other_bounds_projected = xminproj, yminproj, xmaxproj, ymaxproj
 
-        xmin = self.bounds[0] if self.bounds[0] > other_bounds_projected[0] else other_bounds_projected[0]
-        ymin = self.bounds[1] if self.bounds[1] > other_bounds_projected[1] else other_bounds_projected[1]
+        old_bounds = self.bounds
+        old_xsize = self.x_src_size
+        old_ysize = self.y_src_size
+        xmin = old_bounds[0] if old_bounds[0] > other_bounds_projected[0] else other_bounds_projected[0]
+        ymin = old_bounds[1] if old_bounds[1] > other_bounds_projected[1] else other_bounds_projected[1]
 
-        xmax = self.bounds[2] if self.bounds[2] < other_bounds_projected[2] else other_bounds_projected[2]
-        ymax = self.bounds[3] if self.bounds[3] < other_bounds_projected[3] else other_bounds_projected[3]
+        xmax = old_bounds[2] if old_bounds[2] < other_bounds_projected[2] else other_bounds_projected[2]
+        ymax = old_bounds[3] if old_bounds[3] < other_bounds_projected[3] else other_bounds_projected[3]
 
-        return xmin, ymin, xmax, ymax
-
-    def get_geotransform(self, extent=None, extent_cs=None):
-        if not extent:
-            return self.geo_transform
+        calculated_bounds = xmin, ymin, xmax, ymax
 
         """
         http://www.gdal.org/gdal_tutorial.html[
@@ -434,14 +410,98 @@ class RasterMetadata:
         adfGeoTransform[3] /* top left y */
         adfGeoTransform[4] /* 0 */
         adfGeoTransform[5] /* n-s pixel resolution (negative value) */"""
+        calculated_geo_transform = (calculated_bounds[0],
+                                    self.geo_transform[1],
+                                    0,
+                                    calculated_bounds[3],
+                                    0,
+                                    self.geo_transform[5])
+
+        original_xdiff = old_bounds[2] - old_bounds[0]
+        calculated_xdiff = calculated_bounds[2] - calculated_bounds[0]
+
+        original_ydiff = old_bounds[3] - old_bounds[1]
+        calculated_ydiff = calculated_bounds[3] - calculated_bounds[1]
+
+        # TODO, seems this should always be ceiling? Also, the input extent should be adjusted to be withing the
+        # interval of pixel width, so that there isn't a slight shift of pixels??
+        self.x_dst_size = int(round((calculated_xdiff / original_xdiff) * old_xsize))
+        self.y_dst_size = int(round((calculated_ydiff / original_ydiff) * old_ysize))
+
+        # This can be a float
+        self.x_src_offset = ((calculated_bounds[0] - old_bounds[0]) / original_xdiff) * old_xsize
+        self.y_src_offset = -((calculated_bounds[3] - old_bounds[3]) / original_ydiff) * old_ysize
+
+        # MUST BE CALCULATED LAST SO AS NOT TO RUIN ABOVE OFFSET AND SIZE CALCULATIONS
+        self.geo_transform = calculated_geo_transform
+        self.bounds = calculated_bounds
+
+
+class RasterBandMetadata(__RasterMetadata):
+    def __init__(self,
+                 band_number,
+                 metadata: Metadata=None):
+        super().__init__(band_number, metadata)
+        self.band_number = band_number
+
+    def __iter__(self):
+        for attr, value in self.__dict__.items():
+            yield attr, value
+
+
+class RasterMetadata(__RasterMetadata):
+    __wgs84_cs = pyproj.Proj(init='epsg:4326')
+
+    def __init__(self):
+        super().__init__()
+        # TODO there needs to be a test to make sure that all of these items are length 1. They shouldn't be different, right?
+        self.raster_band_metadata = {}
+        self.__calculated = {}
+
+    def clip_by_boundary(self, other_bounds, other_cs=None):
+        super().clip_by_boundary(other_bounds, other_cs)
+        for key in self.raster_band_metadata:
+            self.raster_band_metadata[key].clip_by_boundary(other_bounds, other_cs)
+
+    # TODO, this is going to be problematic when data sources have different source sizes, datatypes, etc.
+    def add_metadata(self, band_number: int, metadata: Metadata):
+        if band_number in self.raster_band_metadata:
+            return
+
+        self.raster_band_metadata[band_number] = RasterBandMetadata(band_number, metadata)
+
+        # update RasterMetadata values according to the RasterBandMetadata
+        for key, value in self.raster_band_metadata[band_number]:
+            if key in ['file_path', 'band_number']:
+                continue
+            self_value = getattr(self, key)
+            if key in ['proj_cs'] and self_value:
+                continue
+            # if not None and not equal
+            if self_value and self_value != value:
+                raise Exception("key {0} differs between RasterBandMetadata and RasterMetadata\nRasterBandMetadata: "
+                                "{1}\nRasterBand: {2}\n".format(key, value, self_value))
+            if not self_value:
+                setattr(self, key, getattr(self.raster_band_metadata[band_number], key))
+
+    def get_metadata(self, band_number) -> RasterBandMetadata:
+        return self.raster_band_metadata[band_number]
+
+    def contains(self, band_number):
+        return band_number in self.raster_band_metadata
+
+    def calculate_clipped(self, extent, extent_cs=None):
+        if extent in self.__calculated:
+            return self.__calculated[extent]
+
+        # TODO override deep copy to copy each of the bands? Or store clipped information on bands and rasters instead of making a whole object copy?
+        copied_raster = copy.deepcopy(self)
 
         if not extent_cs:
             extent_cs = self.__wgs84_cs
-        clipped_bounds = self.get_bounds(extent, extent_cs)
-
-        # resolution = self.__metadata.band_map.get_max_resolution()
-        geo_transform = (clipped_bounds[0], self.geo_transform[1], 0, clipped_bounds[3], 0, self.geo_transform[5])
-        return geo_transform
+        copied_raster.clip_by_boundary(extent, extent_cs)
+        self.__calculated[extent] = copied_raster
+        return copied_raster
 
 
 class Imagery:
@@ -471,14 +531,43 @@ class Landsat(Imagery):
         # log('\nbucket unmounted\n')
         self.storage.unmount_sub_folder(self.__metadata, request_key=self.__id)
 
-    def fetch_imagery_array(self, band_definitions, scaleParams=None):
+    def __calculate_metadata(self, band_definitions: list, extent: tuple=None, extent_cs=None) -> RasterMetadata:
+        # (in case one is calculated from a band that's included elsewhere in the metadata)
+        band_number_set = set()
+        for band_definition in band_definitions:
+            if isinstance(band_definition, dict):
+                for band_number in band_definition["band_numbers"]:
+                    if isinstance(band_number, Band):
+                        band_number_set.add(self.__metadata.band_map.get_number(band_number))
+                    else:
+                        band_number_set.add(band_number)
+            elif isinstance(band_definition, Band):
+                band_number_set.add(self.__metadata.band_map.get_number(band_definition))
+            else:
+                band_number_set.add(band_definition)
+        # All this does is convert band definitions band and band enums to numbers in a set
+        # (in case one is calculated from a band that's included elsewhere in the metadata)
+
+        for band_number in band_number_set:
+            # TODO test force update
+            if self.__raster_metadata.contains(band_number): #  and not force_update:
+                continue
+
+            self.__raster_metadata.add_metadata(band_number, self.__metadata)
+
+        if not extent:
+            return self.__raster_metadata
+
+        return self.__raster_metadata.calculate_clipped(extent=extent, extent_cs=extent_cs)
+
+    def fetch_imagery_array(self, band_definitions, scaleParams=None, extent: tuple=None):
         # TODO move this under __init__? Maybe run it on a separate thread
         if self.storage.mount_sub_folder(self.__metadata, request_key=self.__id) is False:
             return None
 
-        return self.__get_ndarray(band_definitions, scaleParams)
+        return self.__get_ndarray(band_definitions, scaleParams, extent=extent)
 
-    def get_source_elem(self, band_number, block_size=256):
+    def get_source_elem(self, band_number, calculated_metadata: RasterMetadata, block_size=256):
         elem_simple_source = etree.Element("SimpleSource")
 
         # if the input had multiple bands this setting would be where you change that
@@ -496,30 +585,37 @@ class Landsat(Imagery):
         file_path = "{0}/{1}_B{2}.TIF".format(self.__metadata.full_mount_path, name_prefix, band_number)
         elem_source_filename.text = file_path
 
+        raster_band_metadata = calculated_metadata.get_metadata(band_number)
+
         elem_source_props = etree.SubElement(elem_simple_source, "SourceProperties")
-        elem_source_props.set("RasterXSize", str(self.__raster_metadata.get_metadata(band_number).x_size))
-        elem_source_props.set("RasterYSize", str(self.__raster_metadata.get_metadata(band_number).y_size))
-        elem_source_props.set("DataType", self.__raster_metadata.get_metadata(band_number).data_type)
+        elem_source_props.set("RasterXSize", str(raster_band_metadata.x_src_size))
+        elem_source_props.set("RasterYSize", str(raster_band_metadata.y_src_size))
+        elem_source_props.set("DataType", raster_band_metadata.data_type)
 
         # there may be a more efficient size than 256
         elem_source_props.set("BlockXSize", str(block_size))
         elem_source_props.set("BlockYSize", str(block_size))
 
         elem_src_rect = etree.SubElement(elem_simple_source, "SrcRect")
-        elem_src_rect.set("xOff", str(0))
-        elem_src_rect.set("yOff", str(0))
-        elem_src_rect.set("xSize", str(self.__raster_metadata.get_metadata(band_number).x_size))
-        elem_src_rect.set("ySize", str(self.__raster_metadata.get_metadata(band_number).y_size))
+        elem_src_rect.set("xOff", str(raster_band_metadata.x_src_offset))
+        elem_src_rect.set("yOff", str(raster_band_metadata.y_src_offset))
+        elem_src_rect.set("xSize", str(raster_band_metadata.x_src_size))
+        elem_src_rect.set("ySize", str(raster_band_metadata.y_src_size))
 
         elem_dst_rect = etree.SubElement(elem_simple_source, "DstRect")
-        elem_dst_rect.set("xOff", str(0))
-        elem_dst_rect.set("yOff", str(0))
-        elem_dst_rect.set("xSize", str(self.__raster_metadata.get_metadata(band_number).x_size))
-        elem_dst_rect.set("ySize", str(self.__raster_metadata.get_metadata(band_number).y_size))
+        elem_dst_rect.set("xOff", str(raster_band_metadata.x_dst_offset))
+        elem_dst_rect.set("yOff", str(raster_band_metadata.y_dst_offset))
+        elem_dst_rect.set("xSize", str(raster_band_metadata.x_src_size))
+        elem_dst_rect.set("ySize", str(raster_band_metadata.y_src_size))
 
         return elem_simple_source
 
-    def get_function_band_elem(self, vrt_dataset, band_definition, position_number, block_size=256):
+    def get_function_band_elem(self,
+                               vrt_dataset,
+                               band_definition,
+                               position_number,
+                               calculated_metadata,
+                               block_size=256):
         # data_type = gdal.GetDataTypeName(dataset.GetRasterBand(1).DataType)
         elem_raster_band = etree.SubElement(vrt_dataset, "VRTRasterBand")
 
@@ -558,10 +654,10 @@ class Landsat(Imagery):
             if isinstance(band_number, Band):
                 band_number = self.__metadata.band_map.get_number(band_number)
 
-            elem_simple_source = self.get_source_elem(band_number)
+            elem_simple_source = self.get_source_elem(band_number, calculated_metadata, block_size)
             elem_raster_band.append(elem_simple_source)
 
-    def get_band_elem(self, vrt_dataset, band_number, position_number, block_size):
+    def get_band_elem(self, vrt_dataset, band_number, position_number, calculated_metadata: RasterMetadata, block_size=256):
         # I think this needs to be removed.
         color_interp = self.__metadata.band_map.get_name(band_number).capitalize()
 
@@ -570,35 +666,13 @@ class Landsat(Imagery):
         if color_interp is not None:
             etree.SubElement(elem_raster_band, "ColorInterp").text = color_interp
 
-        elem_simple_source = self.get_source_elem(band_number)
+        elem_simple_source = self.get_source_elem(band_number, calculated_metadata, block_size)
         elem_raster_band.append(elem_simple_source)
 
-        elem_raster_band.set("dataType", self.__raster_metadata.get_metadata(band_number).data_type)
+        elem_raster_band.set("dataType", calculated_metadata.get_metadata(band_number).data_type)
         elem_raster_band.set("band", str(position_number))
 
-    # TODO move this to Metadata???
-    def get_band_metadata(self, band_definitions, force_update=False):
-        # TODO if no bands throw exception
-        band_number_set = set()
-        for band_definition in band_definitions:
-            if isinstance(band_definition, dict):
-                for band_number in band_definition["band_numbers"]:
-                    if isinstance(band_number, Band):
-                        band_number_set.add(self.__metadata.band_map.get_number(band_number))
-                    else:
-                        band_number_set.add(band_number)
-            elif isinstance(band_definition, Band):
-                band_number_set.add(self.__metadata.band_map.get_number(band_definition))
-            else:
-                band_number_set.add(band_definition)
-
-        for band_number in band_number_set:
-            if self.__raster_metadata.contains(band_number) or force_update:
-                continue
-
-            self.__raster_metadata.add_metadata(RasterBandMetadata(self.__metadata, band_number))
-
-    def get_vrt(self, band_definitions: list, translate_args=None, extent: tuple=None, xRes=30, yRes=30):
+    def get_vrt(self, band_definitions: list, translate_args=None, extent: tuple=None, extent_cs: pyproj.Proj=None, xRes=30, yRes=30):
         # TODO move this under __init__? Maybe run it on a separate thread
         if self.storage.mount_sub_folder(self.__metadata, request_key=self.__id) is False:
             return None
@@ -607,22 +681,34 @@ class Landsat(Imagery):
 
         position_number = 1
 
-        self.get_band_metadata(band_definitions)
-
-        geo_transform = self.__raster_metadata.get_geotransform(extent)
+        # self.get_band_metadata(band_definitions)
+        calculated_metadata = self.__calculate_metadata(band_definitions, extent=extent, extent_cs=extent_cs)
+        geo_transform = calculated_metadata.geo_transform
         etree.SubElement(vrt_dataset, "GeoTransform").text = ",".join(map("  {:.16e}".format, geo_transform))
-        vrt_dataset.set("rasterXSize", str(self.__raster_metadata.x_size))
-        vrt_dataset.set("rasterYSize", str(self.__raster_metadata.y_size))
-        etree.SubElement(vrt_dataset, "SRS").text = self.__raster_metadata.projection
+        vrt_dataset.set("rasterXSize", str(calculated_metadata.x_dst_size))
+        vrt_dataset.set("rasterYSize", str(calculated_metadata.y_dst_size))
+        etree.SubElement(vrt_dataset, "SRS").text = calculated_metadata.projection
 
         # TODO if no bands throw exception
         for band_definition in band_definitions:
             if isinstance(band_definition, dict):
-                self.get_function_band_elem(vrt_dataset, band_definition, position_number, 256)
+                self.get_function_band_elem(vrt_dataset,
+                                            band_definition,
+                                            position_number,
+                                            calculated_metadata,
+                                            256)
             elif isinstance(band_definition, Band):
-                self.get_band_elem(vrt_dataset, self.__metadata.band_map.get_number(band_definition), position_number, 256)
+                self.get_band_elem(vrt_dataset,
+                                   self.__metadata.band_map.get_number(band_definition),
+                                   position_number,
+                                   calculated_metadata,
+                                   256)
             else:
-                self.get_band_elem(vrt_dataset, band_definition, position_number, 256)
+                self.get_band_elem(vrt_dataset,
+                                   band_definition,
+                                   position_number,
+                                   calculated_metadata,
+                                   256)
 
             position_number += 1
 
