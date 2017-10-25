@@ -522,57 +522,51 @@ class Landsat(Imagery):
     __metadata = None
     __id = None
 
-    def __init__(self, metadata: Metadata):
+    def __init__(self, metadata: [Metadata]):
         bucket_name = "gcp-public-data-landsat"
         super().__init__(bucket_name)
-        self.__metadata = metadata
+        if isinstance(metadata, list):
+            self.__metadata = metadata
+        else:
+            self.__metadata = [metadata]
         self.__id = id(self)
-        self.__raster_metadata = RasterMetadata()
 
     def __del__(self):
         # log('\nbucket unmounted\n')
-        self.storage.unmount_sub_folder(self.__metadata, request_key=self.__id)
+        for metadata in self.__metadata:
+            self.storage.unmount_sub_folder(metadata, request_key=self.__id)
 
-    def __create_ogr_ds(self, geometry_wkb: bytes=None):
-        cutlineDSName = '/vsimem/cutline.json'
-        cutline_ds = ogr.GetDriverByName('GeoJSON').CreateDataSource(cutlineDSName)
-        cutline_lyr = cutline_ds.CreateLayer('cutline')
-        f = ogr.Feature(cutline_lyr.GetLayerDefn())
-
-        f.SetGeometry(ogr.CreateGeometryFromWkb(geometry_wkb))
-        cutline_lyr.CreateFeature(f)
-        f = None
-        cutline_lyr = None
-        return cutline_ds, cutlineDSName
-
-    def __calculate_metadata(self, band_definitions: list, extent: tuple=None, extent_cs=None) -> RasterMetadata:
+    def __calculate_metadata(self, metadata: Metadata, band_definitions: list, extent: tuple=None, extent_cs=None) -> RasterMetadata:
         # (in case one is calculated from a band that's included elsewhere in the metadata)
         band_number_set = set()
         for band_definition in band_definitions:
             if isinstance(band_definition, dict):
                 for band_number in band_definition["band_numbers"]:
                     if isinstance(band_number, Band):
-                        band_number_set.add(self.__metadata.band_map.get_number(band_number))
+                        band_number_set.add(metadata.band_map.get_number(band_number))
                     else:
                         band_number_set.add(band_number)
             elif isinstance(band_definition, Band):
-                band_number_set.add(self.__metadata.band_map.get_number(band_definition))
+                band_number_set.add(metadata.band_map.get_number(band_definition))
             else:
                 band_number_set.add(band_definition)
         # All this does is convert band definitions band and band enums to numbers in a set
         # (in case one is calculated from a band that's included elsewhere in the metadata)
 
+        # TODO do not create RasterMetadata object each time. hold a hash of them
+        raster = RasterMetadata()
+
         for band_number in band_number_set:
             # TODO test force update
-            if self.__raster_metadata.contains(band_number): #  and not force_update:
+            if raster.contains(band_number): #  and not force_update:
                 continue
 
-            self.__raster_metadata.add_metadata(band_number, self.__metadata)
+            raster.add_metadata(band_number, metadata)
 
         if not extent:
-            return self.__raster_metadata
+            return raster
 
-        return self.__raster_metadata.calculate_clipped(extent=extent, extent_cs=extent_cs)
+        return raster.calculate_clipped(extent=extent, extent_cs=extent_cs)
 
     def fetch_imagery_array(self,
                             band_definitions,
@@ -584,13 +578,9 @@ class Landsat(Imagery):
         if cutline_wkb:
             extent = shapely.wkb.loads(cutline_wkb).bounds
 
-        # TODO move this under __init__? Maybe run it on a separate thread
-        if self.storage.mount_sub_folder(self.__metadata, request_key=self.__id) is False:
-            return None
-
         return self.__get_ndarray(band_definitions, scale_params, extent=extent, cutline_wkb=cutline_wkb)
 
-    def get_source_elem(self, band_number, calculated_metadata: RasterMetadata, block_size=256):
+    def __get_source_elem(self, band_number, calculated_metadata: RasterMetadata, block_size=256):
         elem_simple_source = etree.Element("SimpleSource")
 
         # if the input had multiple bands this setting would be where you change that
@@ -600,15 +590,9 @@ class Landsat(Imagery):
         elem_source_filename = etree.SubElement(elem_simple_source, "SourceFilename")
         elem_source_filename.set("relativeToVRT", "0")
 
-        # TODO more elegant please
-        name_prefix = self.__metadata.product_id
-        if not self.__metadata.product_id:
-            name_prefix = self.__metadata.scene_id
-
-        file_path = "{0}/{1}_B{2}.TIF".format(self.__metadata.full_mount_path, name_prefix, band_number)
-        elem_source_filename.text = file_path
-
         raster_band_metadata = calculated_metadata.get_metadata(band_number)
+
+        elem_source_filename.text = raster_band_metadata.file_path
 
         elem_source_props = etree.SubElement(elem_simple_source, "SourceProperties")
         elem_source_props.set("RasterXSize", str(raster_band_metadata.x_src_size))
@@ -633,12 +617,13 @@ class Landsat(Imagery):
 
         return elem_simple_source
 
-    def get_function_band_elem(self,
-                               vrt_dataset,
-                               band_definition,
-                               position_number,
-                               calculated_metadata,
-                               block_size=256):
+    def __get_function_band_elem(self,
+                                 vrt_dataset,
+                                 band_definition,
+                                 position_number,
+                                 calculated_metadata,
+                                 metadata,
+                                 block_size=256):
         # data_type = gdal.GetDataTypeName(dataset.GetRasterBand(1).DataType)
         elem_raster_band = etree.SubElement(vrt_dataset, "VRTRasterBand")
 
@@ -675,29 +660,35 @@ class Landsat(Imagery):
         for band_number in band_definition["band_numbers"]:
             # TODO, I don't like this reuse of this variable
             if isinstance(band_number, Band):
-                band_number = self.__metadata.band_map.get_number(band_number)
+                band_number = metadata.band_map.get_number(band_number)
 
-            elem_simple_source = self.get_source_elem(band_number, calculated_metadata, block_size)
+            elem_simple_source = self.__get_source_elem(band_number, calculated_metadata, block_size)
             elem_raster_band.append(elem_simple_source)
 
-    def get_band_elem(self, vrt_dataset, band_number, position_number, calculated_metadata: RasterMetadata, block_size=256):
+    def __get_band_elem(self, vrt_dataset, band_number, position_number, calculated_metadata: RasterMetadata, metadata, block_size=256):
         # I think this needs to be removed.
-        color_interp = self.__metadata.band_map.get_name(band_number).capitalize()
+        color_interp = metadata.band_map.get_name(band_number).capitalize()
 
         elem_raster_band = etree.SubElement(vrt_dataset, "VRTRasterBand")
 
         if color_interp is not None:
             etree.SubElement(elem_raster_band, "ColorInterp").text = color_interp
 
-        elem_simple_source = self.get_source_elem(band_number, calculated_metadata, block_size)
+        elem_simple_source = self.__get_source_elem(band_number, calculated_metadata, block_size)
         elem_raster_band.append(elem_simple_source)
 
         elem_raster_band.set("dataType", calculated_metadata.get_metadata(band_number).data_type)
         elem_raster_band.set("band", str(position_number))
 
-    def get_vrt(self, band_definitions: list, translate_args=None, extent: tuple=None, extent_cs: pyproj.Proj=None, xRes=30, yRes=30):
+    def get_vrt(self, band_definitions: list, metadata: Metadata=None, translate_args=None, extent: tuple=None, extent_cs: pyproj.Proj=None, xRes=30, yRes=30):
+
+        # TODO remove this check, make Metadata a mandatory input
+        if not metadata:
+            metadata = self.__metadata[0]
+        # TODO remove this check, make Metadata a mandatory input
+
         # TODO move this under __init__? Maybe run it on a separate thread
-        if self.storage.mount_sub_folder(self.__metadata, request_key=self.__id) is False:
+        if self.storage.mount_sub_folder(metadata, request_key=str(self.__id)) is False:
             return None
 
         vrt_dataset = etree.Element("VRTDataset")
@@ -705,7 +696,7 @@ class Landsat(Imagery):
         position_number = 1
 
         # self.get_band_metadata(band_definitions)
-        calculated_metadata = self.__calculate_metadata(band_definitions, extent=extent, extent_cs=extent_cs)
+        calculated_metadata = self.__calculate_metadata(metadata, band_definitions, extent=extent, extent_cs=extent_cs)
         geo_transform = calculated_metadata.geo_transform
         etree.SubElement(vrt_dataset, "GeoTransform").text = ",".join(map("  {:.16e}".format, geo_transform))
         vrt_dataset.set("rasterXSize", str(calculated_metadata.x_dst_size))
@@ -715,52 +706,60 @@ class Landsat(Imagery):
         # TODO if no bands throw exception
         for band_definition in band_definitions:
             if isinstance(band_definition, dict):
-                self.get_function_band_elem(vrt_dataset,
-                                            band_definition,
-                                            position_number,
-                                            calculated_metadata,
-                                            256)
+                self.__get_function_band_elem(vrt_dataset,
+                                              band_definition,
+                                              position_number,
+                                              calculated_metadata,
+                                              metadata,
+                                              256)
             elif isinstance(band_definition, Band):
-                self.get_band_elem(vrt_dataset,
-                                   self.__metadata.band_map.get_number(band_definition),
-                                   position_number,
-                                   calculated_metadata,
-                                   256)
+                self.__get_band_elem(vrt_dataset,
+                                     metadata.band_map.get_number(band_definition),
+                                     position_number,
+                                     calculated_metadata,
+                                     metadata,
+                                     256)
             else:
-                self.get_band_elem(vrt_dataset,
-                                   band_definition,
-                                   position_number,
-                                   calculated_metadata,
-                                   256)
+                self.__get_band_elem(vrt_dataset,
+                                     band_definition,
+                                     position_number,
+                                     calculated_metadata,
+                                     metadata,
+                                     256)
 
             position_number += 1
 
         return etree.tostring(vrt_dataset, encoding='UTF-8', method='xml')
 
+    def __get_translated_datasets(self, band_definitions, scale_params=None, extent: tuple=None):
+        translated = []
+        for metadata in self.__metadata:
+            if self.storage.mount_sub_folder(metadata, request_key=str(self.__id)) is False:
+                return None
+
+            vrt = self.get_vrt(band_definitions, metadata=metadata, extent=extent)
+            # http://gdal.org/python/
+            # http://gdal.org/python/osgeo.gdal-module.html#TranslateOptions
+            dataset_translated = gdal.Translate('', vrt.decode('utf-8'),
+                                                format='MEM',
+                                                scaleParams=scale_params,
+                                                xRes=60, yRes=60,
+                                                outputType=gdal.GDT_Byte,
+                                                noData=0)
+            translated.append(dataset_translated)
+        return translated
+
     def __get_ndarray(self,
                       band_definitions,
                       scale_params=None,
                       extent: tuple=None,
-                      cutline_wkb: bytes=None,
-                      additional_param=None):
-        vrt = self.get_vrt(band_definitions, extent=extent)
-        # http://gdal.org/python/
-        # http://gdal.org/python/osgeo.gdal-module.html#TranslateOptions
-        # vrt_projected = gdal.Translate('', vrt, of="VRT", scaleParams=[], ot="Byte")
-        # assumes input is unsigned int and output it Bytes and resolution is 60 meters
-        # with tempfile.NamedTemporaryFile(vrt.decode("utf-8"), suffix=".vrt", delete=True) as temp_vrt:
-        #     temp_vrt.write(vrt)
-        #     temp_vrt.flush()
-        dataset_translated = gdal.Translate('', vrt.decode('utf-8'),
-                                            format='MEM',
-                                            scaleParams=scale_params,
-                                            xRes=60, yRes=60,
-                                            outputType=gdal.GDT_Byte,
-                                            noData=0)
+                      cutline_wkb: bytes=None):
+
+        dataset_translated = self.__get_translated_datasets(band_definitions, scale_params, extent)
 
         # if there is no need to warp the data
-        if not cutline_wkb:
-            nda = dataset_translated.ReadAsArray().transpose((1, 2, 0))
+        if not cutline_wkb and len(dataset_translated) == 1:
+            nda = dataset_translated[0].ReadAsArray().transpose((1, 2, 0))
             del dataset_translated
             return nda
 
@@ -785,7 +784,7 @@ class Landsat(Imagery):
             cutline_lyr = None
             cutline_ds = None
 
-        dataset_warped = gdal.Warp("", [dataset_translated], format='MEM', multithread=True, cutlineDSName=cutlineDSName)
+        dataset_warped = gdal.Warp("", dataset_translated, format='MEM', multithread=True, cutlineDSName=cutlineDSName)
         return dataset_warped
 
 
