@@ -413,9 +413,33 @@ class TestBandMap(unittest.TestCase):
 class TestLandsat(unittest.TestCase):
     base_mount_path = '/imagery'
     metadata_service = None
+    metadata_set = []
+    r = requests.get("https://raw.githubusercontent.com/johan/world.geo.json/master/countries/USA/NM/Taos.geo.json")
+    taos_geom = r.json()
+    taos_shape = shapely.geometry.shape(taos_geom['features'][0]['geometry'])
 
     def setUp(self):
+        d_start = date(2017, 3, 12)  # 2017-03-12
+        d_end = date(2017, 3, 19)  # 2017-03-20, epl api is inclusive
+
         self.metadata_service = MetadataService()
+
+        sql_filters = ['collection_number="PRE"']
+        rows = self.metadata_service.search(
+            SpacecraftID.LANDSAT_8,
+            start_date=d_start,
+            end_date=d_end,
+            bounding_box=self.taos_shape.bounds,
+            limit=10,
+            sql_filters=sql_filters)
+
+        # mounted directory in docker container
+        base_mount_path = '/imagery'
+
+        for row in rows:
+            self.metadata_set.append(Metadata(row, base_mount_path))
+
+
 
     def test_get_file(self):
         d_start = date(2015, 6, 24)
@@ -502,9 +526,9 @@ class TestLandsat(unittest.TestCase):
 
         # get a numpy.ndarray from bands for specified imagery
         band_numbers = [3, 2, 1]
-        scaleParams = [[0.0, 65535], [0.0, 65535], [0.0, 65535]]
-        # nda = landsat.__get_ndarray(band_numbers, metadata, scaleParams)
-        nda = landsat.fetch_imagery_array(band_numbers, scaleParams)
+        scale_params = [[0.0, 65535], [0.0, 65535], [0.0, 65535]]
+        # nda = landsat.__get_ndarray(band_numbers, metadata, scale_params)
+        nda = landsat.fetch_imagery_array(band_numbers, scale_params)
         self.assertEqual((3581, 4046, 3), nda.shape)
         # print(nda.shape)
 
@@ -564,8 +588,8 @@ class TestLandsat(unittest.TestCase):
 
         # get a numpy.ndarray from bands for specified imagery
         band_numbers = [4, 3, 2]
-        scaleParams = [[0.0, 65535], [0.0, 65535], [0.0, 65535]]
-        nda = landsat.fetch_imagery_array(band_numbers, scaleParams)
+        scale_params = [[0.0, 65535], [0.0, 65535], [0.0, 65535]]
+        nda = landsat.fetch_imagery_array(band_numbers, scale_params)
 
         self.assertEqual(nda.shape, (3861, 3786, 3))
 
@@ -672,51 +696,34 @@ class TestLandsat(unittest.TestCase):
         rows = self.metadata_service.search(SpacecraftID.LANDSAT_8, start_date=d_start, end_date=d_end, limit=1, sql_filters=['scene_id="LC80390332016208LGN00"'])
         metadata = Metadata(rows[0])
         landsat = Landsat(metadata)
-        scaleParams = [[0.0, 65535], [0.0, 65535], [0.0, 65535]]
-        # nda = landsat.__get_ndarray(band_numbers, metadata, scaleParams)
-        nda = landsat.fetch_imagery_array([Band.RED, Band.GREEN, Band.BLUE], scaleParams)
+        scale_params = [[0.0, 65535], [0.0, 65535], [0.0, 65535]]
+        # nda = landsat.__get_ndarray(band_numbers, metadata, scale_params)
+        nda = landsat.fetch_imagery_array([Band.RED, Band.GREEN, Band.BLUE], scale_params)
         self.assertIsNotNone(nda)
-        nda2 = landsat.fetch_imagery_array([4, 3, 2], scaleParams)
+        nda2 = landsat.fetch_imagery_array([4, 3, 2], scale_params)
         np.testing.assert_almost_equal(nda, nda2)
         # 'scene_id': 'LC80390332016208LGN00'
 
     def test_vrt_extent(self):
-        r = requests.get("https://raw.githubusercontent.com/johan/world.geo.json/master/countries/USA/NM/Taos.geo.json")
-        taos_geom = r.json()
-        print(taos_geom)
-
-        taos_shape = shapely.geometry.shape(taos_geom['features'][0]['geometry'])
-
-        metadata_service = MetadataService()
-
-        d_start = date(2017, 3, 12)  # 2017-03-12
-        d_end = date(2017, 3, 19)  # 2017-03-20, epl api is inclusive
-
-        sql_filters = ['collection_number="PRE"']
-        rows = metadata_service.search(
-            SpacecraftID.LANDSAT_8,
-            start_date=d_start,
-            end_date=d_end,
-            bounding_box=taos_shape.bounds,
-            limit=10,
-            sql_filters=sql_filters)
-        print(len(rows))
-        # mounted directory in docker container
-        base_mount_path = '/imagery'
-
-        metadataset = []
-        for row in rows:
-            metadataset.append(Metadata(row, base_mount_path))
-
         # GDAL helper functions for generating VRT
-        landsat = Landsat(metadataset[0])
+        landsat = Landsat(self.metadata_set[0])
 
         # get a numpy.ndarray from bands for specified imagery
         band_numbers = [Band.RED, Band.GREEN, Band.BLUE]
-        scaleParams = [[0.0, 65535], [0.0, 65535], [0.0, 65535]]
-        vrt = landsat.get_vrt(band_numbers, extent=taos_shape.bounds)
+        scale_params = [[0.0, 65535], [0.0, 65535], [0.0, 65535]]
+        vrt = landsat.get_vrt(band_numbers, extent=self.taos_shape.bounds)
 
         self.assertIsNotNone(vrt)
+
+    def test_cutline(self):
+        # GDAL helper functions for generating VRT
+        landsat = Landsat(self.metadata_set[0])
+
+        # get a numpy.ndarray from bands for specified imagery
+        band_numbers = [Band.RED, Band.GREEN, Band.BLUE]
+        scale_params = [[0.0, 65535], [0.0, 65535], [0.0, 65535]]
+        nda = landsat.fetch_imagery_array(band_numbers, scale_params, self.taos_shape.wkb)
+        self.assertIsNotNone(nda)
 
 
 class TestPixelFunctions(unittest.TestCase):
@@ -814,9 +821,9 @@ def ndvi_numpy(in_ar, out_ar, xoff, yoff, xsize, ysize, raster_xsize, raster_ysi
         arr_ndvi = ds.GetRasterBand(1).ReadAsArray()
         ds = None
         self.assertIsNotNone(arr_ndvi)
-        scaleParams = [[0.0, 65535], [0.0, 65535], [0.0, 65535]]
+        scale_params = [[0.0, 65535], [0.0, 65535], [0.0, 65535]]
         band_definitions = [pixel_function_details, 3, 2]
-        nda = landsat.fetch_imagery_array(band_definitions, scaleParams)
+        nda = landsat.fetch_imagery_array(band_definitions, scale_params)
         self.assertIsNotNone(nda)
 
 
@@ -1128,7 +1135,7 @@ class TestRasterMetadata(unittest.TestCase):
 
         # get a numpy.ndarray from bands for specified imagery
         band_numbers = [Band.RED, Band.GREEN, Band.BLUE]
-        scaleParams = [[0.0, 65535], [0.0, 65535], [0.0, 65535]]
+        scale_params = [[0.0, 65535], [0.0, 65535], [0.0, 65535]]
         vrt = landsat.get_vrt(band_numbers, extent=taos_shape.bounds)
 
         with open('clipped_LC80330342017072LGN00.vrt', 'r') as myfile:
@@ -1147,11 +1154,7 @@ class TestRasterMetadata(unittest.TestCase):
         """
         gdal command for creating test data--/Users/davidraleigh/code/echopark/gcp-landsat-reader/test/clipped_LC80330342017072LGN00.vrt
         
-        gdalbuildvrt -te 404696.67322238116 4028985.0 482408.22401454527 4094313.7809402538 
-        -separate rgb_clipped.vrt 
-        /imagery/LC08/PRE/033/034/LC80330342017072LGN00/LC80330342017072LGN00_B4.TIF 
-        /imagery/LC08/PRE/033/034/LC80330342017072LGN00/LC80330342017072LGN00_B3.TIF 
-        /imagery/LC08/PRE/033/034/LC80330342017072LGN00/LC80330342017072LGN00_B2.TIF
+        gdalbuildvrt -te 404696.67322238116 4028985.0 482408.22401454527 4094313.7809402538 -separate rgb_clipped.vrt /imagery/LC08/PRE/033/034/LC80330342017072LGN00/LC80330342017072LGN00_B4.TIF /imagery/LC08/PRE/033/034/LC80330342017072LGN00/LC80330342017072LGN00_B3.TIF /imagery/LC08/PRE/033/034/LC80330342017072LGN00/LC80330342017072LGN00_B2.TIF
         
         
         gdal command for creating test data--

@@ -8,24 +8,26 @@ import py_compile
 
 import shapefile
 
+# TODO replace with geometry
+import shapely.wkb
+# TODO replace with geometry
+
+
 import math
 import pyproj
 import copy
 
 from pprint import pprint
 
-from osgeo import osr
-from osgeo import gdal
+from osgeo import osr, ogr, gdal
 from urllib.parse import urlparse
 from lxml import etree
-from enum import Enum
-from enum import IntEnum
+from enum import Enum, IntEnum
 from subprocess import call
 
 
 # Imports the Google Cloud client library
-from google.cloud import bigquery
-from google.cloud import storage
+from google.cloud import bigquery, storage
 
 
 class __Singleton(type):
@@ -531,6 +533,18 @@ class Landsat(Imagery):
         # log('\nbucket unmounted\n')
         self.storage.unmount_sub_folder(self.__metadata, request_key=self.__id)
 
+    def __create_ogr_ds(self, geometry_wkb: bytes=None):
+        cutlineDSName = '/vsimem/cutline.json'
+        cutline_ds = ogr.GetDriverByName('GeoJSON').CreateDataSource(cutlineDSName)
+        cutline_lyr = cutline_ds.CreateLayer('cutline')
+        f = ogr.Feature(cutline_lyr.GetLayerDefn())
+
+        f.SetGeometry(ogr.CreateGeometryFromWkb(geometry_wkb))
+        cutline_lyr.CreateFeature(f)
+        f = None
+        cutline_lyr = None
+        return cutline_ds, cutlineDSName
+
     def __calculate_metadata(self, band_definitions: list, extent: tuple=None, extent_cs=None) -> RasterMetadata:
         # (in case one is calculated from a band that's included elsewhere in the metadata)
         band_number_set = set()
@@ -560,12 +574,21 @@ class Landsat(Imagery):
 
         return self.__raster_metadata.calculate_clipped(extent=extent, extent_cs=extent_cs)
 
-    def fetch_imagery_array(self, band_definitions, scaleParams=None, extent: tuple=None):
+    def fetch_imagery_array(self,
+                            band_definitions,
+                            scale_params=None,
+                            cutline_wkb: bytes=None,
+                            extent: tuple=None,
+                            extent_cs: pyproj.Proj=None):
+        # TODO remove this, right?
+        if cutline_wkb:
+            extent = shapely.wkb.loads(cutline_wkb).bounds
+
         # TODO move this under __init__? Maybe run it on a separate thread
         if self.storage.mount_sub_folder(self.__metadata, request_key=self.__id) is False:
             return None
 
-        return self.__get_ndarray(band_definitions, scaleParams, extent=extent)
+        return self.__get_ndarray(band_definitions, scale_params, extent=extent, cutline_wkb=cutline_wkb)
 
     def get_source_elem(self, band_number, calculated_metadata: RasterMetadata, block_size=256):
         elem_simple_source = etree.Element("SimpleSource")
@@ -714,7 +737,12 @@ class Landsat(Imagery):
 
         return etree.tostring(vrt_dataset, encoding='UTF-8', method='xml')
 
-    def __get_ndarray(self, band_definitions, scaleParams=None, extent: tuple=None, additional_param=None):
+    def __get_ndarray(self,
+                      band_definitions,
+                      scale_params=None,
+                      extent: tuple=None,
+                      cutline_wkb: bytes=None,
+                      additional_param=None):
         vrt = self.get_vrt(band_definitions, extent=extent)
         # http://gdal.org/python/
         # http://gdal.org/python/osgeo.gdal-module.html#TranslateOptions
@@ -723,10 +751,42 @@ class Landsat(Imagery):
         # with tempfile.NamedTemporaryFile(vrt.decode("utf-8"), suffix=".vrt", delete=True) as temp_vrt:
         #     temp_vrt.write(vrt)
         #     temp_vrt.flush()
-        dataset = gdal.Translate('', vrt.decode('utf-8'), format="VRT", scaleParams=scaleParams,
-                                 xRes=60, yRes=60, outputType=gdal.GDT_Byte, noData=0)
-        nda = dataset.ReadAsArray().transpose((1, 2, 0))
+        dataset_translated = gdal.Translate('', vrt.decode('utf-8'),
+                                            format='MEM',
+                                            scaleParams=scale_params,
+                                            xRes=60, yRes=60,
+                                            outputType=gdal.GDT_Byte,
+                                            noData=0)
+
+        # if there is no need to warp the data
+        if not cutline_wkb:
+            nda = dataset_translated.ReadAsArray().transpose((1, 2, 0))
+            del dataset_translated
+            return nda
+
+        dataset_warped = self.__get_warped(dataset_translated, cutline_wkb=cutline_wkb)
+        del dataset_translated
+
+        nda = dataset_warped.ReadAsArray().transpose((1, 2, 0))
+        del dataset_warped
         return nda
+
+    def __get_warped(self, dataset_translated: ogr, cutline_wkb: bytes=None):
+        cutlineDSName = None
+        if cutline_wkb:
+            cutlineDSName = '/vsimem/cutline.json'
+            cutline_ds = ogr.GetDriverByName('GeoJSON').CreateDataSource(cutlineDSName)
+            cutline_lyr = cutline_ds.CreateLayer('cutline')
+            f = ogr.Feature(cutline_lyr.GetLayerDefn())
+
+            f.SetGeometry(ogr.CreateGeometryFromWkb(cutline_wkb))
+            cutline_lyr.CreateFeature(f)
+            f = None
+            cutline_lyr = None
+            cutline_ds = None
+
+        dataset_warped = gdal.Warp("", [dataset_translated], format='MEM', multithread=True, cutlineDSName=cutlineDSName)
+        return dataset_warped
 
 
 class Sentinel2:
