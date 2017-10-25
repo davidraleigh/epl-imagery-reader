@@ -635,7 +635,7 @@ class TestLandsat(unittest.TestCase):
         #     print
         #     "[ COLOR ENTRY RGB ] = ", ctable.GetColorEntryAsRGB(i, entry)
 
-    @unittest.skip("failing???")
+    # @unittest.skip("failing???")
     def test_unmount_destructor(self):
         wkt = "POLYGON((136.2469482421875 -27.57843813308233,138.6639404296875 -27.57843813308233," \
               "138.6639404296875 -29.82351878748485,136.2469482421875 -29.82351878748485,136." \
