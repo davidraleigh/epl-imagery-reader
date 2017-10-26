@@ -16,7 +16,7 @@ from urllib.parse import urlparse
 from datetime import date
 from epl.imagery.reader import MetadataService, Landsat,\
     Storage, SpacecraftID, Metadata, BandMap, Band, \
-    WRSGeometries, RasterBandMetadata, RasterMetadata
+    WRSGeometries, RasterBandMetadata, RasterMetadata, DataType, FunctionDetails
 
 from shapely.wkt import loads
 from shapely.geometry import shape
@@ -439,8 +439,6 @@ class TestLandsat(unittest.TestCase):
         for row in rows:
             self.metadata_set.append(Metadata(row, base_mount_path))
 
-
-
     def test_get_file(self):
         d_start = date(2015, 6, 24)
         d_end = date(2016, 6, 24)
@@ -740,6 +738,7 @@ class TestLandsat(unittest.TestCase):
         self.assertEqual((1804, 1295, 3), nda.shape)
 
         # TODO needs shape test
+
     def test_mosaic_cutline(self):
         # GDAL helper functions for generating VRT
         landsat = Landsat(self.metadata_set)
@@ -768,6 +767,7 @@ class TestLandsat(unittest.TestCase):
         band_numbers = [Band.NIR, Band.SWIR1, Band.SWIR2]
         scaleParams = [[0.0, 40000.0], [0.0, 40000.0], [0.0, 40000.0]]
         nda = landsat.fetch_imagery_array(band_numbers, scaleParams, cutline_wkb=self.taos_shape.wkb)
+
 
 class TestPixelFunctions(unittest.TestCase):
     m_row_data = None
@@ -802,13 +802,8 @@ def multiply_rounded(in_ar, out_ar, xoff, yoff, xsize, ysize, raster_xsize,
     out_ar[:] = np.round_(np.clip(in_ar[0] * factor,0,255))"""
 
         function_arguments = {"factor": "1.5"}
-        pixel_function_details = {
-            "band_numbers": [2],
-            "function_code": code,
-            "function_type": "multiply_rounded",
-            "data_type": "Float32",
-            "function_arguments": function_arguments
-        }
+        pixel_function_details = FunctionDetails(name="multiply_rounded", band_definitions=[2],data_type=DataType.FLOAT32, code=code, arguments=function_arguments)
+
         vrt = landsat.get_vrt([pixel_function_details, 3, 2])
 
         with open('pixel_1.vrt', 'r') as myfile:
@@ -842,12 +837,8 @@ def ndvi_numpy(in_ar, out_ar, xoff, yoff, xsize, ysize, raster_xsize, raster_ysi
         # in place type conversion
         out_ar[:] = output.astype(np.int16, copy=False)"""
 
-        pixel_function_details = {
-            "band_numbers": [4, 5],
-            "function_code": code,
-            "function_type": "ndvi_numpy",
-            "data_type": "UInt16",
-        }
+        pixel_function_details = FunctionDetails(name="ndvi_numpy", band_definitions=[4, 5],
+                                                 data_type=DataType.UINT16, code=code)
         vrt = landsat.get_vrt([pixel_function_details, 3, 2])
 
         with open('ndvi_numpy.vrt', 'r') as myfile:
@@ -898,12 +889,13 @@ def ndvi_numpy(in_ar, out_ar, xoff, yoff, xsize, ysize, raster_xsize, raster_ysi
         out_ar[np.isnan(out_ar)] = 0.0
         out_ar """
 
-        pixel_function_details = {
-            "band_numbers": [4, 5],
-            "function_code": code,
-            "function_type": "ndvi_numpy",
-            "data_type": "Float32",
-        }
+        pixel_function_details = FunctionDetails(name="ndvi_numpy", band_definitions=[4, 5], code=code, data_type=DataType.FLOAT32)
+        # pixel_function_details = {
+        #     "band_numbers": [4, 5],
+        #     "function_code": code,
+        #     "function_type": "ndvi_numpy",
+        #     "data_type": DataType.FLOAT32,
+        # }
 
         band_definitions = [pixel_function_details, 4, 5]
 
@@ -954,13 +946,18 @@ def ndvi_numpy(in_ar, out_ar, xoff, yoff, xsize, ysize, raster_xsize, raster_ysi
         # scale up from 0.0-2.0 to 0 to 255 by multiplying by 255/2
         out_ar *= factor/2.0"""
 
-        pixel_function_details = {
-            "function_arguments": {"factor": 255},
-            "band_numbers": [4, Band.NIR],
-            "function_code": code,
-            "function_type": "ndvi_numpy",
-            "data_type": "Float32",
-        }
+        # pixel_function_details = {
+        #     "function_arguments": {"factor": 255},
+        #     "band_numbers": [4, Band.NIR],
+        #     "function_code": code,
+        #     "function_type": "ndvi_numpy",
+        #     "data_type": DataType.FLOAT32,
+        # }
+
+        pixel_function_details = FunctionDetails(name="ndvi_numpy",
+                                                 band_definitions=[4, Band.NIR],
+                                                 code=code, arguments={"factor": 255},
+                                                 data_type=DataType.FLOAT32)
 
         band_definitions = [pixel_function_details, Band.RED, 5]
 
@@ -984,7 +981,7 @@ def ndvi_numpy(in_ar, out_ar, xoff, yoff, xsize, ysize, raster_xsize, raster_ysi
         del arr_5
 
         local_ndvi += 1.0
-        local_ndvi *= pixel_function_details['function_arguments']['factor'] / 2.0
+        local_ndvi *= pixel_function_details.arguments['factor'] / 2.0
         self.assertFalse(np.any(np.isinf(local_ndvi)))
 
         np.floor(arr_ndvi, out=arr_ndvi)
@@ -992,19 +989,6 @@ def ndvi_numpy(in_ar, out_ar, xoff, yoff, xsize, ysize, raster_xsize, raster_ysi
         np.testing.assert_almost_equal(arr_ndvi, local_ndvi, decimal=0)
 
     def test_malformed_funciton(self):
-        d_start = date(2016, 4, 4)
-        d_end = date(2016, 8, 7)
-        bounding_box = self.iowa_polygon.bounds
-        sql_filters = ["cloud_cover<=15"]
-        rows = self.metadata_service.search(
-            SpacecraftID.LANDSAT_8,
-            start_date=d_start,
-            end_date=d_end,
-            bounding_box=bounding_box,
-            sql_filters=sql_filters)
-        metadata = Metadata(rows[0], self.base_mount_path)
-        landsat = Landsat(metadata)
-
         code = """import numpy as np
         def ndvi_numpy(in_ar, out_ar, xoff, yoff, xsize, ysize, raster_xsize, raster_ysize, buf_radius, gt, **kwargs):
         with np.errstate(divide = 'ignore', invalid = 'ignore'):
@@ -1016,16 +1000,19 @@ def ndvi_numpy(in_ar, out_ar, xoff, yoff, xsize, ysize, raster_xsize, raster_ysi
             # scale up from 0.0-2.0 to 0 to 255 by multiplying by 255/2
             out_ar *= factor/2.0 """
 
-        pixel_function_details = {
-            "function_arguments": {"factor": 255},
-            "band_numbers": [4, 5],
-            "function_code": code,
-            "function_type": "ndvi_numpy",
-            "data_type": "Float32",
-        }
+        # pixel_function_details = {
+        #     "function_arguments": {"factor": 255},
+        #     "band_numbers": [4, 5],
+        #     "function_code": code,
+        #     "function_type": "ndvi_numpy",
+        #     "data_type": DataType.FLOAT32,
+        # }
 
-        band_definitions = [pixel_function_details, 4, 5]
-        self.assertRaises(py_compile.PyCompileError, lambda: landsat.get_vrt(band_definitions))
+        self.assertRaises(py_compile.PyCompileError, lambda: FunctionDetails(name="ndvi_numpy",
+                                                                             code=code,
+                                                                             band_definitions=[4, 5],
+                                                                             data_type=DataType.FLOAT32,
+                                                                             arguments={"factor": 255}))
 
 
     # def test_translate_vrt(self):

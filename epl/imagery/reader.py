@@ -79,6 +79,32 @@ class Band(Enum):
     INFRARED1 = -14000
 
 
+class DataType(Enum):
+    # Byte, UInt16, Int16, UInt32, Int32, Float32, Float64, CInt16, CInt32, CFloat32 or CFloat64
+
+    BYTE = (gdal.GDT_Byte, "Byte")
+    INT16 = (gdal.GDT_Int16, "Int16")
+    UINT16 = (gdal.GDT_UInt16, "UInt16")
+    INT32 = (gdal.GDT_Int32, "Int32")
+    UINT32 = (gdal.GDT_UInt32, "UInt32")
+    FLOAT32 = (gdal.GDT_Float32, "Float32")
+    FLOAT64 = (gdal.GDT_Float64, "Float64")
+    CFLOAT32 = (gdal.GDT_CFloat32, "CFloat32")
+    CFLOAT64 = (gdal.GDT_CFloat64, "CFloat64")
+
+    def __init__(self, gdal_type, name):
+        self.__gdal_type = gdal_type
+        self.__name = name
+
+    @property
+    def gdal(self):
+        return self.__gdal_type
+
+    @property
+    def name(self):
+        return self.__name
+
+
 class BandMap:
      # TODO it would be nice to store data type, Byte, Unit16, etc.
     __map = {
@@ -165,6 +191,42 @@ class BandMap:
 
     def get_max_resolution(self):
         return self.__map[self.__spacecraft_id]['max_resolution']
+
+
+class FunctionDetails:
+    """
+    Make a pixel function
+    """
+    name = None
+    band_definitions = None
+    data_type = None
+    code = None
+    arguments = None
+    transfer_type = None
+
+    def __init__(self,
+                 name: str,
+                 band_definitions: list,
+                 data_type: DataType,
+                 code: str=None,
+                 arguments: dict=None,
+                 transfer_type: DataType=None):
+        self.name = name
+        self.band_definitions = band_definitions
+        self.data_type = data_type
+
+        if code:
+            # TODO, still ugly that I have to use a temporary file: Also, stupid that I can't catch GDAL errors
+            function_file = tempfile.NamedTemporaryFile(prefix=self.name, suffix=".py", delete=True)
+            function_file.write(code.encode())
+            function_file.flush()
+
+            py_compile.compile(function_file.name, doraise=True)
+            # delete file after compiling
+            function_file.close()
+            self.code = code
+        self.arguments = arguments
+        self.transfer_type = transfer_type
 
 
 # TODO rename as LandsatMetadata
@@ -532,16 +594,15 @@ class Landsat(Imagery):
         self.__id = id(self)
 
     def __del__(self):
-        # log('\nbucket unmounted\n')
         for metadata in self.__metadata:
-            self.storage.unmount_sub_folder(metadata, request_key=self.__id)
+            self.storage.unmount_sub_folder(metadata, request_key=str(self.__id))
 
     def __calculate_metadata(self, metadata: Metadata, band_definitions: list, extent: tuple=None, extent_cs=None) -> RasterMetadata:
         # (in case one is calculated from a band that's included elsewhere in the metadata)
         band_number_set = set()
         for band_definition in band_definitions:
-            if isinstance(band_definition, dict):
-                for band_number in band_definition["band_numbers"]:
+            if isinstance(band_definition, FunctionDetails):
+                for band_number in band_definition.band_definitions:
                     if isinstance(band_number, Band):
                         band_number_set.add(metadata.band_map.get_number(band_number))
                     else:
@@ -573,12 +634,13 @@ class Landsat(Imagery):
                             scale_params=None,
                             cutline_wkb: bytes=None,
                             extent: tuple=None,
-                            extent_cs: pyproj.Proj=None):
+                            extent_cs: pyproj.Proj=None,
+                            output_type: DataType = DataType.BYTE):
         # TODO remove this, right?
         if cutline_wkb:
             extent = shapely.wkb.loads(cutline_wkb).bounds
 
-        return self.__get_ndarray(band_definitions, scale_params, extent=extent, cutline_wkb=cutline_wkb)
+        return self.__get_ndarray(band_definitions, output_type=output_type, scale_params=scale_params, extent=extent, cutline_wkb=cutline_wkb, )
 
     def __get_source_elem(self, band_number, calculated_metadata: RasterMetadata, block_size=256):
         elem_simple_source = etree.Element("SimpleSource")
@@ -618,8 +680,8 @@ class Landsat(Imagery):
         return elem_simple_source
 
     def __get_function_band_elem(self,
-                                 vrt_dataset,
-                                 band_definition,
+                                 vrt_dataset: etree.Element,
+                                 band_definition: FunctionDetails,
                                  position_number,
                                  calculated_metadata,
                                  metadata,
@@ -627,7 +689,7 @@ class Landsat(Imagery):
         # data_type = gdal.GetDataTypeName(dataset.GetRasterBand(1).DataType)
         elem_raster_band = etree.SubElement(vrt_dataset, "VRTRasterBand")
 
-        elem_raster_band.set("dataType", band_definition['data_type'])
+        elem_raster_band.set("dataType", band_definition.data_type.name)
         elem_raster_band.set("band", str(position_number))
         elem_raster_band.set("subClass", "VRTDerivedRasterBand")
 
@@ -637,27 +699,28 @@ class Landsat(Imagery):
         elem_function_language.text = "Python"
 
         elem_function_type = etree.SubElement(elem_raster_band, "PixelFunctionType")
-        elem_function_type.text = band_definition["function_type"]
+        elem_function_type.text = band_definition.name
 
-        if 'function_code' in band_definition:
-            # TODO, still ugly that I have to use a temporary file: Also, stupid that I can't catch GDAL errors
-            function_file = tempfile.NamedTemporaryFile(prefix=band_definition['function_type'], suffix=".py", delete=True)
-            function_file.write(band_definition['function_code'].encode())
+        if band_definition.code:
+            # TODO remove once Function Details throws correct exception
+            function_file = tempfile.NamedTemporaryFile(prefix=band_definition.name, suffix=".py", delete=True)
+            function_file.write(band_definition.code.encode())
             function_file.flush()
 
             py_compile.compile(function_file.name, doraise=True)
             # delete file after compiling
             function_file.close()
+            # TODO remove once Function Details throws correct exception
 
-            etree.SubElement(elem_raster_band, "PixelFunctionCode").text = band_definition["function_code"]
+            etree.SubElement(elem_raster_band, "PixelFunctionCode").text = band_definition.code
 
-        if 'function_arguments' in band_definition:
+        if band_definition.arguments:
             # <PixelFunctionArguments factor="1.5"/>
             elem_function_args = etree.SubElement(elem_raster_band, "PixelFunctionArguments")
-            for function_arg_key in band_definition['function_arguments']:
-                elem_function_args.set(function_arg_key, str(band_definition['function_arguments'][function_arg_key]))
+            for function_arg_key in band_definition.arguments:
+                elem_function_args.set(function_arg_key, str(band_definition.arguments[function_arg_key]))
 
-        for band_number in band_definition["band_numbers"]:
+        for band_number in band_definition.band_definitions:
             # TODO, I don't like this reuse of this variable
             if isinstance(band_number, Band):
                 band_number = metadata.band_map.get_number(band_number)
@@ -680,8 +743,13 @@ class Landsat(Imagery):
         elem_raster_band.set("dataType", calculated_metadata.get_metadata(band_number).data_type)
         elem_raster_band.set("band", str(position_number))
 
-    def get_vrt(self, band_definitions: list, metadata: Metadata=None, translate_args=None, extent: tuple=None, extent_cs: pyproj.Proj=None, xRes=30, yRes=30):
-
+    def get_vrt(self,
+                band_definitions: list,
+                metadata: Metadata=None,
+                translate_args=None,
+                extent: tuple=None,
+                extent_cs: pyproj.Proj=None,
+                xRes=30, yRes=30):
         # TODO remove this check, make Metadata a mandatory input
         if not metadata:
             metadata = self.__metadata[0]
@@ -705,7 +773,7 @@ class Landsat(Imagery):
 
         # TODO if no bands throw exception
         for band_definition in band_definitions:
-            if isinstance(band_definition, dict):
+            if isinstance(band_definition, FunctionDetails):
                 self.__get_function_band_elem(vrt_dataset,
                                               band_definition,
                                               position_number,
@@ -731,7 +799,11 @@ class Landsat(Imagery):
 
         return etree.tostring(vrt_dataset, encoding='UTF-8', method='xml')
 
-    def __get_translated_datasets(self, band_definitions, scale_params=None, extent: tuple=None):
+    def __get_translated_datasets(self,
+                                  band_definitions,
+                                  output_type: DataType,
+                                  scale_params=None,
+                                  extent: tuple=None):
         translated = []
         for metadata in self.__metadata:
             if self.storage.mount_sub_folder(metadata, request_key=str(self.__id)) is False:
@@ -744,18 +816,19 @@ class Landsat(Imagery):
                                                 format='MEM',
                                                 scaleParams=scale_params,
                                                 xRes=60, yRes=60,
-                                                outputType=gdal.GDT_Byte,
+                                                outputType=output_type.gdal,
                                                 noData=0)
             translated.append(dataset_translated)
         return translated
 
     def __get_ndarray(self,
                       band_definitions,
+                      output_type: DataType,
                       scale_params=None,
                       extent: tuple=None,
                       cutline_wkb: bytes=None):
 
-        dataset_translated = self.__get_translated_datasets(band_definitions, scale_params, extent)
+        dataset_translated = self.__get_translated_datasets(band_definitions, output_type, scale_params, extent)
 
         # if there is no need to warp the data
         if not cutline_wkb and len(dataset_translated) == 1:
