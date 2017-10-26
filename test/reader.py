@@ -785,6 +785,19 @@ class TestLandsat(unittest.TestCase):
             self.assertGreaterEqual(data_type.range_max, nda.max())
             self.assertLessEqual(data_type.range_min, nda.min())
 
+    def test_vrt_with_alpha(self):
+        landsat = Landsat(self.metadata_set)
+
+        # get a numpy.ndarray from bands for specified imagery
+        band_numbers = [Band.RED, Band.GREEN, Band.BLUE, Band.ALPHA]
+        scaleParams = [[0.0, 40000], [0.0, 40000], [0.0, 40000]]
+
+        nda = landsat.fetch_imagery_array(band_numbers,
+                                          scaleParams,
+                                          extent=self.taos_shape.bounds,
+                                          output_type=DataType.UINT16)
+        self.assertIsNotNone(nda)
+
 
 class TestPixelFunctions(unittest.TestCase):
     m_row_data = None
@@ -1054,9 +1067,7 @@ def ndvi_numpy(in_ar, out_ar, xoff, yoff, xsize, ysize, raster_xsize, raster_ysi
     # def test_translate_vrt(self):
     #     #                                                          LC80390332016208LGN00
     """
-    gdalbuildvrt -separate rgb_35.vrt /imagery/LC08/PRE/033/035/LC80330352017072LGN00/LC80330352017072LGN00_B4.TIF \ 
-    /imagery/LC08/PRE/033/035/LC80330352017072LGN00/LC80330352017072LGN00_B3.TIF \
-    /imagery/LC08/PRE/033/035/LC80330352017072LGN00/LC80330352017072LGN00_B2.TIF
+    gdalbuildvrt -vrtnodata 0 0 0 -separate rgb_35.vrt /imagery/LC08/PRE/033/035/LC80330352017072LGN00/LC80330352017072LGN00_B4.TIF /imagery/LC08/PRE/033/035/LC80330352017072LGN00/LC80330352017072LGN00_B3.TIF /imagery/LC08/PRE/033/035/LC80330352017072LGN00/LC80330352017072LGN00_B2.TIF
     gdalbuildvrt -separate rgb_34.vrt /imagery/LC08/PRE/033/034/LC80330342017072LGN00/LC80330342017072LGN00_B4.TIF /imagery/LC08/PRE/033/034/LC80330342017072LGN00/LC80330342017072LGN00_B3.TIF /imagery/LC08/PRE/033/034/LC80330342017072LGN00/LC80330342017072LGN00_B2.TIF
     """
     #     # gdal_translate -of VRT -ot Byte -scale -tr 60 60 rgb.vrt rgb_byte_scaled.vrt

@@ -79,6 +79,7 @@ class Band(Enum):
     TIRS2 = -12000
     INFRARED2 = -13000
     INFRARED1 = -14000
+    ALPHA = -15000
 
 
 class DataType(Enum):
@@ -615,6 +616,12 @@ class Landsat(Imagery):
                     else:
                         band_number_set.add(band_number)
             elif isinstance(band_definition, Band):
+
+                # TODO, something more pleasant please
+                if band_definition is Band.ALPHA:
+                    continue
+                # TODO, something more pleasant please
+
                 band_number_set.add(metadata.band_map.get_number(band_definition))
             else:
                 band_number_set.add(band_definition)
@@ -647,7 +654,12 @@ class Landsat(Imagery):
         if cutline_wkb:
             extent = shapely.wkb.loads(cutline_wkb).bounds
 
-        nda = self.__get_ndarray(band_definitions, output_type=output_type, scale_params=scale_params, extent=extent, cutline_wkb=cutline_wkb)
+        nda = self.__get_ndarray(band_definitions,
+                                 output_type=output_type,
+                                 scale_params=scale_params,
+                                 extent=extent,
+                                 cutline_wkb=cutline_wkb)
+
         if len(band_definitions) > 2:
             return nda.transpose((1, 2, 0))
         return nda
@@ -782,6 +794,11 @@ class Landsat(Imagery):
                                               256)
 
             elif isinstance(band_definition, Band):
+                # TODO, something more pleasant please
+                if band_definition is Band.ALPHA:
+                    continue
+                # TODO, something more pleasant please
+
                 self.__get_band_elem(vrt_dataset,
                                      metadata.band_map.get_number(band_definition),
                                      position_number,
@@ -832,20 +849,21 @@ class Landsat(Imagery):
 
         dataset_translated = self.__get_translated_datasets(band_definitions, output_type, scale_params, extent)
 
+        b_alpha_channel = Band.ALPHA in band_definitions
         # if there is no need to warp the data
-        if not cutline_wkb and len(dataset_translated) == 1:
+        if not cutline_wkb and len(dataset_translated) == 1 and not b_alpha_channel:
             nda = dataset_translated[0].ReadAsArray()
             del dataset_translated
             return nda
 
-        dataset_warped = self.__get_warped(dataset_translated, output_type=output_type, cutline_wkb=cutline_wkb)
+        dataset_warped = self.__get_warped(dataset_translated, output_type=output_type, cutline_wkb=cutline_wkb, dstAlpha=b_alpha_channel)
         del dataset_translated
 
         nda = dataset_warped.ReadAsArray()
         del dataset_warped
         return nda
 
-    def __get_warped(self, dataset_translated: ogr, output_type: DataType, cutline_wkb: bytes=None):
+    def __get_warped(self, dataset_translated: ogr, output_type: DataType, cutline_wkb: bytes=None, dstAlpha: bool=False):
         cutlineDSName = None
         if cutline_wkb:
             cutlineDSName = '/vsimem/cutline.json'
@@ -859,7 +877,7 @@ class Landsat(Imagery):
             cutline_lyr = None
             cutline_ds = None
 
-        dataset_warped = gdal.Warp("", dataset_translated, format='MEM', multithread=True, cutlineDSName=cutlineDSName, outputType=output_type.gdal)
+        dataset_warped = gdal.Warp("", dataset_translated, format='MEM', multithread=True, cutlineDSName=cutlineDSName, outputType=output_type.gdal, dstAlpha=dstAlpha)
         return dataset_warped
 
 
