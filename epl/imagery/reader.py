@@ -17,6 +17,8 @@ import math
 import pyproj
 import copy
 
+import numpy as np
+
 from pprint import pprint
 
 from osgeo import osr, ogr, gdal
@@ -82,19 +84,21 @@ class Band(Enum):
 class DataType(Enum):
     # Byte, UInt16, Int16, UInt32, Int32, Float32, Float64, CInt16, CInt32, CFloat32 or CFloat64
 
-    BYTE = (gdal.GDT_Byte, "Byte")
-    INT16 = (gdal.GDT_Int16, "Int16")
-    UINT16 = (gdal.GDT_UInt16, "UInt16")
-    INT32 = (gdal.GDT_Int32, "Int32")
-    UINT32 = (gdal.GDT_UInt32, "UInt32")
-    FLOAT32 = (gdal.GDT_Float32, "Float32")
-    FLOAT64 = (gdal.GDT_Float64, "Float64")
-    CFLOAT32 = (gdal.GDT_CFloat32, "CFloat32")
-    CFLOAT64 = (gdal.GDT_CFloat64, "CFloat64")
+    BYTE = (gdal.GDT_Byte, "Byte", 0, 255)
+    INT16 = (gdal.GDT_Int16, "Int16", -32768, 32767)
+    UINT16 = (gdal.GDT_UInt16, "UInt16", 0, 65535)
+    INT32 = (gdal.GDT_Int32, "Int32", -2147483648, 2147483647)
+    UINT32 = (gdal.GDT_UInt32, "UInt32", 0, 4294967295)
+    FLOAT32 = (gdal.GDT_Float32, "Float32", -3.4E+38, 3.4E+38)
+    FLOAT64 = (gdal.GDT_Float64, "Float64", -1.7E+308, 1.7E+308)
+    CFLOAT32 = (gdal.GDT_CFloat32, "CFloat32", -3.4E+38, 3.4E+38)
+    CFLOAT64 = (gdal.GDT_CFloat64, "CFloat64", -1.7E+308, 1.7E+308)
 
-    def __init__(self, gdal_type, name):
+    def __init__(self, gdal_type, name, range_min, range_max):
         self.__gdal_type = gdal_type
         self.__name = name
+        self.range_min = range_min
+        self.range_max = range_max
 
     @property
     def gdal(self):
@@ -635,7 +639,7 @@ class Landsat(Imagery):
                             cutline_wkb: bytes=None,
                             extent: tuple=None,
                             extent_cs: pyproj.Proj=None,
-                            output_type: DataType = DataType.BYTE):
+                            output_type: DataType = DataType.BYTE) -> np.ndarray:
         # TODO remove this, right?
         if cutline_wkb:
             extent = shapely.wkb.loads(cutline_wkb).bounds
@@ -780,6 +784,7 @@ class Landsat(Imagery):
                                               calculated_metadata,
                                               metadata,
                                               256)
+
             elif isinstance(band_definition, Band):
                 self.__get_band_elem(vrt_dataset,
                                      metadata.band_map.get_number(band_definition),
@@ -787,6 +792,7 @@ class Landsat(Imagery):
                                      calculated_metadata,
                                      metadata,
                                      256)
+
             else:
                 self.__get_band_elem(vrt_dataset,
                                      band_definition,
@@ -826,7 +832,7 @@ class Landsat(Imagery):
                       output_type: DataType,
                       scale_params=None,
                       extent: tuple=None,
-                      cutline_wkb: bytes=None):
+                      cutline_wkb: bytes=None) -> np.ndarray:
 
         dataset_translated = self.__get_translated_datasets(band_definitions, output_type, scale_params, extent)
 

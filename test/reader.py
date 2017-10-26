@@ -768,6 +768,20 @@ class TestLandsat(unittest.TestCase):
         scaleParams = [[0.0, 40000.0], [0.0, 40000.0], [0.0, 40000.0]]
         nda = landsat.fetch_imagery_array(band_numbers, scaleParams, cutline_wkb=self.taos_shape.wkb)
 
+    def test_datatypes(self):
+        landsat = Landsat(self.metadata_set)
+
+        # get a numpy.ndarray from bands for specified imagery
+        band_numbers = [Band.RED, Band.GREEN, Band.BLUE]
+        scaleParams = [[0.0, 40000], [0.0, 40000], [0.0, 40000]]
+
+        for data_type in DataType:
+            nda = landsat.fetch_imagery_array(band_numbers, scaleParams, extent=self.taos_shape.bounds, output_type=data_type)
+            self.assertIsNotNone(nda)
+            self.assertGreaterEqual(data_type.range_max, nda.max())
+            self.assertLessEqual(data_type.range_min, nda.min())
+
+
 
 class TestPixelFunctions(unittest.TestCase):
     m_row_data = None
