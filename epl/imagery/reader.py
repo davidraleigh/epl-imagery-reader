@@ -1,6 +1,5 @@
 import os
 import errno
-import sys
 import threading
 
 import tempfile
@@ -12,21 +11,17 @@ import shapefile
 import shapely.wkb
 # TODO replace with geometry
 
-
 import math
 import pyproj
 import copy
 
 import numpy as np
 
-from pprint import pprint
-
 from osgeo import osr, ogr, gdal
 from urllib.parse import urlparse
 from lxml import etree
 from enum import Enum, IntEnum
 from subprocess import call
-
 
 # Imports the Google Cloud client library
 from google.cloud import bigquery, storage
@@ -853,11 +848,15 @@ class Landsat(Imagery):
         # if there is no need to warp the data
         if not cutline_wkb and len(dataset_translated) == 1 and not b_alpha_channel:
             nda = dataset_translated[0].ReadAsArray()
-            del dataset_translated
+            for dataset in dataset_translated:
+                del dataset
             return nda
 
         dataset_warped = self.__get_warped(dataset_translated, output_type=output_type, cutline_wkb=cutline_wkb, dstAlpha=b_alpha_channel)
+
         del dataset_translated
+        for dataset in dataset_translated:
+            del dataset
 
         nda = dataset_warped.ReadAsArray()
         del dataset_warped
