@@ -649,12 +649,14 @@ class Landsat(Imagery):
         if cutline_wkb:
             extent = shapely.wkb.loads(cutline_wkb).bounds
 
-        nda = self.__get_ndarray(band_definitions,
-                                 output_type=output_type,
-                                 scale_params=scale_params,
-                                 extent=extent,
-                                 cutline_wkb=cutline_wkb)
-
+        dataset = self.get_dataset(band_definitions,
+                                   output_type=output_type,
+                                   scale_params=scale_params,
+                                   extent=extent,
+                                   cutline_wkb=cutline_wkb)
+        nda = dataset.ReadAsArray()
+        del dataset
+        
         if len(band_definitions) > 2:
             return nda.transpose((1, 2, 0))
         return nda
@@ -835,32 +837,28 @@ class Landsat(Imagery):
             translated.append(dataset_translated)
         return translated
 
-    def __get_ndarray(self,
-                      band_definitions,
-                      output_type: DataType,
-                      scale_params=None,
-                      extent: tuple=None,
-                      cutline_wkb: bytes=None) -> np.ndarray:
-
+    def get_dataset(self,
+                    band_definitions,
+                    output_type: DataType,
+                    scale_params=None,
+                    extent: tuple = None,
+                    cutline_wkb: bytes = None):
         dataset_translated = self.__get_translated_datasets(band_definitions, output_type, scale_params, extent)
 
         b_alpha_channel = Band.ALPHA in band_definitions
         # if there is no need to warp the data
         if not cutline_wkb and len(dataset_translated) == 1 and not b_alpha_channel:
-            nda = dataset_translated[0].ReadAsArray()
-            for dataset in dataset_translated:
-                del dataset
-            return nda
+            return dataset_translated
 
-        dataset_warped = self.__get_warped(dataset_translated, output_type=output_type, cutline_wkb=cutline_wkb, dstAlpha=b_alpha_channel)
+        dataset_warped = self.__get_warped(dataset_translated,
+                                           output_type=output_type,
+                                           cutline_wkb=cutline_wkb,
+                                           dstAlpha=b_alpha_channel)
 
-        del dataset_translated
         for dataset in dataset_translated:
             del dataset
 
-        nda = dataset_warped.ReadAsArray()
-        del dataset_warped
-        return nda
+        return dataset_warped
 
     def __get_warped(self, dataset_translated: ogr, output_type: DataType, cutline_wkb: bytes=None, dstAlpha: bool=False):
         cutlineDSName = None
