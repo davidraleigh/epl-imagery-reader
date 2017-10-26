@@ -229,7 +229,10 @@ class FunctionDetails:
             # delete file after compiling
             function_file.close()
             self.code = code
-        self.arguments = arguments
+
+        # TODO arguments should maybe have some kind of setter
+        if arguments:
+            self.arguments = {k: str(v) for k, v in arguments.items()}
         self.transfer_type = transfer_type
 
 
@@ -656,11 +659,10 @@ class Landsat(Imagery):
         # but the google landsat is one tif per band
         etree.SubElement(elem_simple_source, "SourceBand").text = str(1)
 
-        elem_source_filename = etree.SubElement(elem_simple_source, "SourceFilename")
-        elem_source_filename.set("relativeToVRT", "0")
-
         raster_band_metadata = calculated_metadata.get_metadata(band_number)
 
+        elem_source_filename = etree.SubElement(elem_simple_source, "SourceFilename")
+        elem_source_filename.set("relativeToVRT", "0")
         elem_source_filename.text = raster_band_metadata.file_path
 
         elem_source_props = etree.SubElement(elem_simple_source, "SourceProperties")
@@ -693,6 +695,7 @@ class Landsat(Imagery):
                                  calculated_metadata,
                                  metadata,
                                  block_size=256):
+        gdal.SetConfigOption('GDAL_VRT_ENABLE_PYTHON', "YES")
         # data_type = gdal.GetDataTypeName(dataset.GetRasterBand(1).DataType)
         elem_raster_band = etree.SubElement(vrt_dataset, "VRTRasterBand")
 
@@ -702,30 +705,20 @@ class Landsat(Imagery):
 
         # elem_simple_source = etree.SubElement(elem_raster_band, "SimpleSource")
 
-        elem_function_language = etree.SubElement(elem_raster_band, "PixelFunctionLanguage")
-        elem_function_language.text = "Python"
+        etree.SubElement(elem_raster_band, "PixelFunctionLanguage").text = "Python"
+        etree.SubElement(elem_raster_band, "PixelFunctionType").text = band_definition.name
 
-        elem_function_type = etree.SubElement(elem_raster_band, "PixelFunctionType")
-        elem_function_type.text = band_definition.name
+        if band_definition.transfer_type:
+            etree.SubElement(elem_raster_band, "SourceTransferType").text = band_definition.transfer_type.name
 
         if band_definition.code:
-            # TODO remove once Function Details throws correct exception
-            function_file = tempfile.NamedTemporaryFile(prefix=band_definition.name, suffix=".py", delete=True)
-            function_file.write(band_definition.code.encode())
-            function_file.flush()
-
-            py_compile.compile(function_file.name, doraise=True)
-            # delete file after compiling
-            function_file.close()
-            # TODO remove once Function Details throws correct exception
-
             etree.SubElement(elem_raster_band, "PixelFunctionCode").text = etree.CDATA(band_definition.code)
 
         if band_definition.arguments:
             # <PixelFunctionArguments factor="1.5"/>
-            elem_function_args = etree.SubElement(elem_raster_band, "PixelFunctionArguments")
-            for function_arg_key in band_definition.arguments:
-                elem_function_args.set(function_arg_key, str(band_definition.arguments[function_arg_key]))
+            etree.SubElement(elem_raster_band, "PixelFunctionArguments", attrib=band_definition.arguments)
+            # for function_arg_key in band_definition.arguments:
+            #     elem_function_args.set(function_arg_key, str(band_definition.arguments[function_arg_key]))
 
         for band_number in band_definition.band_definitions:
             # TODO, I don't like this reuse of this variable
@@ -845,14 +838,14 @@ class Landsat(Imagery):
             del dataset_translated
             return nda
 
-        dataset_warped = self.__get_warped(dataset_translated, cutline_wkb=cutline_wkb)
+        dataset_warped = self.__get_warped(dataset_translated, output_type=output_type, cutline_wkb=cutline_wkb)
         del dataset_translated
 
         nda = dataset_warped.ReadAsArray()
         del dataset_warped
         return nda
 
-    def __get_warped(self, dataset_translated: ogr, cutline_wkb: bytes=None):
+    def __get_warped(self, dataset_translated: ogr, output_type: DataType, cutline_wkb: bytes=None):
         cutlineDSName = None
         if cutline_wkb:
             cutlineDSName = '/vsimem/cutline.json'
@@ -866,7 +859,7 @@ class Landsat(Imagery):
             cutline_lyr = None
             cutline_ds = None
 
-        dataset_warped = gdal.Warp("", dataset_translated, format='MEM', multithread=True, cutlineDSName=cutlineDSName)
+        dataset_warped = gdal.Warp("", dataset_translated, format='MEM', multithread=True, cutlineDSName=cutlineDSName, outputType=output_type.gdal)
         return dataset_warped
 
 

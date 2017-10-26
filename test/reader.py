@@ -1017,7 +1017,7 @@ def ndvi_numpy(in_ar, out_ar, xoff, yoff, xsize, ysize, raster_xsize, raster_ysi
         del arr_5
 
         local_ndvi += 1.0
-        local_ndvi *= pixel_function_details.arguments['factor'] / 2.0
+        local_ndvi *= float(pixel_function_details.arguments['factor']) / 2.0
         self.assertFalse(np.any(np.isinf(local_ndvi)))
 
         np.floor(arr_ndvi, out=arr_ndvi)
@@ -1098,6 +1098,14 @@ def ndvi_numpy(in_ar, out_ar, xoff, yoff, xsize, ysize, raster_xsize, raster_ysi
         # https://stackoverflow.com/a/10622758/445372
         # in place type conversion
         out_ar[:] = output.astype(np.int16, copy=False)"""
+
+        code2 = """import numpy as np
+def ndvi_numpy2(in_ar, out_ar, xoff, yoff, xsize, ysize, raster_xsize, raster_ysize, buf_radius, gt, **kwargs):
+    with np.errstate(divide = 'ignore', invalid = 'ignore'):
+        output = (in_ar[1] - in_ar[0]) / (in_ar[1] + in_ar[0])
+        output[np.isnan(output)] = 0.0
+        out_ar[:] = output"""
+
         landsat = Landsat(self.metadata_set)
 
         scale_params = [[0, DataType.UINT16.range_max, -1.0, 1.0]]
@@ -1117,6 +1125,64 @@ def ndvi_numpy(in_ar, out_ar, xoff, yoff, xsize, ysize, raster_xsize, raster_ysi
         self.assertIsNotNone(nda)
         self.assertGreaterEqual(1.0, nda.max())
         self.assertLessEqual(-1.0, nda.min())
+
+        pixel_function_details = FunctionDetails(name="ndvi_numpy2",
+                                                 band_definitions=[Band.RED, Band.NIR],
+                                                 code=code2,
+                                                 data_type=DataType.FLOAT32)
+
+        nda2 = landsat.fetch_imagery_array([pixel_function_details],
+                                           cutline_wkb=self.taos_shape.wkb,
+                                           output_type=DataType.FLOAT32)
+
+        self.assertIsNotNone(nda2)
+        self.assertGreaterEqual(1.0, nda2.max())
+        self.assertLessEqual(-1.0, nda2.min())
+
+
+    def test_fail_1_to_1(self):
+        code = """import numpy as np
+def ndvi_numpy(in_ar, out_ar, xoff, yoff, xsize, ysize, raster_xsize, raster_ysize, buf_radius, gt, **kwargs):
+    out_ar[:] = in_ar[0]"""
+
+        landsat = Landsat(self.metadata_set)
+        scale_params = [[0, 40000], [0, 40000], [0, 40000]]
+
+        pixel_function_details = FunctionDetails(name="ndvi_numpy",
+                                                 band_definitions=[Band.RED],
+                                                 code=code,
+                                                 arguments={"factor": DataType.UINT16.range_max},
+                                                 data_type=DataType.UINT16)
+
+        gdal.SetConfigOption('GDAL_VRT_ENABLE_PYTHON', "YES")
+        nda = landsat.fetch_imagery_array([pixel_function_details, Band.GREEN, Band.BLUE],
+                                          scale_params=scale_params,
+                                          cutline_wkb=self.taos_shape.wkb,
+                                          output_type=DataType.BYTE)
+
+        nda2 = landsat.fetch_imagery_array([Band.RED, Band.GREEN, Band.BLUE],
+                                           scale_params=scale_params,
+                                           cutline_wkb=self.taos_shape.wkb,
+                                           output_type=DataType.BYTE)
+        self.assertIsNotNone(nda)
+        np.testing.assert_almost_equal(nda, nda2)
+        np.testing.assert_equal(nda, nda2)
+
+    @unittest.skip("failing for some reason. unknown.")
+    def test_native_vs_custom(self):
+        landsat = Landsat(self.metadata_set)
+        gdal.SetConfigOption('GDAL_VRT_ENABLE_PYTHON', "YES")
+        pixel_native = FunctionDetails(name="sqrt",
+                                       band_definitions=[Band.RED],
+                                       data_type=DataType.UINT16,
+                                       transfer_type=DataType.FLOAT32)
+        nda = landsat.fetch_imagery_array([pixel_native],
+                                          cutline_wkb=self.taos_shape.wkb,
+                                          output_type=DataType.FLOAT32)
+
+        self.assertIsNotNone(nda)
+
+        # TODO add own sqrt function here
 
 
 class TestWRSGeometries(unittest.TestCase):
