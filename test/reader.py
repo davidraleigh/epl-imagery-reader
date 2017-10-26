@@ -759,14 +759,18 @@ class TestLandsat(unittest.TestCase):
         scaleParams = [[0.0, 40000], [0.0, 40000], [0.0, 40000]]
         nda = landsat.fetch_imagery_array(band_numbers, scaleParams, extent=self.taos_shape.bounds)
 
+        self.assertIsNotNone(nda)
         # GDAL helper functions for generating VRT
         landsat = Landsat(self.metadata_set)
+        self.assertEqual((1804, 1295, 3), nda.shape)
 
         # get a numpy.ndarray from bands for specified imagery
         # 'nir', 'swir1', 'swir2'
         band_numbers = [Band.NIR, Band.SWIR1, Band.SWIR2]
         scaleParams = [[0.0, 40000.0], [0.0, 40000.0], [0.0, 40000.0]]
         nda = landsat.fetch_imagery_array(band_numbers, scaleParams, cutline_wkb=self.taos_shape.wkb)
+        self.assertIsNotNone(nda)
+        self.assertEqual((1804, 1295, 3), nda.shape)
 
     def test_datatypes(self):
         landsat = Landsat(self.metadata_set)
@@ -782,12 +786,15 @@ class TestLandsat(unittest.TestCase):
             self.assertLessEqual(data_type.range_min, nda.min())
 
 
-
 class TestPixelFunctions(unittest.TestCase):
     m_row_data = None
     base_mount_path = '/imagery'
     metadata_service = MetadataService()
     iowa_polygon = None
+    metadata_set = []
+    r = requests.get("https://raw.githubusercontent.com/johan/world.geo.json/master/countries/USA/NM/Taos.geo.json")
+    taos_geom = r.json()
+    taos_shape = shapely.geometry.shape(taos_geom['features'][0]['geometry'])
 
     def setUp(self):
         metadata_service = MetadataService()
@@ -804,6 +811,21 @@ class TestPixelFunctions(unittest.TestCase):
                    "-93.76075744628906 42.32707774458643))"
         self.iowa_polygon = loads(wkt_iowa)
         gdal.SetConfigOption('GDAL_VRT_ENABLE_PYTHON', "YES")
+
+        d_start = date(2017, 3, 12)  # 2017-03-12
+        d_end = date(2017, 3, 19)  # 2017-03-20, epl api is inclusive
+
+        sql_filters = ['collection_number="PRE"']
+        rows = self.metadata_service.search(
+            SpacecraftID.LANDSAT_8,
+            start_date=d_start,
+            end_date=d_end,
+            bounding_box=self.taos_shape.bounds,
+            limit=10,
+            sql_filters=sql_filters)
+
+        for row in rows:
+            self.metadata_set.append(Metadata(row, self.base_mount_path))
 
     def test_pixel_1(self):
         metadata = Metadata(self.m_row_data, self.base_mount_path)
@@ -1059,6 +1081,42 @@ def ndvi_numpy(in_ar, out_ar, xoff, yoff, xsize, ysize, raster_xsize, raster_ysi
     #         actual = etree.XML(vrt)
     #         result, message = xml_compare(expected, actual)
     #         self.assertTrue(result, message)
+
+    def test_ndvi_taos(self):
+
+        code = """import numpy as np
+def ndvi_numpy(in_ar, out_ar, xoff, yoff, xsize, ysize, raster_xsize, raster_ysize, buf_radius, gt, **kwargs):
+    with np.errstate(divide = 'ignore', invalid = 'ignore'):
+        factor = float(kwargs['factor'])
+        output = np.divide((in_ar[1] - in_ar[0]), (in_ar[1] + in_ar[0]))
+        output[np.isnan(output)] = 0.0
+        # shift range from -1.0-1.0 to 0.0-2.0
+        output += 1.0
+        # scale up from 0.0-2.0 to 0 to 255 by multiplying by 255/2
+        # https://stackoverflow.com/a/1735122/445372
+        output *=  factor/2.0
+        # https://stackoverflow.com/a/10622758/445372
+        # in place type conversion
+        out_ar[:] = output.astype(np.int16, copy=False)"""
+        landsat = Landsat(self.metadata_set)
+
+        scale_params = [[0, DataType.UINT16.range_max, -1.0, 1.0]]
+
+        pixel_function_details = FunctionDetails(name="ndvi_numpy",
+                                                 band_definitions=[Band.RED, Band.NIR],
+                                                 code=code,
+                                                 arguments={"factor": DataType.UINT16.range_max},
+                                                 data_type=DataType.UINT16)
+
+        gdal.SetConfigOption('GDAL_VRT_ENABLE_PYTHON', "YES")
+        nda = landsat.fetch_imagery_array([pixel_function_details],
+                                          scale_params=scale_params,
+                                          cutline_wkb=self.taos_shape.wkb,
+                                          output_type=DataType.FLOAT32)
+
+        self.assertIsNotNone(nda)
+        self.assertGreaterEqual(1.0, nda.max())
+        self.assertLessEqual(-1.0, nda.min())
 
 
 class TestWRSGeometries(unittest.TestCase):

@@ -644,7 +644,10 @@ class Landsat(Imagery):
         if cutline_wkb:
             extent = shapely.wkb.loads(cutline_wkb).bounds
 
-        return self.__get_ndarray(band_definitions, output_type=output_type, scale_params=scale_params, extent=extent, cutline_wkb=cutline_wkb, )
+        nda = self.__get_ndarray(band_definitions, output_type=output_type, scale_params=scale_params, extent=extent, cutline_wkb=cutline_wkb)
+        if len(band_definitions) > 2:
+            return nda.transpose((1, 2, 0))
+        return nda
 
     def __get_source_elem(self, band_number, calculated_metadata: RasterMetadata, block_size=256):
         elem_simple_source = etree.Element("SimpleSource")
@@ -716,7 +719,7 @@ class Landsat(Imagery):
             function_file.close()
             # TODO remove once Function Details throws correct exception
 
-            etree.SubElement(elem_raster_band, "PixelFunctionCode").text = band_definition.code
+            etree.SubElement(elem_raster_band, "PixelFunctionCode").text = etree.CDATA(band_definition.code)
 
         if band_definition.arguments:
             # <PixelFunctionArguments factor="1.5"/>
@@ -838,14 +841,14 @@ class Landsat(Imagery):
 
         # if there is no need to warp the data
         if not cutline_wkb and len(dataset_translated) == 1:
-            nda = dataset_translated[0].ReadAsArray().transpose((1, 2, 0))
+            nda = dataset_translated[0].ReadAsArray()
             del dataset_translated
             return nda
 
         dataset_warped = self.__get_warped(dataset_translated, cutline_wkb=cutline_wkb)
         del dataset_translated
 
-        nda = dataset_warped.ReadAsArray().transpose((1, 2, 0))
+        nda = dataset_warped.ReadAsArray()
         del dataset_warped
         return nda
 
