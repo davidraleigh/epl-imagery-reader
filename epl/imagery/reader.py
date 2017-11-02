@@ -406,7 +406,9 @@ class __RasterMetadata:
         self.data_id = None
         self.bounds = None
         if metadata:
-            name_prefix = metadata.scene_id if metadata.scene_id else metadata.product_id
+            name_prefix = metadata.product_id
+            if not metadata.product_id:
+                name_prefix = metadata.scene_id
             file_path = "{0}/{1}_B{2}.TIF".format(metadata.full_mount_path, name_prefix, band_number)
 
             dataset = gdal.Open(file_path)
@@ -844,7 +846,7 @@ class Landsat(Imagery):
         b_alpha_channel = Band.ALPHA in band_definitions
         # if there is no need to warp the data
         if not cutline_wkb and len(dataset_translated) == 1 and not b_alpha_channel:
-            return dataset_translated
+            return dataset_translated[0]
 
         dataset_warped = self.__get_warped(dataset_translated,
                                            output_type=output_type,
