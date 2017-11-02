@@ -406,11 +406,7 @@ class __RasterMetadata:
         self.data_id = None
         self.bounds = None
         if metadata:
-            # TODO more elegant please
-            name_prefix = metadata.product_id
-            if not metadata.product_id:
-                name_prefix = metadata.scene_id
-
+            name_prefix = metadata.scene_id if metadata.scene_id else metadata.product_id
             file_path = "{0}/{1}_B{2}.TIF".format(metadata.full_mount_path, name_prefix, band_number)
 
             dataset = gdal.Open(file_path)

@@ -798,6 +798,28 @@ class TestLandsat(unittest.TestCase):
                                           output_type=DataType.UINT16)
         self.assertIsNotNone(nda)
 
+    def test_rastermetadata_cache(self):
+        # GDAL helper functions for generating VRT
+        landsat = Landsat(self.metadata_set)
+
+        # get a numpy.ndarray from bands for specified imagery
+        # 'nir', 'swir1', 'swir2'
+        band_numbers = [Band.NIR, Band.SWIR1, Band.SWIR2]
+        scaleParams = [[0.0, 40000.0], [0.0, 40000.0], [0.0, 40000.0]]
+        nda = landsat.fetch_imagery_array(band_numbers, scaleParams, cutline_wkb=self.taos_shape.wkb)
+        self.assertIsNotNone(nda)
+        self.assertEqual((1804, 1295, 3), nda.shape)
+
+        band_numbers = [Band.RED, Band.BLUE, Band.GREEN]
+        nda = landsat.fetch_imagery_array(band_numbers, scaleParams, cutline_wkb=self.taos_shape.wkb)
+        self.assertIsNotNone(nda)
+        self.assertEqual((1804, 1295, 3), nda.shape)
+
+        band_numbers = [Band.RED, Band.BLUE, Band.GREEN]
+        nda = landsat.fetch_imagery_array(band_numbers, scaleParams)
+        self.assertIsNotNone(nda)
+        self.assertNotEqual((1804, 1295, 3), nda.shape)
+
 
 class TestPixelFunctions(unittest.TestCase):
     m_row_data = None
