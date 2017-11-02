@@ -2,6 +2,16 @@
 
 Landsat Reader
 
+## Building and Running on AWS
+Environment variables `ACCESS_KEY_ID` and `SECRET_ACCESS_KEY` need to be set. Instructions for fuse on [s3fs-fuse github](https://github.com/s3fs-fuse)
+```bash
+docker build \
+--rm=true --no-cache --pull=true \
+--build-arg ACCESS_KEY_ID=$ACCESS_KEY_ID \
+--build-arg SECRET_ACCESS_KEY=$SECRET_ACCESS_KEY \
+-t aws-imagery-reader -f AWSDockerfile ./
+```
+
 ## Build, Run and Debug Jupyter Notebook
 
 Based off of this documentation:
