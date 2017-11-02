@@ -4,6 +4,7 @@ from epl.imagery.reader import MetadataService, Landsat,\
     Storage, SpacecraftID, Metadata, BandMap, Band, \
     WRSGeometries, RasterBandMetadata, RasterMetadata, DataType, FunctionDetails
 
+
 class TestBandMap(unittest.TestCase):
     def test_landsat_5(self):
         band_map = BandMap(SpacecraftID.LANDSAT_5)
