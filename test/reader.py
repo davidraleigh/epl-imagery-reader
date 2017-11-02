@@ -3,6 +3,7 @@ import datetime
 
 from shapely.wkt import loads
 from shapely.geometry import shape
+from shapely.geometry import box
 from datetime import date
 from epl.imagery.reader import MetadataService, Landsat,\
     Storage, SpacecraftID, Metadata, BandMap, Band, \

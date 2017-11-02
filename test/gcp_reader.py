@@ -16,11 +16,9 @@ from urllib.parse import urlparse
 from datetime import date
 from epl.imagery.reader import MetadataService, Landsat,\
     Storage, SpacecraftID, Metadata, BandMap, Band, \
-    WRSGeometries, RasterMetadata, DataType, FunctionDetails
+    RasterMetadata, DataType, FunctionDetails
 
 from shapely.wkt import loads
-from shapely.geometry import shape
-from shapely.geometry import box
 
 
 def text_compare(t1, t2, tolerance=None):
@@ -77,7 +75,6 @@ def xml_compare(x1, x2, tag_tolerances={}):
         if not result:
             return False, '\nthe children %i do not match: %s\n%s' % (i, c1.tag, message)
     return True, "no errors"
-
 
 
 class TestStorage(unittest.TestCase):
