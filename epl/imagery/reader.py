@@ -26,6 +26,8 @@ from subprocess import call
 # Imports the Google Cloud client library
 from google.cloud import bigquery, storage
 
+from epl.imagery import PLATFORM_PROVIDER
+
 
 class __Singleton(type):
     """

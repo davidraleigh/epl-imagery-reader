@@ -17,6 +17,7 @@ from datetime import date
 from epl.imagery.reader import MetadataService, Landsat,\
     Storage, SpacecraftID, Metadata, BandMap, Band, \
     RasterMetadata, DataType, FunctionDetails
+from epl.imagery import PLATFORM_PROVIDER
 
 from shapely.wkt import loads
 
@@ -132,6 +133,9 @@ class TestStorage(unittest.TestCase):
                  os.path.isfile(os.path.join(metadata.full_mount_path, f))]
         self.assertTrue(len(files) > 0)
         self.assertTrue(storage.unmount_sub_folder(metadata, "generic"))
+
+    def test_platform_provider(self):
+        self.assertEqual("GCP", PLATFORM_PROVIDER)
 
 
 class TestLandsat(unittest.TestCase):
