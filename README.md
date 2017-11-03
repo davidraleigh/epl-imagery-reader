@@ -12,6 +12,12 @@ docker build \
 -t aws-imagery-reader -f AWSDockerfile ./
 ```
 
+for debugging s3fs:
+```bash
+s3fs landsat-pds /imagery \
+-o passwd_file=/etc/passwd-s3fs -d -d -f -o f2 -o curldbg
+```
+
 ## Build, Run and Debug Jupyter Notebook
 
 Based off of this documentation:

@@ -1026,16 +1026,28 @@ class Storage(metaclass=__Singleton):
         self.__mounted_sub_folders = {}
 
     def __del__(self):
+        # TODO, this is a gross way to skip Storage code on AWS
+        if PLATFORM_PROVIDER == "AWS":
+            return
+
         for full_path in self.__mounted_sub_folders:
             self.__unmount_sub_folder(full_path, "", force=True)
 
     def is_mounted(self, metadata: Metadata):
+        # TODO, this is a gross way to skip Storage code on AWS
+        if PLATFORM_PROVIDER == "AWS":
+            return True
+
         if metadata.full_mount_path in self.__mounted_sub_folders and \
                 self.__mounted_sub_folders[metadata.full_mount_path]:
             return True
         return False
 
     def mount_sub_folder(self, metadata: Metadata, request_key="temp"):
+        # TODO, this is a gross way to skip Storage code on AWS
+        if PLATFORM_PROVIDER == "AWS":
+            return True
+
         # execute mount command
         # gcsfuse --only-dir LC08/PRE/044/034/LC80440342016259LGN00 gcp-public-data-landsat /landsat
 
@@ -1081,6 +1093,10 @@ class Storage(metaclass=__Singleton):
         return True
 
     def __unmount_sub_folder(self, full_mount_path, request_key, force=False):
+        # TODO, this is a gross way to skip Storage code on AWS
+        if PLATFORM_PROVIDER == "AWS":
+            return True
+
         # fusermount -u /path/to/mount/point
         if not force and (full_mount_path not in self.__mounted_sub_folders or request_key not in self.__mounted_sub_folders[full_mount_path]):
             return True
