@@ -8,16 +8,16 @@ old_path = os.getcwd()
 os.chdir(src_path)
 sys.path.insert(0, src_path)
 
-kwargs = {}
-kwargs['name'] = 'epl'
-kwargs['description'] = 'Echo Park Labs GCP Imagery Library'
-kwargs['long_description'] = open('README.md').read()
-kwargs['author'] = 'Echo Park Labs'
-kwargs['author_email'] = 'david@echoparklabs.com'
-kwargs['url'] = 'https://bitbucket.org/EchoParkLabs/gcp-imagery-reader'
-kwargs['version'] = '0.1dev'
-kwargs['packages'] = find_packages('.')
-
+kwargs = {
+    'name': 'epl',
+    'description': 'Echo Park Labs GCP Imagery Library',
+    'long_description': open('README.md').read(),
+    'author': 'Echo Park Labs',
+    'author_email': 'david@echoparklabs.com',
+    'url': 'https://bitbucket.org/EchoParkLabs/gcp-imagery-reader',
+    'version': open('VERSION').read(),
+    'packages': find_packages('.')
+}
 
 clssfrs = [
     "Programming Language :: Python",
