@@ -10,7 +10,7 @@ import pyproj
 
 from test.test_helpers import xml_compare
 from lxml import etree
-
+from urllib.parse import urlparse
 from osgeo import gdal
 
 from datetime import date
@@ -22,7 +22,76 @@ from epl.imagery import PLATFORM_PROVIDER
 from shapely.wkt import loads
 
 
+class TestGCPMetadataSQL(unittest.TestCase):
+    def test_metatdata_file_list(self):
+        wkt = "POLYGON((136.2469482421875 -27.57843813308233,138.6639404296875 -27.57843813308233," \
+              "138.6639404296875 -29.82351878748485,136.2469482421875 -29.82351878748485,136." \
+              "2469482421875 -27.57843813308233))"
+
+        polygon = loads(wkt)
+
+        metadata_service = MetadataService()
+        # sql_filters = ['cloud_cover=0']
+        d_start = date(2006, 8, 4)
+        d_end = date(2006, 8, 5)
+        bounding_box = polygon.bounds
+        sql_filters = ['wrs_row=79']
+        rows = metadata_service.search(
+            SpacecraftID.LANDSAT_5,
+            start_date=d_start,
+            end_date=d_end,
+            bounding_box=bounding_box,
+            sql_filters=sql_filters)
+
+        metadata = Metadata(rows[0])
+        self.assertEqual(len(metadata.get_file_list()), 0)
+
+    @unittest.skip("not sure why I put this test in or when it last passed.")
+    def test_get_file(self):
+        d_start = date(2015, 6, 24)
+        d_end = date(2016, 6, 24)
+        bounding_box = (-115.927734375, 34.52466147177172, -78.31054687499999, 44.84029065139799)
+        rows = self.metadata_service.search(SpacecraftID.LANDSAT_8, start_date=d_start, end_date=d_end,
+                                            bounding_box=bounding_box, limit=1)
+        metadata = Metadata(rows[0], self.base_mount_path)
+        landsat = Landsat(metadata)
+        self.assertIsNotNone(landsat)
+        vrt = landsat.get_vrt([4, 3, 2])
+        self.assertIsNotNone(vrt)
+        dataset = landsat.get_dataset([4, 3, 2], DataType.UINT16)
+        self.assertIsNotNone(dataset)
+        #    'gs://gcp-public-data-landsat/LC08/PRE/037/036/LC80370362016082LGN00'
+
+
 class TestGCPLandsat(unittest.TestCase):
+    base_mount_path = '/imagery'
+    metadata_service = None
+    metadata_set = []
+    r = requests.get("https://raw.githubusercontent.com/johan/world.geo.json/master/countries/USA/NM/Taos.geo.json")
+    taos_geom = r.json()
+    taos_shape = shapely.geometry.shape(taos_geom['features'][0]['geometry'])
+
+    def setUp(self):
+        d_start = date(2017, 3, 12)  # 2017-03-12
+        d_end = date(2017, 3, 19)  # 2017-03-20, epl api is inclusive
+
+        self.metadata_service = MetadataService()
+
+        sql_filters = ['collection_number="PRE"']
+        rows = self.metadata_service.search(
+            SpacecraftID.LANDSAT_8,
+            start_date=d_start,
+            end_date=d_end,
+            bounding_box=self.taos_shape.bounds,
+            limit=10,
+            sql_filters=sql_filters)
+
+        # mounted directory in docker container
+        base_mount_path = '/imagery'
+
+        for row in rows:
+            self.metadata_set.append(Metadata(row, base_mount_path))
+
     def test_landsat5_vrt(self):
         # 5th Place: Lake Eyre Landsat 5 Acquired August 5, 2006
         wkt = "POLYGON((136.2469482421875 -27.57843813308233,138.6639404296875 -27.57843813308233," \

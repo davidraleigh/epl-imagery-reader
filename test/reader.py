@@ -127,29 +127,6 @@ class TestMetaDataSQL(unittest.TestCase):
             sql_filters=sql_filters)
         self.assertEqual(len(rows), 3)
 
-    def test_metatdata_file_list(self):
-        wkt = "POLYGON((136.2469482421875 -27.57843813308233,138.6639404296875 -27.57843813308233," \
-              "138.6639404296875 -29.82351878748485,136.2469482421875 -29.82351878748485,136." \
-              "2469482421875 -27.57843813308233))"
-
-        polygon = loads(wkt)
-
-        metadata_service = MetadataService()
-        # sql_filters = ['cloud_cover=0']
-        d_start = date(2006, 8, 4)
-        d_end = date(2006, 8, 5)
-        bounding_box = polygon.bounds
-        sql_filters = ['wrs_row=79']
-        rows = metadata_service.search(
-            SpacecraftID.LANDSAT_5,
-            start_date=d_start,
-            end_date=d_end,
-            bounding_box=bounding_box,
-            sql_filters=sql_filters)
-
-        metadata = Metadata(rows[0])
-        self.assertEqual(len(metadata.get_file_list()), 0)
-
     def test_metadata_singleton(self):
         metadata_service_1 = MetadataService()
         metadata_service_2 = MetadataService()
@@ -257,7 +234,6 @@ class TestMetadata(unittest.TestCase):
         metadata = Metadata(rows[0], '/imagery')
         self.assertNotEqual(rows[0][1], metadata.product_id)
         self.assertNotEqual(rows[0][7], metadata.collection_category)
-
 
 
 class TestBandMap(unittest.TestCase):
@@ -392,21 +368,6 @@ class TestLandsat(unittest.TestCase):
 
         for row in rows:
             self.metadata_set.append(Metadata(row, base_mount_path))
-
-    def test_get_file(self):
-        d_start = date(2015, 6, 24)
-        d_end = date(2016, 6, 24)
-        bounding_box = (-115.927734375, 34.52466147177172, -78.31054687499999, 44.84029065139799)
-        rows = self.metadata_service.search(SpacecraftID.LANDSAT_8, start_date=d_start, end_date=d_end,
-                                            bounding_box=bounding_box, limit=1)
-        metadata = Metadata(rows[0], self.base_mount_path)
-        landsat = Landsat(metadata)
-        self.assertIsNotNone(landsat)
-        vrt = landsat.get_vrt([4, 3, 2])
-        self.assertIsNotNone(vrt)
-        dataset = landsat.get_dataset([4, 3, 2], DataType.UINT16)
-        self.assertIsNotNone(dataset)
-        #    'gs://gcp-public-data-landsat/LC08/PRE/037/036/LC80370362016082LGN00'
 
     def test_gdal_info(self):
         d_start = date(2015, 6, 24)
