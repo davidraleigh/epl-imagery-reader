@@ -145,6 +145,39 @@ class TestGCPLandsat(unittest.TestCase):
         del landsat
         self.assertTrue(storage.is_mounted(metadata))
 
+    def test_vrt(self):
+        d_start = date(2015, 6, 24)
+        d_end = date(2016, 6, 24)
+        bounding_box = (-115.927734375, 34.52466147177172, -78.31054687499999, 44.84029065139799)
+        sql_filters = ['scene_id="LC80400312016103LGN00"']
+        rows = self.metadata_service.search(SpacecraftID.LANDSAT_8, start_date=d_start, end_date=d_end,
+                                            bounding_box=bounding_box,
+                                            limit=1, sql_filters=sql_filters)
+
+        metadata = Metadata(rows[0], self.base_mount_path)
+        landsat = Landsat(metadata)
+        vrt = landsat.get_vrt([4, 3, 2])
+        with open('test_1.vrt', 'r') as myfile:
+            data = myfile.read()
+            expected = etree.XML(data)
+            actual = etree.XML(vrt)
+            result, message = xml_compare(expected, actual)
+            self.assertTrue(result, message)
+
+        dataset = gdal.Open(vrt)
+        self.assertIsNotNone(dataset)
+
+        ds_band_1 = dataset.GetRasterBand(1)
+        self.assertIsNotNone(ds_band_1)
+        self.assertEqual(ds_band_1.XSize, 7631)
+        ds_band_2 = dataset.GetRasterBand(2)
+        self.assertIsNotNone(ds_band_2)
+        self.assertEqual(ds_band_2.YSize, 7771)
+        ds_band_3 = dataset.GetRasterBand(3)
+        self.assertIsNotNone(ds_band_3)
+        self.assertEqual(ds_band_3.YSize, 7771)
+
+
 class TestStorage(unittest.TestCase):
     base_mount_path = '/imagery'
 

@@ -14,9 +14,10 @@ import shapely.wkb
 import math
 import pyproj
 import copy
-
+import glob
 import numpy as np
 
+from datetime import datetime
 from osgeo import osr, ogr, gdal
 from urllib.parse import urlparse
 from lxml import etree
@@ -296,18 +297,31 @@ LLNppprrrOOYYDDDMM_AA.TIF  where:
      TIF         = GeoTIFF file extension
     """
     def __init__(self, row, base_mount_path='/imagery'):
-        # TODO, this could use a shallow copy? instead of creating an object like this? And thne all the attributes would just call the array indices?
-        self.scene_id = row[0]  # STRING	REQUIRED   Unique identifier for a particular Landsat image downlinked to a particular ground station.
-        self.product_id = row[1]  # STRING	NULLABLE Unique identifier for a particular scene processed by the USGS at a particular time, or null for pre-collection data.
-        self.spacecraft_id = SpacecraftID[row[2].upper()]  # SpacecraftID REQUIRED The spacecraft that acquired this scene: one of 'LANDSAT_4' through 'LANDSAT_8'.
-        self.sensor_id = row[3]  # STRING	NULLABLE The type of spacecraft sensor that acquired this scene: 'TM' for the Thematic Mapper, 'ETM' for the Enhanced Thematic Mapper+, or 'OLI/TIRS' for the Operational Land Imager and Thermal Infrared Sensor.
+        # TODO, this could use a shallow copy? instead of creating an object like this? And thne all the attributes
+        # would just call the array indices?
+
+        self.scene_id = row[0]  # STRING	REQUIRED   Unique identifier for a particular Landsat image downlinked to
+        # a particular ground station.
+        self.product_id = row[1]  # STRING	NULLABLE Unique identifier for a particular scene processed by the USGS at
+        # a particular time, or null for pre-collection data.
+        self.spacecraft_id = SpacecraftID[row[2].upper()]  # SpacecraftID REQUIRED The spacecraft that acquired this
+        # scene: one of 'LANDSAT_4' through 'LANDSAT_8'.
+        self.sensor_id = row[3]  # STRING	NULLABLE The type of spacecraft sensor that acquired this scene: 'TM' for
+        # the Thematic Mapper, 'ETM' for the Enhanced Thematic Mapper+, or 'OLI/TIRS' for the Operational Land Imager
+        # and Thermal Infrared Sensor.
         self.date_acquired = row[4]  # STRING	NULLABLE The date on which this scene was acquired (UTC).
         self.sensing_time = row[5]  # STRING	NULLABLE The approximate time at which this scene was acquired (UTC).
-        self.collection_number = row[6]  # STRING	NULLABLE The Landsat collection that this image belongs to, e.g. '01' for Collection 1 or 'PRE' for pre-collection data.
-        self.collection_category = row[7]  # STRING	NULLABLE Indicates the processing level of the image: 'RT' for real-time, 'T1' for Tier 1, 'T2' for Tier 2, and 'N/A' for pre-collection data. RT images will be replaced with Tier 1 or Tier 2 images as they become available.
-        self.data_type = row[8]  # STRING	NULLABLE The type of processed image, e.g. 'L1T' for Level 1 terrain-corrected images.
-        self.wrs_path = row[9]  # INTEGER	NULLABLE The path number of this scene's location in the Worldwide Reference System (WRS).
-        self.wrs_row = row[10]  # INTEGER	NULLABLE The row number of this scene's location in the Worldwide Reference System (WRS).
+        self.collection_number = row[6]  # STRING	NULLABLE The Landsat collection that this image belongs to, e.g.
+        # '01' for Collection 1 or 'PRE' for pre-collection data.
+        self.collection_category = row[7]  # STRING	NULLABLE Indicates the processing level of the image: 'RT' for
+        # real-time, 'T1' for Tier 1, 'T2' for Tier 2, and 'N/A' for pre-collection data. RT images will be replaced
+        # with Tier 1 or Tier 2 images as they become available.
+        self.data_type = row[8]  # STRING	NULLABLE The type of processed image, e.g. 'L1T' for Level 1
+        # terrain-corrected images.
+        self.wrs_path = row[9]  # INTEGER	NULLABLE The path number of this scene's location in the Worldwide
+        # Reference System (WRS).
+        self.wrs_row = row[10]  # INTEGER	NULLABLE The row number of this scene's location in the Worldwide
+        # Reference System (WRS).
         self.cloud_cover = row[11]  # FLOAT	NULLABLE Estimated percentage of this scene affected by cloud cover.
         self.north_lat = row[12]  # FLOAT	NULLABLE The northern latitude of the bounding box of this scene.
         self.south_lat = row[13]  # FLOAT	NULLABLE The southern latitude of the bounding box of this scene.
@@ -315,6 +329,9 @@ LLNppprrrOOYYDDDMM_AA.TIF  where:
         self.east_lon = row[15]  # FLOAT	NULLABLE The eastern longitude of the bounding box of this scene.
         self.total_size = row[16]  # INTEGER	NULLABLE The total size of this scene in bytes.
         self.base_url = row[17]  # STRING	NULLABLE The base URL for this scene in Cloud Storage.
+
+        # TODO, test some AWS data that is sensed at one time and aquired at another
+        self.doy = datetime.strptime(self.date_acquired, "%Y-%m-%d").timetuple().tm_yday
 
         self.band_map = BandMap(self.spacecraft_id)
         self.center_lat = (self.north_lat - self.south_lat) / 2 + self.south_lat
@@ -328,8 +345,12 @@ LLNppprrrOOYYDDDMM_AA.TIF  where:
         gsurl = urlparse(self.base_url)
         self.bucket_name = gsurl[1]
         self.data_prefix = gsurl[2]
-        self.full_mount_path = base_mount_path.rstrip("\/") + os.path.sep + self.data_prefix.strip("\/")
         self.base_mount_path = base_mount_path
+
+        if PLATFORM_PROVIDER == "GCP":
+            self.full_mount_path = base_mount_path.rstrip("\/") + os.path.sep + self.data_prefix.strip("\/")
+        else:
+            self.full_mount_path = self.get_aws_file_path()
 
         # self.__file_list = None
         # self.thread = threading.Thread(target=self.__query_file_list(), args=())
@@ -378,6 +399,35 @@ LLNppprrrOOYYDDDMM_AA.TIF  where:
         # TODO if empty throw a warning?
         return []
 
+    def get_aws_file_path(self):
+        path = "/L8/{0}/{1}/".format(str(self.wrs_path).zfill(3), str(self.wrs_row).zfill(3))
+        # PRE        s3://landsat-pds/L8/139/045/LC81390452014295LGN00/
+        # non-PRE s3://landsat-pds/c1/L8/139/045/LC08_L1TP_139045_20170304_20170316_01_T1/
+        if self.collection_number != "PRE":
+            partial = self.product_id[:25]
+            search = glob.glob(self.base_mount_path + "/c1" + path + partial + "*")
+            if len(search) != 1:
+                raise Exception("glob returned {0} results for the following path search {1}".format(len(search), partial))
+            # update the product_id
+            self.product_id = search[0].split("/")[-1]
+
+            # update Collection category
+            self.collection_category = self.product_id[-2:]
+
+            return search[0]
+        else:
+            path = self.base_mount_path + path + self.scene_id
+
+        return path
+
+    # TODO make private
+    def get_full_file_path(self, band_number):
+        name_prefix = self.product_id
+        if not name_prefix:
+            name_prefix = self.scene_id
+
+        return "{0}/{1}_B{2}.TIF".format(self.full_mount_path, name_prefix, band_number)
+
     def __query_file_list(self):
         bucket = self.__storage_client.list_buckets(prefix=self.bucket_name + self.data_prefix)
         results = []
@@ -405,13 +455,10 @@ class __RasterMetadata:
         self.x_src_offset = 0
         self.y_src_offset = 0
         self.geo_transform = None
-        self.data_id = None
+        # self.data_id = None
         self.bounds = None
         if metadata:
-            name_prefix = metadata.product_id
-            if not metadata.product_id:
-                name_prefix = metadata.scene_id
-            file_path = "{0}/{1}_B{2}.TIF".format(metadata.full_mount_path, name_prefix, band_number)
+            file_path = metadata.get_full_file_path(band_number)
 
             dataset = gdal.Open(file_path)
 
@@ -424,7 +471,7 @@ class __RasterMetadata:
 
             self.projection = dataset.GetProjection()
             self.geo_transform = dataset.GetGeoTransform()
-            self.data_id = name_prefix
+            # self.data_id = name_prefix
 
             del dataset
 
@@ -860,7 +907,11 @@ class Landsat(Imagery):
 
         return dataset_warped
 
-    def __get_warped(self, dataset_translated: ogr, output_type: DataType, cutline_wkb: bytes=None, dstAlpha: bool=False):
+    def __get_warped(self,
+                     dataset_translated: ogr,
+                     output_type: DataType,
+                     cutline_wkb: bytes=None,
+                     dstAlpha: bool=False):
         cutlineDSName = None
         if cutline_wkb:
             cutlineDSName = '/vsimem/cutline.json'
@@ -874,7 +925,13 @@ class Landsat(Imagery):
             cutline_lyr = None
             cutline_ds = None
 
-        dataset_warped = gdal.Warp("", dataset_translated, format='MEM', multithread=True, cutlineDSName=cutlineDSName, outputType=output_type.gdal, dstAlpha=dstAlpha)
+        dataset_warped = gdal.Warp("",
+                                   dataset_translated,
+                                   format='MEM',
+                                   multithread=True,
+                                   cutlineDSName=cutlineDSName,
+                                   outputType=output_type.gdal,
+                                   dstAlpha=dstAlpha)
         return dataset_warped
 
 
@@ -884,7 +941,13 @@ class Sentinel2:
 
 class MetadataService(metaclass=__Singleton):
     """
-    Notes on WRS-2 Landsat 8's Operational Land Imager (OLI) and/or Thermal Infrared Sensor (TIRS) sensors acquired nearly 10,000 scenes from just after its February 11, 2013 launch through April 10, 2013, during when the satellite was moving into the operational WRS-2 orbit. The earliest images are TIRS data only.  While these data meet the quality standards and have the same geometric precision as data acquired on and after April 10, 2013, the geographic extents of each scene will differ. Many of the scenes are processed to full terrain correction, with a pixel size of 30 meters. There may be some differences in the spatial resolution of the early TIRS images due to telescope temperature changes.
+    Notes on WRS-2 Landsat 8's Operational Land Imager (OLI) and/or Thermal Infrared Sensor (TIRS) sensors acquired
+    nearly 10,000 scenes from just after its February 11, 2013 launch through April 10, 2013, during when the
+    satellite was moving into the operational WRS-2 orbit. The earliest images are TIRS data only.  While these data
+    meet the quality standards and have the same geometric precision as data acquired on and after April 10, 2013,
+    the geographic extents of each scene will differ. Many of the scenes are processed to full terrain correction,
+    with a pixel size of 30 meters. There may be some differences in the spatial resolution of the early TIRS images
+    due to telescope temperature changes.
     """
 
     def __init__(self):
