@@ -8,7 +8,7 @@ from datetime import date
 from lxml import etree
 from shapely.wkt import loads
 
-from test_helpers import xml_compare
+from test.test_helpers import xml_compare
 
 from epl.imagery import PLATFORM_PROVIDER
 from epl.imagery.reader import MetadataService, SpacecraftID, Metadata, FunctionDetails, Landsat, DataType

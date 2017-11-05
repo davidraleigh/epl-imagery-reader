@@ -10,7 +10,7 @@ from osgeo import gdal
 from urllib.parse import urlparse
 
 from lxml import etree
-from test_helpers import xml_compare
+
 
 from shapely.geometry import shape
 from shapely.geometry import box
