@@ -307,7 +307,7 @@ class TestStorage(unittest.TestCase):
         self.assertEqual("GCP", PLATFORM_PROVIDER)
 
 
-class TestPixelFunctions(unittest.TestCase):
+class TestGCPPixelFunctions(unittest.TestCase):
     m_row_data = None
     base_mount_path = '/imagery'
     metadata_service = MetadataService()
@@ -359,7 +359,9 @@ def multiply_rounded(in_ar, out_ar, xoff, yoff, xsize, ysize, raster_xsize,
     out_ar[:] = np.round_(np.clip(in_ar[0] * factor,0,255))"""
 
         function_arguments = {"factor": "1.5"}
-        pixel_function_details = FunctionDetails(name="multiply_rounded", band_definitions=[2],data_type=DataType.FLOAT32, code=code, arguments=function_arguments)
+        pixel_function_details = FunctionDetails(name="multiply_rounded", band_definitions=[2],
+                                                 data_type=DataType.FLOAT32, code=code,
+                                                 arguments=function_arguments)
 
         vrt = landsat.get_vrt([pixel_function_details, 3, 2])
 
@@ -369,6 +371,7 @@ def multiply_rounded(in_ar, out_ar, xoff, yoff, xsize, ysize, raster_xsize,
             actual = etree.XML(vrt)
             result, message = xml_compare(expected, actual, {"GeoTransform": 1e-10})
             self.assertTrue(result, message)
+
 
     def test_pixel_ndvi(self):
         """

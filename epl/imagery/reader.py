@@ -111,7 +111,9 @@ class DataType(Enum):
 class BandMap:
      # TODO it would be nice to store data type, Byte, Unit16, etc.
     __map = {
+        # TODO min resolution??
         SpacecraftID.LANDSAT_8: {
+            # TODO min resolution should be 15 for LANDSAT_8?
             'max_resolution': 30,
             Band.ULTRA_BLUE: {'number': 1, 'wavelength_range': (0.435, 0.451), 'description': 'Coastal and aerosol studies', 'resolution_m': 30},
             Band.BLUE: {'number': 2, 'wavelength_range': (0.452, 0.512), 'description': 'Bathymetric mapping, distinguishing soil from vegetation, and deciduous from coniferous vegetation', 'resolution_m': 30},
@@ -691,7 +693,9 @@ class Landsat(Imagery):
                             cutline_wkb: bytes=None,
                             extent: tuple=None,
                             extent_cs: pyproj.Proj=None,
-                            output_type: DataType = DataType.BYTE) -> np.ndarray:
+                            output_type: DataType=DataType.BYTE,
+                            xRes=60,
+                            yRes=60) -> np.ndarray:
         # TODO remove this, right?
         if cutline_wkb:
             extent = shapely.wkb.loads(cutline_wkb).bounds
@@ -700,7 +704,8 @@ class Landsat(Imagery):
                                    output_type=output_type,
                                    scale_params=scale_params,
                                    extent=extent,
-                                   cutline_wkb=cutline_wkb)
+                                   cutline_wkb=cutline_wkb,
+                                   xRes=xRes, yRes=yRes)
         nda = dataset.ReadAsArray()
         del dataset
         
@@ -866,7 +871,8 @@ class Landsat(Imagery):
                                   band_definitions,
                                   output_type: DataType,
                                   scale_params=None,
-                                  extent: tuple=None):
+                                  extent: tuple=None,
+                                  xRes=60, yRes=60):
         translated = []
         for metadata in self.__metadata:
             if self.storage.mount_sub_folder(metadata, request_key=str(self.__id)) is False:
@@ -878,7 +884,7 @@ class Landsat(Imagery):
             dataset_translated = gdal.Translate('', vrt.decode('utf-8'),
                                                 format='MEM',
                                                 scaleParams=scale_params,
-                                                xRes=60, yRes=60,
+                                                xRes=xRes, yRes=yRes,
                                                 outputType=output_type.gdal,
                                                 noData=0)
             translated.append(dataset_translated)
@@ -889,8 +895,13 @@ class Landsat(Imagery):
                     output_type: DataType,
                     scale_params=None,
                     extent: tuple = None,
-                    cutline_wkb: bytes = None):
-        dataset_translated = self.__get_translated_datasets(band_definitions, output_type, scale_params, extent)
+                    cutline_wkb: bytes = None,
+                    xRes=60, yRes=60):
+        dataset_translated = self.__get_translated_datasets(band_definitions,
+                                                            output_type,
+                                                            scale_params,
+                                                            extent,
+                                                            xRes=xRes, yRes=yRes)
 
         b_alpha_channel = Band.ALPHA in band_definitions
         # if there is no need to warp the data

@@ -8,11 +8,14 @@ import numpy as np
 
 from osgeo import gdal
 from urllib.parse import urlparse
-from test.test_helpers import xml_compare
+
 from lxml import etree
-from shapely.wkt import loads
+from test_helpers import xml_compare
+
 from shapely.geometry import shape
 from shapely.geometry import box
+from shapely.wkt import loads
+
 from datetime import date
 from epl.imagery.reader import MetadataService, Landsat, \
     Storage, SpacecraftID, Metadata, BandMap, Band, \
@@ -452,9 +455,9 @@ class TestLandsat(unittest.TestCase):
         landsat = Landsat(metadata)
         scale_params = [[0.0, 65535], [0.0, 65535], [0.0, 65535]]
         # nda = landsat.__get_ndarray(band_numbers, metadata, scale_params)
-        nda = landsat.fetch_imagery_array([Band.RED, Band.GREEN, Band.BLUE], scale_params)
+        nda = landsat.fetch_imagery_array([Band.RED, Band.GREEN, Band.BLUE], scale_params, xRes=240, yRes=240)
         self.assertIsNotNone(nda)
-        nda2 = landsat.fetch_imagery_array([4, 3, 2], scale_params)
+        nda2 = landsat.fetch_imagery_array([4, 3, 2], scale_params, xRes=240, yRes=240)
         np.testing.assert_almost_equal(nda, nda2)
         # 'scene_id': 'LC80390332016208LGN00'
 
@@ -476,7 +479,7 @@ class TestLandsat(unittest.TestCase):
         # get a numpy.ndarray from bands for specified imagery
         band_numbers = [Band.RED, Band.GREEN, Band.BLUE]
         scale_params = [[0.0, 65535], [0.0, 65535], [0.0, 65535]]
-        nda = landsat.fetch_imagery_array(band_numbers, scale_params, self.taos_shape.wkb)
+        nda = landsat.fetch_imagery_array(band_numbers, scale_params, self.taos_shape.wkb, xRes=480, yRes=480)
         self.assertIsNotNone(nda)
 
         # TODO needs shape test
@@ -536,7 +539,7 @@ class TestLandsat(unittest.TestCase):
 
         for data_type in DataType:
             nda = landsat.fetch_imagery_array(band_numbers, scaleParams, extent=self.taos_shape.bounds,
-                                              output_type=data_type)
+                                              output_type=data_type, yRes=240, xRes=240)
             self.assertIsNotNone(nda)
             self.assertGreaterEqual(data_type.range_max, nda.max())
             self.assertLessEqual(data_type.range_min, nda.min())
@@ -551,7 +554,8 @@ class TestLandsat(unittest.TestCase):
         nda = landsat.fetch_imagery_array(band_numbers,
                                           scaleParams,
                                           extent=self.taos_shape.bounds,
-                                          output_type=DataType.UINT16)
+                                          output_type=DataType.UINT16,
+                                          xRes=120, yRes=120)
         self.assertIsNotNone(nda)
 
     def test_rastermetadata_cache(self):
@@ -562,16 +566,16 @@ class TestLandsat(unittest.TestCase):
         # 'nir', 'swir1', 'swir2'
         band_numbers = [Band.NIR, Band.SWIR1, Band.SWIR2]
         scaleParams = [[0.0, 40000.0], [0.0, 40000.0], [0.0, 40000.0]]
-        nda = landsat.fetch_imagery_array(band_numbers, scaleParams, cutline_wkb=self.taos_shape.wkb)
+        nda = landsat.fetch_imagery_array(band_numbers, scaleParams, cutline_wkb=self.taos_shape.wkb, xRes=120, yRes=120)
         self.assertIsNotNone(nda)
-        self.assertEqual((1804, 1295, 3), nda.shape)
+        self.assertEqual((902, 648, 3), nda.shape)
 
         band_numbers = [Band.RED, Band.BLUE, Band.GREEN]
-        nda = landsat.fetch_imagery_array(band_numbers, scaleParams, cutline_wkb=self.taos_shape.wkb)
+        nda = landsat.fetch_imagery_array(band_numbers, scaleParams, cutline_wkb=self.taos_shape.wkb, xRes=120, yRes=120)
         self.assertIsNotNone(nda)
-        self.assertEqual((1804, 1295, 3), nda.shape)
+        self.assertEqual((902, 648, 3), nda.shape)
 
         band_numbers = [Band.RED, Band.BLUE, Band.GREEN]
-        nda = landsat.fetch_imagery_array(band_numbers, scaleParams)
+        nda = landsat.fetch_imagery_array(band_numbers, scaleParams, xRes=120, yRes=120)
         self.assertIsNotNone(nda)
-        self.assertNotEqual((1804, 1295, 3), nda.shape)
+        self.assertNotEqual((902, 648, 3), nda.shape)
