@@ -1,25 +1,22 @@
-import unittest
-import py_compile
 import os
+import py_compile
+import unittest
+from datetime import date
+from urllib.parse import urlparse
 
 import numpy as np
-
-import shapely.geometry
-import requests
 import pyproj
-
-from test.test_helpers import xml_compare
+import requests
+import shapely.geometry
 from lxml import etree
-from urllib.parse import urlparse
 from osgeo import gdal
+from shapely.wkt import loads
 
-from datetime import date
-from epl.imagery.reader import MetadataService, Landsat,\
+from epl.imagery import PLATFORM_PROVIDER
+from epl.imagery.reader import MetadataService, Landsat, \
     Storage, SpacecraftID, Metadata, BandMap, Band, \
     RasterMetadata, DataType, FunctionDetails
-from epl.imagery import PLATFORM_PROVIDER
-
-from shapely.wkt import loads
+from test.tools.test_helpers import xml_compare
 
 
 class TestGCPMetadataSQL(unittest.TestCase):
@@ -660,7 +657,6 @@ def ndvi_numpy2(in_ar, out_ar, xoff, yoff, xsize, ysize, raster_xsize, raster_ys
         self.assertIsNotNone(nda2)
         self.assertGreaterEqual(1.0, nda2.max())
         self.assertLessEqual(-1.0, nda2.min())
-
 
     def test_fail_1_to_1(self):
         code = """import numpy as np

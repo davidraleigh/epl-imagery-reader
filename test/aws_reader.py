@@ -1,17 +1,16 @@
-import unittest
 import datetime
+import unittest
+from datetime import date
+
 import requests
 import shapely.geometry
-
-from osgeo import gdal
-from datetime import date
 from lxml import etree
+from osgeo import gdal
 from shapely.wkt import loads
-
-from test.test_helpers import xml_compare
 
 from epl.imagery import PLATFORM_PROVIDER
 from epl.imagery.reader import MetadataService, SpacecraftID, Metadata, FunctionDetails, Landsat, DataType
+from test.tools.test_helpers import xml_compare
 
 
 class TestAWSStorage(unittest.TestCase):
