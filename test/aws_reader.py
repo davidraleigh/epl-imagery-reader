@@ -2,6 +2,7 @@ import datetime
 import unittest
 from datetime import date
 
+import json
 import requests
 import shapely.geometry
 from lxml import etree
@@ -58,6 +59,41 @@ class TestAWSMetadata(unittest.TestCase):
         metadata = Metadata(rows[0], '/imagery')
         self.assertNotEqual(rows[0][1], metadata.product_id)
         self.assertNotEqual(rows[0][7], metadata.collection_category)
+
+    def test_aws_without_google(self):
+        metadata_service = MetadataService()
+        # c1/L8/083/015/LC08_L1TP_083015_20171106_20171107_01_RT/
+        # c1/L8/083/111/LC08_L1GT_083111_20171106_20171107_01_RT
+
+        sqs_message = {
+            "Type" : "Notification",
+            "MessageId" : "27f57c3d-9d2e-5fa3-8f83-2e41a3aa5634",
+            "TopicArn" : "arn:aws:sns:us-west-2:274514004127:NewSceneHTML",
+            "Subject" : "Amazon S3 Notification",
+            "Message" : "{\"Records\":[{\"eventVersion\":\"2.0\",\"eventSource\":\"aws:s3\",\"awsRegion\":\"us-west-2\",\"eventTime\":\"2017-11-07T23:05:40.162Z\",\"eventName\":\"ObjectCreated:Put\",\"userIdentity\":{\"principalId\":\"AWS:AIDAILHHXPNIKSGVUGOZK\"},\"requestParameters\":{\"sourceIPAddress\":\"35.193.238.175\"},\"responseElements\":{\"x-amz-request-id\":\"F96A6CC9816FC5EF\",\"x-amz-id-2\":\"yehs3XxTY8utc9kgKfNbMe1wdtV7F0wEMUXUQtIu7zMRtGvboxahzwncrmG046yI327j5IRh8nE=\"},\"s3\":{\"s3SchemaVersion\":\"1.0\",\"configurationId\":\"C1-NewHTML\",\"bucket\":{\"name\":\"landsat-pds\",\"ownerIdentity\":{\"principalId\":\"A3LZTVCZQ87CNW\"},\"arn\":\"arn:aws:s3:::landsat-pds\"},\"object\":{\"key\":\"c1/L8/115/062/LC08_L1TP_115062_20171107_20171107_01_RT/index.html\",\"size\":5391,\"eTag\":\"0f06667fca1f707894bf579bd667e221\",\"sequencer\":\"005A023C441A8F8403\"}}}]}",
+            "Timestamp" : "2017-11-07T23:05:40.219Z",
+            "SignatureVersion" : "1",
+            "Signature" : "bqrW1x6CgJntCz6f0F5uncyPZR+6ZM/tZ3OrRZDiudBv5DAtMyYR9n6KQ0aT+iYP5INfpL2GuIm8Uqco8ZHzg5AqEhHtNkpzGBQpQHvlF3t0ut9K27YNwJ6ZmnS14BgsLWyXIthVRjvHf1Hhx3ZInPMJrzTcKCOhOmBcM9zOpfWrHfnynuifpN3FaldDz6VY2d9QM0Rn8Fo8XZ4F+j01eAJVlydnRbSBbLewleuvhPQh6EG5r2EeekeniOIETrodS7o43ZClFr8OSgRE7BvpecVnnUEXBUIDDtRAPnIxo3Io0AmfPRI8xRfeKNhBIhPq3W3clm7Dxkp3N96OKoVUBw==",
+            "SigningCertURL" : "https://sns.us-west-2.amazonaws.com/SimpleNotificationService-433026a4050d206028891664da859041.pem",
+            "UnsubscribeURL" : "https://sns.us-west-2.amazonaws.com/?Action=Unsubscribe&SubscriptionArn=arn:aws:sns:us-west-2:274514004127:NewSceneHTML:7997d757-d1c6-4064-8935-34111968c8cc"
+        }
+        message_json = json.loads(sqs_message['Message'])
+        image_key = message_json['Records'][0]['s3']['object']['key']
+        d = datetime.datetime.strptime(sqs_message['Timestamp'], "%Y-%m-%dT%H:%M:%S.%fZ")
+
+        rows = metadata_service.search(SpacecraftID.LANDSAT_8,
+                                       start_date=d,
+                                       sql_filters=["wrs_row=62", "wrs_path=115"])
+        rows = metadata_service.search_aws('/imagery', wrs_path=115, wrs_row=62, collection_date=d)
+        self.assertGreater(len(rows), 0)
+
+        metadata = Metadata(rows[0])
+        self.assertIsNotNone(metadata)
+
+        landsat = Landsat(metadata)
+        nda = landsat.fetch_imagery_array([4, 3, 2], [[0, 40000], [0, 40000], [0, 40000]], xRes=240, yRes=240)
+        self.assertIsNotNone(nda)
+
 
 
 class TestAWSPixelFunctions(unittest.TestCase):

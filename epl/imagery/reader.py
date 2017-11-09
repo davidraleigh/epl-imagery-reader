@@ -15,6 +15,7 @@ import math
 import pyproj
 import copy
 import glob
+import re
 import numpy as np
 
 from datetime import datetime
@@ -299,6 +300,17 @@ LLNppprrrOOYYDDDMM_AA.TIF  where:
      TIF         = GeoTIFF file extension
     """
     def __init__(self, row, base_mount_path='/imagery'):
+        # TODO we should flesh out the AWS from path instantiation
+        if not isinstance(row, list):
+            # TODO there should be Metadata class for AWS and GOOGLE?
+            self.full_mount_path = row
+            self.__wrs_geometries = WRSGeometries()
+            self.name_prefix = os.path.basename(self.full_mount_path)
+            # we know this is Landsat 8
+            self.spacecraft_id = SpacecraftID.LANDSAT_8
+            self.band_map = BandMap(self.spacecraft_id)
+            return
+
         # TODO, this could use a shallow copy? instead of creating an object like this? And thne all the attributes
         # would just call the array indices?
 
@@ -311,6 +323,9 @@ LLNppprrrOOYYDDDMM_AA.TIF  where:
         self.sensor_id = row[3]  # STRING	NULLABLE The type of spacecraft sensor that acquired this scene: 'TM' for
         # the Thematic Mapper, 'ETM' for the Enhanced Thematic Mapper+, or 'OLI/TIRS' for the Operational Land Imager
         # and Thermal Infrared Sensor.
+        self.name_prefix = self.product_id
+        if not self.name_prefix:
+            self.name_prefix = self.scene_id
         self.date_acquired = row[4]  # STRING	NULLABLE The date on which this scene was acquired (UTC).
         self.sensing_time = row[5]  # STRING	NULLABLE The approximate time at which this scene was acquired (UTC).
         self.collection_number = row[6]  # STRING	NULLABLE The Landsat collection that this image belongs to, e.g.
@@ -424,11 +439,7 @@ LLNppprrrOOYYDDDMM_AA.TIF  where:
 
     # TODO make private
     def get_full_file_path(self, band_number):
-        name_prefix = self.product_id
-        if not name_prefix:
-            name_prefix = self.scene_id
-
-        return "{0}/{1}_B{2}.TIF".format(self.full_mount_path, name_prefix, band_number)
+        return "{0}/{1}_B{2}.TIF".format(self.full_mount_path, self.name_prefix, band_number)
 
     def __query_file_list(self):
         bucket = self.__storage_client.list_buckets(prefix=self.bucket_name + self.data_prefix)
@@ -1003,6 +1014,54 @@ LIMIT 1"""
         query.timeout_ms = self.m_timeout_ms
         query.run()
         self.m_danger_east_lon = query.rows[0][0]
+
+    # @staticmethod
+    # def get_aws_landsat_path(wrs_path,
+    #                          wrs_row,
+    #                          collection_number,
+    #                          product_id=None,
+    #                          scene_id=None,
+    #                          acq_year=None,
+    #                          acq_month=None,
+    #                          acq_day=None):
+    #
+    #
+    #     return path
+
+    @staticmethod
+    def search_aws(mount_base_path,
+                   wrs_path,
+                   wrs_row,
+                   collection_date: datetime,
+                   processing_level: str="L1TP"):
+        """This is basically a hack for when data is not in BigQuery for the first 24 hours that the data exists
+             LLLL        = processing level (L1TP for Precision Terrain;
+                                     L1GT for Systematic Terrain;
+                                     L1GS for Systematic only)
+        """
+        # check that the request is for data that is at most within the last 24 hours
+
+        # build a glob string
+        # Shouldn't be PRE as
+        # PRE        s3://landsat-pds/L8/139/045/LC81390452014295LGN00/
+
+        # non-PRE s3://landsat-pds/c1/L8/139/045/LC08_L1TP_139045_20170304_20170316_01_T1/
+        path = "{0}/c1/L8/{1}/{2}/".format(mount_base_path, str(wrs_path).zfill(3), str(wrs_row).zfill(3))
+
+        # a = '(LC08_[\w]+_{0}{1}_{2}{3}{4}).*$'.format(str(wrs_path).zfill(3), str(wrs_row).zfill(3),
+        #                                               collection_date.year, str(collection_date.month).zfill(2),
+        #                                               str(collection_date.day).zfill(2))
+
+        directory = 'LC08_{0}_{1}{2}_{3}{4}{5}_*'.format(processing_level,
+                                                         str(wrs_path).zfill(3),
+                                                         str(wrs_row).zfill(3),
+                                                         collection_date.year,
+                                                         str(collection_date.month).zfill(2),
+                                                         str(collection_date.day).zfill(2))
+
+        paths = glob.glob(path + directory)
+        return paths
+
 
     def search(
             self,
