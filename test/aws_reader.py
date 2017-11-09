@@ -95,7 +95,6 @@ class TestAWSMetadata(unittest.TestCase):
         self.assertIsNotNone(nda)
 
 
-
 class TestAWSPixelFunctions(unittest.TestCase):
     m_row_data = None
     base_mount_path = '/imagery'

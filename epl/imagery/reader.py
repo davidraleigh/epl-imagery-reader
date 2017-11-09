@@ -305,7 +305,7 @@ LLNppprrrOOYYDDDMM_AA.TIF  where:
             # TODO there should be Metadata class for AWS and GOOGLE?
             self.full_mount_path = row
             self.__wrs_geometries = WRSGeometries()
-            self.name_prefix = os.path.basename(self.full_mount_path)
+            self.product_id = os.path.basename(self.full_mount_path)
             # we know this is Landsat 8
             self.spacecraft_id = SpacecraftID.LANDSAT_8
             self.band_map = BandMap(self.spacecraft_id)
@@ -323,9 +323,7 @@ LLNppprrrOOYYDDDMM_AA.TIF  where:
         self.sensor_id = row[3]  # STRING	NULLABLE The type of spacecraft sensor that acquired this scene: 'TM' for
         # the Thematic Mapper, 'ETM' for the Enhanced Thematic Mapper+, or 'OLI/TIRS' for the Operational Land Imager
         # and Thermal Infrared Sensor.
-        self.name_prefix = self.product_id
-        if not self.name_prefix:
-            self.name_prefix = self.scene_id
+
         self.date_acquired = row[4]  # STRING	NULLABLE The date on which this scene was acquired (UTC).
         self.sensing_time = row[5]  # STRING	NULLABLE The approximate time at which this scene was acquired (UTC).
         self.collection_number = row[6]  # STRING	NULLABLE The Landsat collection that this image belongs to, e.g.
@@ -374,6 +372,13 @@ LLNppprrrOOYYDDDMM_AA.TIF  where:
         # self.thread.daemon = True
         # self.thread.start()
         self.__wrs_geometries = WRSGeometries()
+
+    @property
+    def name_prefix(self):
+        return self.scene_id if not self.product_id else self.product_id
+        # self.name_prefix = self.product_id
+        # if not self.name_prefix:
+        #     self.name_prefix = self.scene_id
 
     def get_wrs_polygon(self):
         return self.__wrs_geometries.get_wrs_geometry(self.wrs_path, self.wrs_row, timeout=60)
