@@ -301,7 +301,7 @@ LLNppprrrOOYYDDDMM_AA.TIF  where:
     """
     def __init__(self, row, base_mount_path='/imagery'):
         # TODO we should flesh out the AWS from path instantiation
-        if not isinstance(row, list):
+        if not isinstance(row, tuple):
             # TODO there should be Metadata class for AWS and GOOGLE?
             self.full_mount_path = row
             self.__wrs_geometries = WRSGeometries()
