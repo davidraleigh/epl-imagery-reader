@@ -18,6 +18,7 @@ import glob
 import re
 import numpy as np
 
+from datetime import date
 from datetime import datetime
 from osgeo import osr, ogr, gdal
 from urllib.parse import urlparse
@@ -241,6 +242,7 @@ class FunctionDetails:
 # TODO rename as LandsatMetadata
 class Metadata:
     __storage_client = storage.Client()
+    metadata_reg = re.compile(r'/imagery/c1/L8/(115)/(062)/LC08_([a-zA-Z0-9]+)_[\d]+_([\d]{4,4})([\d]{2,2})([\d]{2,2})_[\d]+_[a-zA-Z0-9]+_(RT|T1|T2)')
     """
     LXSS_LLLL_PPPRRR_YYYYMMDD_yyyymmdd_CC_TX_BN.TIF where:
      L           = Landsat
@@ -309,6 +311,14 @@ LLNppprrrOOYYDDDMM_AA.TIF  where:
             # we know this is Landsat 8
             self.spacecraft_id = SpacecraftID.LANDSAT_8
             self.band_map = BandMap(self.spacecraft_id)
+
+            s = self.metadata_reg.search(self.full_mount_path)
+            self.wrs_path = int(s.group(1))
+            self.wrs_row = int(s.group(2))
+            self.data_type = s.group(3)
+            self.date_acquired = date(int(s.group(4)), int(s.group(5)), int(s.group(6))).strftime("%Y-%m-%d")
+            self.collection_category = s.group(7)
+
             return
 
         # TODO, this could use a shallow copy? instead of creating an object like this? And thne all the attributes
@@ -345,10 +355,12 @@ LLNppprrrOOYYDDDMM_AA.TIF  where:
         self.total_size = row[16]  # INTEGER	NULLABLE The total size of this scene in bytes.
         self.base_url = row[17]  # STRING	NULLABLE The base URL for this scene in Cloud Storage.
 
-        # TODO, test some AWS data that is sensed at one time and aquired at another
+        # TODO, test some AWS data that is sensed on one date and then processed at another
         self.doy = datetime.strptime(self.date_acquired, "%Y-%m-%d").timetuple().tm_yday
 
         self.band_map = BandMap(self.spacecraft_id)
+
+        # TODO dateline testing
         self.center_lat = (self.north_lat - self.south_lat) / 2 + self.south_lat
         self.center_lon = (self.east_lon - self.west_lon) / 2 + self.west_lon
 
@@ -376,9 +388,6 @@ LLNppprrrOOYYDDDMM_AA.TIF  where:
     @property
     def name_prefix(self):
         return self.scene_id if not self.product_id else self.product_id
-        # self.name_prefix = self.product_id
-        # if not self.name_prefix:
-        #     self.name_prefix = self.scene_id
 
     def get_wrs_polygon(self):
         return self.__wrs_geometries.get_wrs_geometry(self.wrs_path, self.wrs_row, timeout=60)
