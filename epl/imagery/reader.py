@@ -9,6 +9,7 @@ import shapefile
 
 # TODO replace with geometry
 import shapely.wkb
+from shapely.geometry import shape
 # TODO replace with geometry
 
 import math
@@ -242,7 +243,7 @@ class FunctionDetails:
 # TODO rename as LandsatMetadata
 class Metadata:
     __storage_client = storage.Client()
-    metadata_reg = re.compile(r'/imagery/c1/L8/(115)/(062)/LC08_([a-zA-Z0-9]+)_[\d]+_([\d]{4,4})([\d]{2,2})([\d]{2,2})_[\d]+_[a-zA-Z0-9]+_(RT|T1|T2)')
+    metadata_reg = re.compile(r'/imagery/c1/L8/([\d]{3,3})/([\d]{3,3})/LC08_([a-zA-Z0-9]+)_[\d]+_([\d]{4,4})([\d]{2,2})([\d]{2,2})_[\d]+_[a-zA-Z0-9]+_(RT|T1|T2)')
     """
     LXSS_LLLL_PPPRRR_YYYYMMDD_yyyymmdd_CC_TX_BN.TIF where:
      L           = Landsat
@@ -388,6 +389,10 @@ LLNppprrrOOYYDDDMM_AA.TIF  where:
     @property
     def name_prefix(self):
         return self.scene_id if not self.product_id else self.product_id
+
+    @property
+    def center(self):
+        return shape(self.get_wrs_polygon()).centroid
 
     def get_wrs_polygon(self):
         return self.__wrs_geometries.get_wrs_geometry(self.wrs_path, self.wrs_row, timeout=60)

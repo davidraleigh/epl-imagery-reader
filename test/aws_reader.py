@@ -111,6 +111,11 @@ class TestAWSMetadata(unittest.TestCase):
         self.assertEqual(115, metadata.wrs_path)
         self.assertEqual(62, metadata.wrs_row)
 
+    def test_wrs_from_key_bug(self):
+        failed = "/imagery/c1/L8/010/045/LC08_L1TP_010045_20171022_20171107_01_T1"
+        metadata = Metadata(failed)
+        self.assertIsNotNone(metadata)
+
 
 class TestAWSPixelFunctions(unittest.TestCase):
     m_row_data = None
