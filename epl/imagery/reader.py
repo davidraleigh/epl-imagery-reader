@@ -12,6 +12,7 @@ import shapely.wkb
 from shapely.geometry import shape
 # TODO replace with geometry
 
+import json
 import math
 import pyproj
 import copy
@@ -244,6 +245,7 @@ class FunctionDetails:
 class Metadata:
     __storage_client = storage.Client()
     metadata_reg = re.compile(r'/imagery/c1/L8/([\d]{3,3})/([\d]{3,3})/LC08_([a-zA-Z0-9]+)_[\d]+_([\d]{4,4})([\d]{2,2})([\d]{2,2})_[\d]+_[a-zA-Z0-9]+_(RT|T1|T2)')
+    datetime_reg = re.compile(r'([\w\-:]+)(\.[\d]{0,6})[\d]*([A-Z]{1})')
     """
     LXSS_LLLL_PPPRRR_YYYYMMDD_yyyymmdd_CC_TX_BN.TIF where:
      L           = Landsat
@@ -320,8 +322,24 @@ LLNppprrrOOYYDDDMM_AA.TIF  where:
             self.date_acquired = date(int(s.group(4)), int(s.group(5)), int(s.group(6))).strftime("%Y-%m-%d")
             self.collection_category = s.group(7)
 
-            self.date_acquired = None
+            mtl_file_path = "{0}/{1}_MTL.json".format(self.full_mount_path, self.name_prefix)
+            mtl = self.parse_mtl(mtl_file_path)
 
+            # '16:18:27.0722979Z'
+            sensing_time = mtl['L1_METADATA_FILE']['PRODUCT_METADATA']['SCENE_CENTER_TIME']
+
+            # '2017-10-28'
+            date_aquired = mtl['L1_METADATA_FILE']['PRODUCT_METADATA']['DATE_ACQUIRED']
+
+            s = self.datetime_reg.search( date_aquired + "T" + sensing_time)
+            date_aquired = s.group(1) + s.group(2) + s.group(3)
+            self.sensing_time = datetime.strptime(date_aquired, "%Y-%m-%dT%H:%M:%S.%fZ")
+            self.date_acquired = self.sensing_time.date()
+            # '2017-11-08T23:42:51Z'
+            self.cloud_cover = mtl['L1_METADATA_FILE']['IMAGE_ATTRIBUTES']['CLOUD_COVER']
+            self.cloud_cover_land = mtl['L1_METADATA_FILE']['IMAGE_ATTRIBUTES']['CLOUD_COVER_LAND']
+            self.date_processed = datetime.strptime(mtl['L1_METADATA_FILE']['METADATA_FILE_INFO']['FILE_DATE'], "%Y-%m-%dT%H:%M:%SZ")
+            # self.sensing_time = datetime.combine(date(2011, 01, 01), datetime.time(10, 23))
             return
 
         # TODO, this could use a shallow copy? instead of creating an object like this? And thne all the attributes
@@ -395,6 +413,12 @@ LLNppprrrOOYYDDDMM_AA.TIF  where:
     @property
     def center(self):
         return shape(self.get_wrs_polygon()).centroid
+
+    @staticmethod
+    def parse_mtl(mtl_file_name):
+        with open(mtl_file_name) as mtl:
+            json_str = str(mtl.read())
+            return json.loads(json_str)
 
     def get_wrs_polygon(self):
         return self.__wrs_geometries.get_wrs_geometry(self.wrs_path, self.wrs_row, timeout=60)

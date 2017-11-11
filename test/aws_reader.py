@@ -116,6 +116,19 @@ class TestAWSMetadata(unittest.TestCase):
         metadata = Metadata(failed)
         self.assertIsNotNone(metadata)
 
+    def test_cloud_cover(self):
+        failed = "/imagery/c1/L8/020/035/LC08_L1TP_020035_20171028_20171108_01_T1"
+        metadata = Metadata(failed)
+        self.assertIsNotNone(metadata)
+        metadata.parse_mtl("LC08_L1TP_020035_20171028_20171108_01_T1_MTL.json")
+        self.assertIsNotNone(metadata.cloud_cover)
+
+        self.assertIsNotNone(metadata.date_acquired)
+        self.assertIsNotNone(metadata.sensing_time)
+
+        self.assertEqual(metadata.sensing_time.date(), metadata.date_acquired)
+        self.assertNotEqual(metadata.date_acquired, metadata.date_processed.date())
+
 
 class TestAWSPixelFunctions(unittest.TestCase):
     m_row_data = None
