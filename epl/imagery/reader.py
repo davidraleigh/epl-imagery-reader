@@ -320,6 +320,8 @@ LLNppprrrOOYYDDDMM_AA.TIF  where:
             self.date_acquired = date(int(s.group(4)), int(s.group(5)), int(s.group(6))).strftime("%Y-%m-%d")
             self.collection_category = s.group(7)
 
+            self.date_acquired = None
+
             return
 
         # TODO, this could use a shallow copy? instead of creating an object like this? And thne all the attributes
