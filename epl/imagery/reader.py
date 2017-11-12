@@ -761,7 +761,8 @@ class Landsat(Imagery):
                                    scale_params=scale_params,
                                    extent=extent,
                                    cutline_wkb=cutline_wkb,
-                                   xRes=xRes, yRes=yRes)
+                                   xRes=xRes,
+                                   yRes=yRes)
         nda = dataset.ReadAsArray()
         del dataset
         
@@ -866,7 +867,8 @@ class Landsat(Imagery):
                 translate_args=None,
                 extent: tuple=None,
                 extent_cs: pyproj.Proj=None,
-                xRes=30, yRes=30):
+                xRes=30,
+                yRes=30):
         # TODO remove this check, make Metadata a mandatory input
         if not metadata:
             metadata = self.__metadata[0]
@@ -928,7 +930,8 @@ class Landsat(Imagery):
                                   output_type: DataType,
                                   scale_params=None,
                                   extent: tuple=None,
-                                  xRes=60, yRes=60):
+                                  xRes=60,
+                                  yRes=60):
         translated = []
         for metadata in self.__metadata:
             if self.storage.mount_sub_folder(metadata, request_key=str(self.__id)) is False:
@@ -940,7 +943,8 @@ class Landsat(Imagery):
             dataset_translated = gdal.Translate('', vrt.decode('utf-8'),
                                                 format='MEM',
                                                 scaleParams=scale_params,
-                                                xRes=xRes, yRes=yRes,
+                                                xRes=xRes,
+                                                yRes=yRes,
                                                 outputType=output_type.gdal,
                                                 noData=0)
             translated.append(dataset_translated)
@@ -952,12 +956,14 @@ class Landsat(Imagery):
                     scale_params=None,
                     extent: tuple = None,
                     cutline_wkb: bytes = None,
-                    xRes=60, yRes=60):
+                    xRes=60,
+                    yRes=60):
         dataset_translated = self.__get_translated_datasets(band_definitions,
                                                             output_type,
                                                             scale_params,
                                                             extent,
-                                                            xRes=xRes, yRes=yRes)
+                                                            xRes=xRes,
+                                                            yRes=yRes)
 
         b_alpha_channel = Band.ALPHA in band_definitions
         # if there is no need to warp the data
