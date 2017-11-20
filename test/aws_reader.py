@@ -129,6 +129,35 @@ class TestAWSMetadata(unittest.TestCase):
         self.assertEqual(metadata.sensing_time.date(), metadata.date_acquired)
         self.assertNotEqual(metadata.date_acquired, metadata.date_processed.date())
 
+    def test_gt(self):
+        failed = "/imagery/c1/L8/137/208/LT08_L1GT_137208_20171117_20171117_01_RT"
+        metadata = Metadata(failed)
+        self.assertIsNotNone(metadata)
+
+    # def test_metadata_service(self):
+    #     metadata_service = MetadataService()
+    #     sql_filters = ['cloud_cover=0']
+    #     d_start = date(2015, 6, 24)
+    #     d_end = date(2016, 6, 24)
+    #     bounding_box = (-115.927734375, 34.52466147177172, -78.31054687499999, 44.84029065139799)
+    #     rows = metadata_service.search(
+    #         SpacecraftID.LANDSAT_8,
+    #         start_date=d_start,
+    #         end_date=d_end,
+    #         bounding_box=bounding_box,
+    #         sql_filters=sql_filters)
+    #
+    #     self.assertEqual(len(rows), 10)
+    #     for row in rows:
+    #         self.assertEqual(row[2], SpacecraftID.LANDSAT_8.name)
+    #         d_actual = datetime.datetime.strptime(row[4], '%Y-%m-%d').date()
+    #         self.assertLessEqual(d_actual, d_end)
+    #         self.assertGreaterEqual(d_actual, d_start)
+    #         self.assertTrue(
+    #             (bounding_box[0] < row[14] < bounding_box[2]) or (bounding_box[0] < row[15] < bounding_box[2]))
+    #         self.assertTrue(
+    #             (bounding_box[1] < row[12] < bounding_box[3]) or (bounding_box[1] < row[13] < bounding_box[3]))
+
 
 class TestAWSPixelFunctions(unittest.TestCase):
     m_row_data = None

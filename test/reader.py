@@ -17,9 +17,7 @@ from shapely.geometry import box
 from shapely.wkt import loads
 
 from datetime import date
-from epl.imagery.reader import MetadataService, Landsat, \
-    Storage, SpacecraftID, Metadata, BandMap, Band, \
-    WRSGeometries, RasterBandMetadata, RasterMetadata, DataType, FunctionDetails
+from epl.imagery.reader import MetadataService, Landsat, Storage, SpacecraftID, Metadata, BandMap, Band, WRSGeometries, RasterBandMetadata, RasterMetadata, DataType, FunctionDetails
 
 
 class TestMetaDataSQL(unittest.TestCase):
@@ -285,23 +283,37 @@ class TestBandMap(unittest.TestCase):
 
 
 class TestWRSGeometries(unittest.TestCase):
+    test_cases = [[15.74326, 26.98611, 1, 1, 1, 0, 13001, 13001, 13, 1, 'D', 1, 2233],
+                  [2.74362, 6.65058, 942, 942, 1, 0, 61198, 61198, 61, 198, 'A', 1, 3174],
+                  [13.37321, 24.20422, 2225, 2225, 1, 0, 125241, 125241, 125, 241, 'A', 2, 4209],
+                  [3.58953, 7.7865, 1021, 1021, 1, 0, 75029, 75029, 75, 29, 'D', 3, 10445],
+                  [4.2424, 8.69453, 891, 891, 1, 0, 64147, 64147, 64, 147, 'A', 6, 21227],
+                  [16.81754, 27.20801, 3720, 3720, 1, 0, 223248, 223248, 223, 248, 'D', 16, 56296]]
+    wrs_geometries = WRSGeometries()
+
     def test_geometry(self):
-        wrs_geometries = WRSGeometries()
-
-        test_cases = [[15.74326, 26.98611, 1, 1, 1, 0, 13001, 13001, 13, 1, 'D', 1, 2233],
-                      [2.74362, 6.65058, 942, 942, 1, 0, 61198, 61198, 61, 198, 'A', 1, 3174],
-                      [13.37321, 24.20422, 2225, 2225, 1, 0, 125241, 125241, 125, 241, 'A', 2, 4209],
-                      [3.58953, 7.7865, 1021, 1021, 1, 0, 75029, 75029, 75, 29, 'D', 3, 10445],
-                      [4.2424, 8.69453, 891, 891, 1, 0, 64147, 64147, 64, 147, 'A', 6, 21227],
-                      [16.81754, 27.20801, 3720, 3720, 1, 0, 223248, 223248, 223, 248, 'D', 16, 56296]]
-
-        for test_case in test_cases:
-            geom_obj = wrs_geometries.get_wrs_geometry(test_case[8], test_case[9], timeout=60)
+        for test_case in self.test_cases:
+            geom_obj = self.wrs_geometries.get_wrs_geometry(test_case[8], test_case[9], timeout=60)
             geom_expected_area = test_case[0]
 
             self.assertIsNotNone(geom_obj)
             s = shape(geom_obj)
             self.assertAlmostEqual(geom_expected_area, s.area, 5)
+
+    # def test_bounds_search(self):
+    #     for idx, test_case in enumerate(self.test_cases):
+    #         geom_obj = self.wrs_geometries.get_wrs_geometry(test_case[8], test_case[9], timeout=60)
+    #         original_shape = shape(geom_obj)
+    #         result = self.wrs_geometries.get_path_row(original_shape.bounds)
+    #         path_pair = result.pop()
+    #         while path_pair is not None:
+    #             geom_obj = self.wrs_geometries.get_wrs_geometry(path_pair[0], path_pair[1])
+    #             s = shape(geom_obj)
+    #             b_intersect = s.envelope.intersects(original_shape.envelope)
+    #             print("Test case {0}\n original bounds: {1}\nnon-intersecting bounds{2}\n".format(idx, original_shape.bounds, s.bounds))
+    #             self.assertTrue(b_intersect, "Test case {0}\n original bounds: {1}\nnon-intersecting bounds{2}\n"
+    #                             .format(idx, original_shape.bounds, s.bounds))
+    #         break
 
 
 class TestLandsat(unittest.TestCase):

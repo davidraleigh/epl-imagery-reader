@@ -20,6 +20,7 @@ import glob
 import re
 import numpy as np
 
+from pyqtree import Index
 from datetime import date
 from datetime import datetime
 from osgeo import osr, ogr, gdal
@@ -244,7 +245,7 @@ class FunctionDetails:
 # TODO rename as LandsatMetadata
 class Metadata:
     __storage_client = storage.Client()
-    metadata_reg = re.compile(r'/imagery/c1/L8/([\d]{3,3})/([\d]{3,3})/LC08_([a-zA-Z0-9]+)_[\d]+_([\d]{4,4})([\d]{2,2})([\d]{2,2})_[\d]+_[a-zA-Z0-9]+_(RT|T1|T2)')
+    metadata_reg = re.compile(r'/imagery/c1/L8/([\d]{3,3})/([\d]{3,3})/L(C|T)08_([a-zA-Z0-9]+)_[\d]+_([\d]{4,4})([\d]{2,2})([\d]{2,2})_[\d]+_[a-zA-Z0-9]+_(RT|T1|T2)')
     datetime_reg = re.compile(r'([\w\-:]+)(\.[\d]{0,6})[\d]*([A-Z]{1})')
     """
     LXSS_LLLL_PPPRRR_YYYYMMDD_yyyymmdd_CC_TX_BN.TIF where:
@@ -315,12 +316,12 @@ LLNppprrrOOYYDDDMM_AA.TIF  where:
             self.spacecraft_id = SpacecraftID.LANDSAT_8
             self.band_map = BandMap(self.spacecraft_id)
 
-            s = self.metadata_reg.search(self.full_mount_path)
-            self.wrs_path = int(s.group(1))
-            self.wrs_row = int(s.group(2))
-            self.data_type = s.group(3)
-            self.date_acquired = date(int(s.group(4)), int(s.group(5)), int(s.group(6))).strftime("%Y-%m-%d")
-            self.collection_category = s.group(7)
+            reg_results_1 = self.metadata_reg.search(self.full_mount_path)
+            self.wrs_path = int(reg_results_1.group(1))
+            self.wrs_row = int(reg_results_1.group(2))
+            self.data_type = reg_results_1.group(4)
+            self.date_acquired = date(int(reg_results_1.group(5)), int(reg_results_1.group(6)), int(reg_results_1.group(7))).strftime("%Y-%m-%d")
+            self.collection_category = reg_results_1.group(8)
 
             mtl_file_path = "{0}/{1}_MTL.json".format(self.full_mount_path, self.name_prefix)
             mtl = self.parse_mtl(mtl_file_path)
@@ -331,8 +332,8 @@ LLNppprrrOOYYDDDMM_AA.TIF  where:
             # '2017-10-28'
             date_aquired = mtl['L1_METADATA_FILE']['PRODUCT_METADATA']['DATE_ACQUIRED']
 
-            s = self.datetime_reg.search( date_aquired + "T" + sensing_time)
-            date_aquired = s.group(1) + s.group(2) + s.group(3)
+            reg_results_2 = self.datetime_reg.search( date_aquired + "T" + sensing_time)
+            date_aquired = reg_results_2.group(1) + reg_results_2.group(2) + reg_results_2.group(3)
             self.sensing_time = datetime.strptime(date_aquired, "%Y-%m-%dT%H:%M:%S.%fZ")
             self.date_acquired = self.sensing_time.date()
             # '2017-11-08T23:42:51Z'
@@ -1315,6 +1316,7 @@ Notes on WRS-2 Landsat 8's Operational Land Imager (OLI) and/or Thermal Infrared
     """
     def __init__(self):
         self.__wrs2_map = {}
+        # self.__spatial_index = Index(bbox=(-180, -90, 180, 90))
 
         # do some async query to check if the danger_zone needs updating
         self.__read_thread = threading.Thread(target=self.__read_shapefiles, args=())
@@ -1341,7 +1343,12 @@ Notes on WRS-2 Landsat 8's Operational Land Imager (OLI) and/or Thermal Infrared
             if path_num not in self.__wrs2_map:
                 self.__wrs2_map[path_num] = {}
 
-            self.__wrs2_map[path_num][row_num] = wrs2.shape(idx).__geo_interface__
+            s = wrs2.shape(idx)
+            self.__wrs2_map[path_num][row_num] = s.__geo_interface__
+            # self.__spatial_index.insert((path_num, row_num), s.bbox)
+
+    # def get_path_row(self, bounds) -> set:
+    #     return self.__spatial_index.intersect(bounds)
 
     def get_wrs_geometry(self, wrs_path, wrs_row, timeout=10):
         self.__read_thread.join(timeout=timeout)
@@ -1349,3 +1356,5 @@ Notes on WRS-2 Landsat 8's Operational Land Imager (OLI) and/or Thermal Infrared
             return None
 
         return self.__wrs2_map[wrs_path][wrs_row]
+
+
