@@ -51,6 +51,7 @@ class __Singleton(type):
 
 
 class SpacecraftID(IntEnum):
+    UNKNOWN = 0
     LANDSAT_1_MSS = 1
     LANDSAT_2_MSS = 2
     LANDSAT_3_MSS = 4
@@ -68,21 +69,22 @@ class SpacecraftID(IntEnum):
 
 class Band(Enum):
     # Crazy Values so that the Band.<ENUM>.value isn't used for anything
-    ULTRA_BLUE = -1000
-    BLUE = -2000
-    GREEN = -3000
-    RED = -4000
-    NIR = -5000
-    SWIR1 = -6000
-    THERMAL = -7000
-    SWIR2 = -8000
-    PANCHROMATIC = -9000
-    CIRRUS = -10000
-    TIRS1 = -11000
-    TIRS2 = -12000
-    INFRARED2 = -13000
-    INFRARED1 = -14000
-    ALPHA = -15000
+    UNKNOWN = 0
+    ULTRA_BLUE = 1
+    BLUE = 2
+    GREEN = 3
+    RED = 4
+    NIR = 5
+    SWIR1 = 6
+    THERMAL = 7
+    SWIR2 = 8
+    PANCHROMATIC = 9
+    CIRRUS = 10
+    TIRS1 = 11
+    TIRS2 = 12
+    INFRARED2 = 13
+    INFRARED1 = 14
+    ALPHA = 15
 
 
 class DataType(Enum):
@@ -114,6 +116,7 @@ class DataType(Enum):
 
 
 class BandMap:
+
      # TODO it would be nice to store data type, Byte, Unit16, etc.
     __map = {
         # TODO min resolution??
@@ -498,6 +501,7 @@ LLNppprrrOOYYDDDMM_AA.TIF  where:
 
 
 class __RasterMetadata:
+
     # TODO, maybe there should be setters and getters to prevent problems?
     def __init__(self, band_number: int=None, metadata: Metadata=None):
         self.projection = None
@@ -611,6 +615,7 @@ class __RasterMetadata:
 
 
 class RasterBandMetadata(__RasterMetadata):
+
     def __init__(self,
                  band_number,
                  metadata: Metadata=None):
@@ -623,6 +628,7 @@ class RasterBandMetadata(__RasterMetadata):
 
 
 class RasterMetadata(__RasterMetadata):
+
     __wgs84_cs = pyproj.Proj(init='epsg:4326')
 
     def __init__(self):
@@ -689,6 +695,7 @@ class Imagery:
 
 
 class Landsat(Imagery):
+
     # def __init__(self, base_mount_path, bucket_name="gcp-public-data-landsat"):
     __metadata = None
     __id = None
@@ -1014,6 +1021,7 @@ class Sentinel2:
 
 
 class MetadataService(metaclass=__Singleton):
+
     """
     Notes on WRS-2 Landsat 8's Operational Land Imager (OLI) and/or Thermal Infrared Sensor (TIRS) sensors acquired
     nearly 10,000 scenes from just after its February 11, 2013 launch through April 10, 2013, during when the
@@ -1114,7 +1122,6 @@ LIMIT 1"""
         paths = glob.glob(path + directory)
         return paths
 
-
     def search(
             self,
             satellite_id=None,
@@ -1203,6 +1210,7 @@ return bIntersecting;"""
 
 
 class Storage(metaclass=__Singleton):
+
     bucket = ""
     __mounted_sub_folders = None
 
@@ -1311,6 +1319,7 @@ class Storage(metaclass=__Singleton):
 
 # TODO this could probably be moved into it's own file
 class WRSGeometries(metaclass=__Singleton):
+
     """
 Notes on WRS-2 Landsat 8's Operational Land Imager (OLI) and/or Thermal Infrared Sensor (TIRS) sensors acquired nearly 10,000 scenes from just after its February 11, 2013 launch through April 10, 2013, during when the satellite was moving into the operational WRS-2 orbit. The earliest images are TIRS data only.  While these data meet the quality standards and have the same geometric precision as data acquired on and after April 10, 2013, the geographic extents of each scene will differ. Many of the scenes are processed to full terrain correction, with a pixel size of 30 meters. There may be some differences in the spatial resolution of the early TIRS images due to telescope temperature changes.
     """
