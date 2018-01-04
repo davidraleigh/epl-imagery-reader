@@ -40,7 +40,7 @@ class TestGCPMetadataSQL(unittest.TestCase):
             bounding_box=bounding_box,
             sql_filters=sql_filters)
 
-        metadata = Metadata(rows[0])
+        metadata = rows[0]
         self.assertEqual(len(metadata.get_file_list()), 0)
 
     @unittest.skip("not sure why I put this test in or when it last passed.")
@@ -50,7 +50,7 @@ class TestGCPMetadataSQL(unittest.TestCase):
         bounding_box = (-115.927734375, 34.52466147177172, -78.31054687499999, 44.84029065139799)
         rows = self.metadata_service.search(SpacecraftID.LANDSAT_8, start_date=d_start, end_date=d_end,
                                             bounding_box=bounding_box, limit=1)
-        metadata = Metadata(rows[0], self.base_mount_path)
+        metadata = rows[0]
         landsat = Landsat(metadata)
         self.assertIsNotNone(landsat)
         vrt = landsat.get_vrt([4, 3, 2])
@@ -87,7 +87,7 @@ class TestGCPLandsat(unittest.TestCase):
         base_mount_path = '/imagery'
 
         for row in rows:
-            self.metadata_set.append(Metadata(row, base_mount_path))
+            self.metadata_set.append(row)
 
     def test_landsat5_vrt(self):
         # 5th Place: Lake Eyre Landsat 5 Acquired August 5, 2006
@@ -112,7 +112,7 @@ class TestGCPLandsat(unittest.TestCase):
         self.assertEqual(len(rows), 1)
 
         # data structure that contains all fields from Google's Landsat BigQuery Database
-        metadata = Metadata(rows[0], self.base_mount_path)
+        metadata = rows[0]
 
         # GDAL helper functions for generating VRT
         landsat = Landsat(metadata)
@@ -147,7 +147,7 @@ class TestGCPLandsat(unittest.TestCase):
 
         self.assertEqual(len(rows), 1)
 
-        metadata = Metadata(rows[0])
+        metadata = rows[0]
         landsat = Landsat(metadata)
 
         # get a numpy.ndarray from bands for specified imagery
@@ -176,7 +176,7 @@ class TestGCPLandsat(unittest.TestCase):
             bounding_box=bounding_box,
             sql_filters=sql_filters)
 
-        metadata = Metadata(rows[0], self.base_mount_path)
+        metadata = rows[0]
         landsat = Landsat(metadata)
         vrt = landsat.get_vrt([4])
         storage = Storage("gcp-public-data-landsat")
@@ -202,7 +202,7 @@ class TestGCPLandsat(unittest.TestCase):
             bounding_box=bounding_box,
             sql_filters=sql_filters)
 
-        metadata = Metadata(rows[0], self.base_mount_path)
+        metadata = rows[0]
         landsat = Landsat(metadata)
         vrt = landsat.get_vrt([4])
         storage = Storage("gcp-public-data-landsat")
@@ -220,7 +220,7 @@ class TestGCPLandsat(unittest.TestCase):
                                             bounding_box=bounding_box,
                                             limit=1, sql_filters=sql_filters)
 
-        metadata = Metadata(rows[0], self.base_mount_path)
+        metadata = rows[0]
         landsat = Landsat(metadata)
         vrt = landsat.get_vrt([4, 3, 2])
         with open('test_1.vrt', 'r') as myfile:
@@ -253,11 +253,11 @@ class TestStorage(unittest.TestCase):
         d_end = date(2016, 6, 24)
         bounding_box = (-115.927734375, 34.52466147177172, -78.31054687499999, 44.84029065139799)
         rows = metadata_service.search(SpacecraftID.LANDSAT_8, start_date=d_start, end_date=d_end, bounding_box=bounding_box, limit=1)
-        path = rows[0][17]
-        gsurl = urlparse(path)
-        storage = Storage(gsurl[1])
 
-        metadata = Metadata(rows[0], self.base_mount_path)
+        metadata = rows[0]
+        storage = Storage(metadata.bucket_name)
+
+        metadata = rows[0]
         self.assertTrue(storage.mount_sub_folder(metadata, "generic"))
         self.assertTrue(storage.unmount_sub_folder(metadata, "generic"))
 
@@ -268,10 +268,10 @@ class TestStorage(unittest.TestCase):
         bounding_box = (-115.927734375, 34.52466147177172, -78.31054687499999, 44.84029065139799)
         rows = metadata_service.search(SpacecraftID.LANDSAT_8, start_date=d_start, end_date=d_end,
                                        bounding_box=bounding_box, limit=1)
-        path = rows[0][17]
-        gsurl = urlparse(path)
-        storage_1 = Storage(gsurl[1])
-        storage_2 = Storage(gsurl[1])
+
+        metadata = rows[0]
+        storage_1 = Storage(metadata.bucket_name)
+        storage_2 = Storage(metadata.bucket_name)
         self.assertTrue(storage_1 is storage_2)
 
     def test_delete_storage(self):
@@ -281,11 +281,9 @@ class TestStorage(unittest.TestCase):
         bounding_box = (-115.927734375, 34.52466147177172, -78.31054687499999, 44.84029065139799)
         rows = metadata_service.search(SpacecraftID.LANDSAT_8, start_date=d_start, end_date=d_end,
                                        bounding_box=bounding_box, limit=1)
-        path = rows[0][17]
-        gsurl = urlparse(path)
-        storage = Storage(gsurl[1])
+        metadata = rows[0]
+        storage = Storage(metadata.bucket_name)
 
-        metadata = Metadata(rows[0], self.base_mount_path)
         self.assertTrue(storage.mount_sub_folder(metadata, "generic"))
         files = [f for f in os.listdir(metadata.full_mount_path) if
                  os.path.isfile(os.path.join(metadata.full_mount_path, f))]
@@ -305,7 +303,7 @@ class TestStorage(unittest.TestCase):
 
 
 class TestGCPPixelFunctions(unittest.TestCase):
-    m_row_data = None
+    m_metadata = None
     base_mount_path = '/imagery'
     metadata_service = MetadataService()
     iowa_polygon = None
@@ -323,7 +321,7 @@ class TestGCPPixelFunctions(unittest.TestCase):
         rows = metadata_service.search(SpacecraftID.LANDSAT_8, start_date=d_start, end_date=d_end,
                                        bounding_box=bounding_box,
                                        limit=1, sql_filters=sql_filters)
-        self.m_row_data = rows[0]
+        self.m_metadata = rows[0]
         wkt_iowa = "POLYGON((-93.76075744628906 42.32707774458643,-93.47854614257812 42.32707774458643," \
                    "-93.47854614257812 42.12674735753131,-93.76075744628906 42.12674735753131," \
                    "-93.76075744628906 42.32707774458643))"
@@ -343,10 +341,10 @@ class TestGCPPixelFunctions(unittest.TestCase):
             sql_filters=sql_filters)
 
         for row in rows:
-            self.metadata_set.append(Metadata(row, self.base_mount_path))
+            self.metadata_set.append(row)
 
     def test_pixel_1(self):
-        metadata = Metadata(self.m_row_data, self.base_mount_path)
+        metadata = self.m_metadata
         landsat = Landsat(metadata)  # , gsurl[2])
 
         code = """import numpy as np
@@ -377,8 +375,7 @@ def multiply_rounded(in_ar, out_ar, xoff, yoff, xsize, ysize, raster_xsize,
         NDVI = (5 - 4) / (5 + 4)
         :return:
         """
-        metadata = Metadata(self.m_row_data, self.base_mount_path)
-        landsat = Landsat(metadata)  # , gsurl[2])
+        landsat = Landsat(self.m_metadata)  # , gsurl[2])
 
         code = """import numpy as np
 def ndvi_numpy(in_ar, out_ar, xoff, yoff, xsize, ysize, raster_xsize, raster_ysize, buf_radius, gt, **kwargs):
@@ -436,7 +433,7 @@ def ndvi_numpy(in_ar, out_ar, xoff, yoff, xsize, ysize, raster_xsize, raster_ysi
             end_date=d_end,
             bounding_box=bounding_box,
             sql_filters=sql_filters)
-        metadata = Metadata(rows[0], self.base_mount_path)
+        metadata = rows[0]
         landsat = Landsat(metadata)
 
         code = """import numpy as np
@@ -489,7 +486,7 @@ def ndvi_numpy(in_ar, out_ar, xoff, yoff, xsize, ysize, raster_xsize, raster_ysi
             end_date=d_end,
             bounding_box=bounding_box,
             sql_filters=sql_filters)
-        metadata = Metadata(rows[0], self.base_mount_path)
+        metadata = rows[0]
         landsat = Landsat(metadata)
 
         code = """import numpy as np
@@ -586,7 +583,7 @@ def ndvi_numpy(in_ar, out_ar, xoff, yoff, xsize, ysize, raster_xsize, raster_ysi
     #     rows = metadata_service.search(SpacecraftID.LANDSAT_8, sql_filters=sql_filters)
     #
     #
-    #     metadata = Metadata(rows[0], self.base_mount_path)
+    #     metadata = rows[0]
     #     gsurl = urlparse(metadata.base_url)
     #     storage = Storage(gsurl[1])
     #
@@ -722,8 +719,8 @@ class TestRasterMetadata(unittest.TestCase):
                                             limit=2,
                                             sql_filters=sql_filters)
 
-        metadata_1 = Metadata(rows[0], self.base_mount_path)
-        metadata_2 = Metadata(rows[1], self.base_mount_path)
+        metadata_1 = rows[0]
+        metadata_2 = rows[1]
 
         bands = [Band.RED, Band.BLUE, Band.GREEN]
 
@@ -753,7 +750,7 @@ class TestRasterMetadata(unittest.TestCase):
             sql_filters=sql_filters)
         self.assertEqual(len(rows), 1)
 
-        metadata = Metadata(rows[0])
+        metadata = rows[0]
 
         bands = [Band.RED, Band.BLUE, Band.GREEN]
 
@@ -794,7 +791,7 @@ class TestRasterMetadata(unittest.TestCase):
             sql_filters=sql_filters)
         self.assertEqual(len(rows), 1)
 
-        metadata = Metadata(rows[0], self.base_mount_path)
+        metadata = rows[0]
 
         # GDAL helper functions for generating VRT
         landsat = Landsat(metadata)

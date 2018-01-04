@@ -34,8 +34,8 @@ class TestMetaDataSQL(unittest.TestCase):
         rows = metadata_service.search(SpacecraftID.LANDSAT_8, start_date=d)
         self.assertEqual(len(rows), 10)
         for row in rows:
-            self.assertEqual(row[2], SpacecraftID.LANDSAT_8.name)
-            d_actual = datetime.datetime.strptime(row[4], '%Y-%m-%d').date()
+            self.assertEqual(row.spacecraft_id.name, SpacecraftID.LANDSAT_8.name)
+            d_actual = datetime.datetime.strptime(row.date_acquired, '%Y-%m-%d').date()
             self.assertGreaterEqual(d_actual, d)
 
     def test_end_date(self):
@@ -45,8 +45,8 @@ class TestMetaDataSQL(unittest.TestCase):
         rows = metadata_service.search(SpacecraftID.LANDSAT_7, end_date=d)
         self.assertEqual(len(rows), 10)
         for row in rows:
-            self.assertEqual(row[2], SpacecraftID.LANDSAT_7.name)
-            d_actual = datetime.datetime.strptime(row[4], '%Y-%m-%d').date()
+            self.assertEqual(row.spacecraft_id.name, SpacecraftID.LANDSAT_7.name)
+            d_actual = datetime.datetime.strptime(row.date_acquired, '%Y-%m-%d').date()
             self.assertLessEqual(d_actual, d)
 
     def test_one_day(self):
@@ -56,8 +56,8 @@ class TestMetaDataSQL(unittest.TestCase):
         rows = metadata_service.search(SpacecraftID.LANDSAT_8, start_date=d, end_date=d)
         self.assertEqual(len(rows), 10)
         for row in rows:
-            self.assertEqual(row[2], SpacecraftID.LANDSAT_8.name)
-            d_actual = datetime.datetime.strptime(row[4], '%Y-%m-%d').date()
+            self.assertEqual(row.spacecraft_id.name, SpacecraftID.LANDSAT_8.name)
+            d_actual = datetime.datetime.strptime(row.date_acquired, '%Y-%m-%d').date()
             self.assertEqual(d_actual, d)
 
     def test_1_year(self):
@@ -68,8 +68,8 @@ class TestMetaDataSQL(unittest.TestCase):
         rows = metadata_service.search(SpacecraftID.LANDSAT_8, start_date=d_start, end_date=d_end)
         self.assertEqual(len(rows), 10)
         for row in rows:
-            self.assertEqual(row[2], SpacecraftID.LANDSAT_8.name)
-            d_actual = datetime.datetime.strptime(row[4], '%Y-%m-%d').date()
+            self.assertEqual(row.spacecraft_id.name, SpacecraftID.LANDSAT_8.name)
+            d_actual = datetime.datetime.strptime(row.date_acquired, '%Y-%m-%d').date()
             self.assertLessEqual(d_actual, d_end)
             self.assertGreaterEqual(d_actual, d_start)
 
@@ -78,18 +78,24 @@ class TestMetaDataSQL(unittest.TestCase):
         d_start = date(2015, 6, 24)
         d_end = date(2016, 6, 24)
         bounding_box = (-115.927734375, 34.52466147177172, -78.31054687499999, 44.84029065139799)
-        rows = metadata_service.search(SpacecraftID.LANDSAT_8, start_date=d_start, end_date=d_end,
-                                       bounding_box=bounding_box)
-        self.assertEqual(len(rows), 10)
-        for row in rows:
-            self.assertEqual(row[2], SpacecraftID.LANDSAT_8.name)
-            d_actual = datetime.datetime.strptime(row[4], '%Y-%m-%d').date()
+        metadata_rows = metadata_service.search(SpacecraftID.LANDSAT_8,
+                                                start_date=d_start,
+                                                end_date=d_end,
+                                                bounding_box=bounding_box)
+
+        self.assertEqual(len(metadata_rows), 10)
+        for row in metadata_rows:
+            self.assertEqual(row.spacecraft_id.name, SpacecraftID.LANDSAT_8.name)
+            d_actual = datetime.datetime.strptime(row.date_acquired, '%Y-%m-%d').date()
             self.assertLessEqual(d_actual, d_end)
             self.assertGreaterEqual(d_actual, d_start)
+            test_box = row.bounds
             self.assertTrue(
-                (bounding_box[0] < row[14] < bounding_box[2]) or (bounding_box[0] < row[15] < bounding_box[2]))
+                (bounding_box[0] < test_box[2] < bounding_box[2]) or
+                (bounding_box[0] < test_box[0] < bounding_box[2]))
             self.assertTrue(
-                (bounding_box[1] < row[12] < bounding_box[3]) or (bounding_box[1] < row[13] < bounding_box[3]))
+                (bounding_box[1] < test_box[3] < bounding_box[3]) or
+                (bounding_box[1] < test_box[1] < bounding_box[3]))
 
     def test_cloud_cover(self):
         metadata_service = MetadataService()
@@ -106,14 +112,17 @@ class TestMetaDataSQL(unittest.TestCase):
 
         self.assertEqual(len(rows), 10)
         for row in rows:
-            self.assertEqual(row[2], SpacecraftID.LANDSAT_8.name)
-            d_actual = datetime.datetime.strptime(row[4], '%Y-%m-%d').date()
+            self.assertEqual(row.spacecraft_id.name, SpacecraftID.LANDSAT_8.name)
+            d_actual = datetime.datetime.strptime(row.date_acquired, '%Y-%m-%d').date()
             self.assertLessEqual(d_actual, d_end)
             self.assertGreaterEqual(d_actual, d_start)
+            test_box = row.bounds
             self.assertTrue(
-                (bounding_box[0] < row[14] < bounding_box[2]) or (bounding_box[0] < row[15] < bounding_box[2]))
+                (bounding_box[0] < test_box[2] < bounding_box[2]) or
+                (bounding_box[0] < test_box[0] < bounding_box[2]))
             self.assertTrue(
-                (bounding_box[1] < row[12] < bounding_box[3]) or (bounding_box[1] < row[13] < bounding_box[3]))
+                (bounding_box[1] < test_box[3] < bounding_box[3]) or
+                (bounding_box[1] < test_box[1] < bounding_box[3]))
 
     def test_no_bounding_box(self):
         d_start = date(2003, 4, 4)
@@ -331,7 +340,7 @@ class TestLandsat(unittest.TestCase):
         self.metadata_service = MetadataService()
 
         sql_filters = ['collection_number="PRE"']
-        rows = self.metadata_service.search(
+        metadata_rows = self.metadata_service.search(
             SpacecraftID.LANDSAT_8,
             start_date=d_start,
             end_date=d_end,
@@ -342,8 +351,8 @@ class TestLandsat(unittest.TestCase):
         # mounted directory in docker container
         base_mount_path = '/imagery'
 
-        for row in rows:
-            self.metadata_set.append(Metadata(row, base_mount_path))
+        for row in metadata_rows:
+            self.metadata_set.append(row)
 
     def test_gdal_info(self):
         d_start = date(2015, 6, 24)
@@ -352,11 +361,9 @@ class TestLandsat(unittest.TestCase):
         rows = self.metadata_service.search(SpacecraftID.LANDSAT_8, start_date=d_start, end_date=d_end,
                                             bounding_box=bounding_box,
                                             limit=1)
-        path = rows[0][17]
-        gsurl = urlparse(path)
-        storage = Storage(gsurl[1])
+        metadata = rows[0]
+        storage = Storage(metadata.bucket_name)
 
-        metadata = Metadata(rows[0], self.base_mount_path)
         b_mounted = storage.mount_sub_folder(metadata, "generic")
         self.assertTrue(b_mounted)
         b_deleted = storage.unmount_sub_folder(metadata, "generic")
@@ -378,7 +385,7 @@ class TestLandsat(unittest.TestCase):
                                             limit=1,
                                             sql_filters=sql_filters)
 
-        metadata = Metadata(rows[0], self.base_mount_path)
+        metadata = rows[0]
 
         landsat = Landsat(metadata)
         self.assertIsNotNone(landsat)
@@ -401,7 +408,7 @@ class TestLandsat(unittest.TestCase):
         # '2016-07-26T18:14:46.9465460Z', 'PRE', 'N/A', 'L1T', 39, 33, 1.69,
         # 39.96962, 37.81744, -115.27267, -112.56732, 1070517542,
         # 'gs://gcp-public-data-landsat/LC08/PRE/039/033/LC80390332016208LGN00']
-        metadata = Metadata(rows[0], self.base_mount_path)
+        metadata = rows[0]
 
         # GDAL helper functions for generating VRT
         landsat = Landsat([metadata])
@@ -463,7 +470,7 @@ class TestLandsat(unittest.TestCase):
         d_end = date(2016, 7, 28)
         rows = self.metadata_service.search(SpacecraftID.LANDSAT_8, start_date=d_start, end_date=d_end, limit=1,
                                             sql_filters=['scene_id="LC80390332016208LGN00"'])
-        metadata = Metadata(rows[0])
+        metadata = rows[0]
         landsat = Landsat(metadata)
         scale_params = [[0.0, 65535], [0.0, 65535], [0.0, 65535]]
         # nda = landsat.__get_ndarray(band_numbers, metadata, scale_params)
