@@ -31,7 +31,7 @@ class TestAWSMetadata(unittest.TestCase):
                                       end_date=start_date,
                                       sql_filters=["wrs_path=139", "wrs_row=45", "collection_number='PRE'"])
         self.assertEqual(len(rows), 1)
-        metadata = Metadata(rows[0])
+        metadata = rows[0]
         self.assertEqual(metadata.get_aws_file_path(), "/imagery/L8/139/045/LC81390452014295LGN00")
 
         rows = metadataservice.search(SpacecraftID.LANDSAT_8,
@@ -39,7 +39,7 @@ class TestAWSMetadata(unittest.TestCase):
                                       end_date=date(2017, 3, 4),
                                       sql_filters=["wrs_path=139", "wrs_row=45", "collection_number!='PRE'"])
         self.assertEqual(len(rows), 1)
-        metadata = Metadata(rows[0])
+        metadata = rows[0]
         self.assertEqual(metadata.get_aws_file_path(),
                          "/imagery/c1/L8/139/045/LC08_L1TP_139045_20170304_20170316_01_T1")
 
@@ -66,16 +66,16 @@ class TestAWSMetadata(unittest.TestCase):
         # c1/L8/083/111/LC08_L1GT_083111_20171106_20171107_01_RT
 
         sqs_message = {
-            "Type" : "Notification",
-            "MessageId" : "27f57c3d-9d2e-5fa3-8f83-2e41a3aa5634",
-            "TopicArn" : "arn:aws:sns:us-west-2:274514004127:NewSceneHTML",
-            "Subject" : "Amazon S3 Notification",
-            "Message" : "{\"Records\":[{\"eventVersion\":\"2.0\",\"eventSource\":\"aws:s3\",\"awsRegion\":\"us-west-2\",\"eventTime\":\"2017-11-07T23:05:40.162Z\",\"eventName\":\"ObjectCreated:Put\",\"userIdentity\":{\"principalId\":\"AWS:AIDAILHHXPNIKSGVUGOZK\"},\"requestParameters\":{\"sourceIPAddress\":\"35.193.238.175\"},\"responseElements\":{\"x-amz-request-id\":\"F96A6CC9816FC5EF\",\"x-amz-id-2\":\"yehs3XxTY8utc9kgKfNbMe1wdtV7F0wEMUXUQtIu7zMRtGvboxahzwncrmG046yI327j5IRh8nE=\"},\"s3\":{\"s3SchemaVersion\":\"1.0\",\"configurationId\":\"C1-NewHTML\",\"bucket\":{\"name\":\"landsat-pds\",\"ownerIdentity\":{\"principalId\":\"A3LZTVCZQ87CNW\"},\"arn\":\"arn:aws:s3:::landsat-pds\"},\"object\":{\"key\":\"c1/L8/115/062/LC08_L1TP_115062_20171107_20171107_01_RT/index.html\",\"size\":5391,\"eTag\":\"0f06667fca1f707894bf579bd667e221\",\"sequencer\":\"005A023C441A8F8403\"}}}]}",
-            "Timestamp" : "2017-11-07T23:05:40.219Z",
-            "SignatureVersion" : "1",
-            "Signature" : "bqrW1x6CgJntCz6f0F5uncyPZR+6ZM/tZ3OrRZDiudBv5DAtMyYR9n6KQ0aT+iYP5INfpL2GuIm8Uqco8ZHzg5AqEhHtNkpzGBQpQHvlF3t0ut9K27YNwJ6ZmnS14BgsLWyXIthVRjvHf1Hhx3ZInPMJrzTcKCOhOmBcM9zOpfWrHfnynuifpN3FaldDz6VY2d9QM0Rn8Fo8XZ4F+j01eAJVlydnRbSBbLewleuvhPQh6EG5r2EeekeniOIETrodS7o43ZClFr8OSgRE7BvpecVnnUEXBUIDDtRAPnIxo3Io0AmfPRI8xRfeKNhBIhPq3W3clm7Dxkp3N96OKoVUBw==",
-            "SigningCertURL" : "https://sns.us-west-2.amazonaws.com/SimpleNotificationService-433026a4050d206028891664da859041.pem",
-            "UnsubscribeURL" : "https://sns.us-west-2.amazonaws.com/?Action=Unsubscribe&SubscriptionArn=arn:aws:sns:us-west-2:274514004127:NewSceneHTML:7997d757-d1c6-4064-8935-34111968c8cc"
+            "Type": "Notification",
+            "MessageId": "27f57c3d-9d2e-5fa3-8f83-2e41a3aa5634",
+            "TopicArn": "arn:aws:sns:us-west-2:274514004127:NewSceneHTML",
+            "Subject": "Amazon S3 Notification",
+            "Message": "{\"Records\":[{\"eventVersion\":\"2.0\",\"eventSource\":\"aws:s3\",\"awsRegion\":\"us-west-2\",\"eventTime\":\"2017-11-07T23:05:40.162Z\",\"eventName\":\"ObjectCreated:Put\",\"userIdentity\":{\"principalId\":\"AWS:AIDAILHHXPNIKSGVUGOZK\"},\"requestParameters\":{\"sourceIPAddress\":\"35.193.238.175\"},\"responseElements\":{\"x-amz-request-id\":\"F96A6CC9816FC5EF\",\"x-amz-id-2\":\"yehs3XxTY8utc9kgKfNbMe1wdtV7F0wEMUXUQtIu7zMRtGvboxahzwncrmG046yI327j5IRh8nE=\"},\"s3\":{\"s3SchemaVersion\":\"1.0\",\"configurationId\":\"C1-NewHTML\",\"bucket\":{\"name\":\"landsat-pds\",\"ownerIdentity\":{\"principalId\":\"A3LZTVCZQ87CNW\"},\"arn\":\"arn:aws:s3:::landsat-pds\"},\"object\":{\"key\":\"c1/L8/115/062/LC08_L1TP_115062_20171107_20171107_01_RT/index.html\",\"size\":5391,\"eTag\":\"0f06667fca1f707894bf579bd667e221\",\"sequencer\":\"005A023C441A8F8403\"}}}]}",
+            "Timestamp": "2017-11-07T23:05:40.219Z",
+            "SignatureVersion": "1",
+            "Signature": "bqrW1x6CgJntCz6f0F5uncyPZR+6ZM/tZ3OrRZDiudBv5DAtMyYR9n6KQ0aT+iYP5INfpL2GuIm8Uqco8ZHzg5AqEhHtNkpzGBQpQHvlF3t0ut9K27YNwJ6ZmnS14BgsLWyXIthVRjvHf1Hhx3ZInPMJrzTcKCOhOmBcM9zOpfWrHfnynuifpN3FaldDz6VY2d9QM0Rn8Fo8XZ4F+j01eAJVlydnRbSBbLewleuvhPQh6EG5r2EeekeniOIETrodS7o43ZClFr8OSgRE7BvpecVnnUEXBUIDDtRAPnIxo3Io0AmfPRI8xRfeKNhBIhPq3W3clm7Dxkp3N96OKoVUBw==",
+            "SigningCertURL": "https://sns.us-west-2.amazonaws.com/SimpleNotificationService-433026a4050d206028891664da859041.pem",
+            "UnsubscribeURL": "https://sns.us-west-2.amazonaws.com/?Action=Unsubscribe&SubscriptionArn=arn:aws:sns:us-west-2:274514004127:NewSceneHTML:7997d757-d1c6-4064-8935-34111968c8cc"
         }
 
         d = datetime.datetime.strptime(sqs_message['Timestamp'], "%Y-%m-%dT%H:%M:%S.%fZ")
@@ -83,7 +83,7 @@ class TestAWSMetadata(unittest.TestCase):
         rows = metadata_service.search_aws('/imagery', wrs_path=115, wrs_row=62, collection_date=d)
         self.assertGreater(len(rows), 0)
 
-        metadata = Metadata(rows[0])
+        metadata = rows[0]
         self.assertIsNotNone(metadata)
 
         landsat = Landsat(metadata)
@@ -92,33 +92,33 @@ class TestAWSMetadata(unittest.TestCase):
 
     def test_aws_from_image_key(self):
         sqs_message = {
-            "Type" : "Notification",
-            "MessageId" : "27f57c3d-9d2e-5fa3-8f83-2e41a3aa5634",
-            "TopicArn" : "arn:aws:sns:us-west-2:274514004127:NewSceneHTML",
-            "Subject" : "Amazon S3 Notification",
-            "Message" : "{\"Records\":[{\"eventVersion\":\"2.0\",\"eventSource\":\"aws:s3\",\"awsRegion\":\"us-west-2\",\"eventTime\":\"2017-11-07T23:05:40.162Z\",\"eventName\":\"ObjectCreated:Put\",\"userIdentity\":{\"principalId\":\"AWS:AIDAILHHXPNIKSGVUGOZK\"},\"requestParameters\":{\"sourceIPAddress\":\"35.193.238.175\"},\"responseElements\":{\"x-amz-request-id\":\"F96A6CC9816FC5EF\",\"x-amz-id-2\":\"yehs3XxTY8utc9kgKfNbMe1wdtV7F0wEMUXUQtIu7zMRtGvboxahzwncrmG046yI327j5IRh8nE=\"},\"s3\":{\"s3SchemaVersion\":\"1.0\",\"configurationId\":\"C1-NewHTML\",\"bucket\":{\"name\":\"landsat-pds\",\"ownerIdentity\":{\"principalId\":\"A3LZTVCZQ87CNW\"},\"arn\":\"arn:aws:s3:::landsat-pds\"},\"object\":{\"key\":\"c1/L8/115/062/LC08_L1TP_115062_20171107_20171107_01_RT/index.html\",\"size\":5391,\"eTag\":\"0f06667fca1f707894bf579bd667e221\",\"sequencer\":\"005A023C441A8F8403\"}}}]}",
-            "Timestamp" : "2017-11-07T23:05:40.219Z",
-            "SignatureVersion" : "1",
-            "Signature" : "bqrW1x6CgJntCz6f0F5uncyPZR+6ZM/tZ3OrRZDiudBv5DAtMyYR9n6KQ0aT+iYP5INfpL2GuIm8Uqco8ZHzg5AqEhHtNkpzGBQpQHvlF3t0ut9K27YNwJ6ZmnS14BgsLWyXIthVRjvHf1Hhx3ZInPMJrzTcKCOhOmBcM9zOpfWrHfnynuifpN3FaldDz6VY2d9QM0Rn8Fo8XZ4F+j01eAJVlydnRbSBbLewleuvhPQh6EG5r2EeekeniOIETrodS7o43ZClFr8OSgRE7BvpecVnnUEXBUIDDtRAPnIxo3Io0AmfPRI8xRfeKNhBIhPq3W3clm7Dxkp3N96OKoVUBw==",
-            "SigningCertURL" : "https://sns.us-west-2.amazonaws.com/SimpleNotificationService-433026a4050d206028891664da859041.pem",
-            "UnsubscribeURL" : "https://sns.us-west-2.amazonaws.com/?Action=Unsubscribe&SubscriptionArn=arn:aws:sns:us-west-2:274514004127:NewSceneHTML:7997d757-d1c6-4064-8935-34111968c8cc"
+            "Type": "Notification",
+            "MessageId": "27f57c3d-9d2e-5fa3-8f83-2e41a3aa5634",
+            "TopicArn": "arn:aws:sns:us-west-2:274514004127:NewSceneHTML",
+            "Subject": "Amazon S3 Notification",
+            "Message": "{\"Records\":[{\"eventVersion\":\"2.0\",\"eventSource\":\"aws:s3\",\"awsRegion\":\"us-west-2\",\"eventTime\":\"2017-11-07T23:05:40.162Z\",\"eventName\":\"ObjectCreated:Put\",\"userIdentity\":{\"principalId\":\"AWS:AIDAILHHXPNIKSGVUGOZK\"},\"requestParameters\":{\"sourceIPAddress\":\"35.193.238.175\"},\"responseElements\":{\"x-amz-request-id\":\"F96A6CC9816FC5EF\",\"x-amz-id-2\":\"yehs3XxTY8utc9kgKfNbMe1wdtV7F0wEMUXUQtIu7zMRtGvboxahzwncrmG046yI327j5IRh8nE=\"},\"s3\":{\"s3SchemaVersion\":\"1.0\",\"configurationId\":\"C1-NewHTML\",\"bucket\":{\"name\":\"landsat-pds\",\"ownerIdentity\":{\"principalId\":\"A3LZTVCZQ87CNW\"},\"arn\":\"arn:aws:s3:::landsat-pds\"},\"object\":{\"key\":\"c1/L8/115/062/LC08_L1TP_115062_20171107_20171107_01_RT/index.html\",\"size\":5391,\"eTag\":\"0f06667fca1f707894bf579bd667e221\",\"sequencer\":\"005A023C441A8F8403\"}}}]}",
+            "Timestamp": "2017-11-07T23:05:40.219Z",
+            "SignatureVersion": "1",
+            "Signature": "bqrW1x6CgJntCz6f0F5uncyPZR+6ZM/tZ3OrRZDiudBv5DAtMyYR9n6KQ0aT+iYP5INfpL2GuIm8Uqco8ZHzg5AqEhHtNkpzGBQpQHvlF3t0ut9K27YNwJ6ZmnS14BgsLWyXIthVRjvHf1Hhx3ZInPMJrzTcKCOhOmBcM9zOpfWrHfnynuifpN3FaldDz6VY2d9QM0Rn8Fo8XZ4F+j01eAJVlydnRbSBbLewleuvhPQh6EG5r2EeekeniOIETrodS7o43ZClFr8OSgRE7BvpecVnnUEXBUIDDtRAPnIxo3Io0AmfPRI8xRfeKNhBIhPq3W3clm7Dxkp3N96OKoVUBw==",
+            "SigningCertURL": "https://sns.us-west-2.amazonaws.com/SimpleNotificationService-433026a4050d206028891664da859041.pem",
+            "UnsubscribeURL": "https://sns.us-west-2.amazonaws.com/?Action=Unsubscribe&SubscriptionArn=arn:aws:sns:us-west-2:274514004127:NewSceneHTML:7997d757-d1c6-4064-8935-34111968c8cc"
         }
         message_json = json.loads(sqs_message['Message'])
         image_key = message_json['Records'][0]['s3']['object']['key']
         path_name = '/imagery/' + os.path.dirname(image_key)
         # basename = os.path.basename(path_name)
-        metadata = Metadata(path_name)
+        metadata = path_name
         self.assertEqual(115, metadata.wrs_path)
         self.assertEqual(62, metadata.wrs_row)
 
     def test_wrs_from_key_bug(self):
         failed = "/imagery/c1/L8/010/045/LC08_L1TP_010045_20171022_20171107_01_T1"
-        metadata = Metadata(failed)
+        metadata = failed
         self.assertIsNotNone(metadata)
 
     def test_cloud_cover(self):
         failed = "/imagery/c1/L8/020/035/LC08_L1TP_020035_20171028_20171108_01_T1"
-        metadata = Metadata(failed)
+        metadata = failed
         self.assertIsNotNone(metadata)
         metadata.parse_mtl("LC08_L1TP_020035_20171028_20171108_01_T1_MTL.json")
         self.assertIsNotNone(metadata.cloud_cover)
@@ -131,7 +131,7 @@ class TestAWSMetadata(unittest.TestCase):
 
     def test_gt(self):
         failed = "/imagery/c1/L8/137/208/LT08_L1GT_137208_20171117_20171117_01_RT"
-        metadata = Metadata(failed)
+        metadata = failed
         self.assertIsNotNone(metadata)
 
     # def test_metadata_service(self):
