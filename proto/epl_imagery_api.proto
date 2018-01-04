@@ -51,7 +51,53 @@ message MetadataRequest {
 }
 
 message MetadataResult {
-    string row = 1;
+
+    //  # STRING	REQUIRED   Unique identifier for a particular Landsat image downlinked to
+    // a particular ground station.
+    string scene_id = 1;
+
+    string product_id = 2; //  # STRING	NULLABLE Unique identifier for a particular scene processed by the USGS at
+    // # a particular time, or null for pre-collection data.
+    SpacecraftID spacecraft_id = 3;  //# SpacecraftID REQUIRED The spacecraft that acquired this
+    //# scene: one of 'LANDSAT_4' through 'LANDSAT_8'.
+    string sensor_id = 4; //  # STRING	NULLABLE The type of spacecraft sensor that acquired this scene: 'TM' fo
+    //# the Thematic Mapper, 'ETM' for the Enhanced Thematic Mapper+, or 'OLI/TIRS' for the Operational Land Imager
+    //# and Thermal Infrared Sensor.
+
+    string date_acquired = 5; //  # STRING	NULLABLE The date on which this scene was acquired (UTC).
+    string sensing_time = 6; //  # STRING	NULLABLE The approximate time at which this scene was acquired (UTC).
+    string collection_number = 7; //  # STRING	NULLABLE The Landsat collection that this image belongs to, e.g.
+    //# '01' for Collection 1 or 'PRE' for pre-collection data.
+    string collection_category = 8; //  # STRING	NULLABLE Indicates the processing level of the image: 'RT' for
+    // real-time, 'T1' for Tier 1, 'T2' for Tier 2, and 'N/A' for pre-collection data. RT images will be replaced
+    // with Tier 1 or Tier 2 images as they become available.
+    string data_type = 9; //  # STRING	NULLABLE The type of processed image, e.g. 'L1T' for Level 1
+    // terrain-corrected images.
+    int32 wrs_path = 10; //  # INTEGER	NULLABLE The path number of this scene's location in the Worldwide
+    // Reference System (WRS).
+    int32 wrs_row = 11; //  # INTEGER	NULLABLE The row number of this scene's location in the Worldwide
+    // Reference System (WRS).
+    float cloud_cover = 12; //  # FLOAT	NULLABLE Estimated percentage of this scene affected by cloud cover.
+    float north_lat = 13; //  # FLOAT	NULLABLE The northern latitude of the bounding box of this scene.
+    float south_lat = 14; //  # FLOAT	NULLABLE The southern latitude of the bounding box of this scene.
+    float west_lon = 15; //  # FLOAT	NULLABLE The western longitude of the bounding box of this scene.
+    float east_lon = 16; //  # FLOAT	NULLABLE The eastern longitude of the bounding box of this scene.
+    int32 total_size = 17; //  # INTEGER	NULLABLE The total size of this scene in bytes.
+    string base_url = 18; //  # STRING	NULLABLE The base URL for this scene in Cloud Storage.
+
+    // TODO, test some AWS data that is sensed on one date and then processed at another
+    int32 doy = 19;
+
+//    Band self.band_map = BandMap(self.spacecraft_id)
+
+    // TODO dateline testing
+//        self.center_lat = (self.north_lat - self.south_lat) / 2 + self.south_lat
+//        self.center_lon = (self.east_lon - self.west_lon) / 2 + self.west_lon
+
+    int32 utm_epsg_code = 20;
+
+    //  (minx, miny, maxx, maxy)
+    repeated float bounds = 21;
 }
 
 
@@ -74,21 +120,21 @@ enum DataType {
 enum Band {
     // Crazy Values so that the Band.<ENUM>.value isn't used for anything
     UNKNOWN_BAND = 0;
-    ULTRA_BLUE = 1;
-    BLUE = 2;
-    GREEN = 3;
-    RED = 4;
-    NIR = 5;
-    SWIR1 = 6;
-    THERMAL = 7;
-    SWIR2 = 8;
-    PANCHROMATIC = 9;
-    CIRRUS = 10;
-    TIRS1 = 11;
-    TIRS2 = 12;
-    INFRARED2 = 13;
-    INFRARED1 = 14;
-    ALPHA = 15;
+    ULTRA_BLUE = 1001;
+    BLUE = 1002;
+    GREEN = 1003;
+    RED = 1004;
+    NIR = 1005;
+    SWIR1 = 1006;
+    THERMAL = 1007;
+    SWIR2 = 1008;
+    PANCHROMATIC = 1009;
+    CIRRUS = 1010;
+    TIRS1 = 1011;
+    TIRS2 = 1012;
+    INFRARED2 = 1013;
+    INFRARED1 = 1014;
+    ALPHA = 1015;
 }
 
 enum SpacecraftID {

@@ -20,6 +20,8 @@ import glob
 import re
 import numpy as np
 
+from typing import List
+
 from pyqtree import Index
 from datetime import date
 from datetime import datetime
@@ -51,7 +53,7 @@ class __Singleton(type):
 
 
 class SpacecraftID(IntEnum):
-    UNKNOWN = 0
+    UNKNOWN_SPACECRAFT = 0
     LANDSAT_1_MSS = 1
     LANDSAT_2_MSS = 2
     LANDSAT_3_MSS = 4
@@ -69,22 +71,22 @@ class SpacecraftID(IntEnum):
 
 class Band(Enum):
     # Crazy Values so that the Band.<ENUM>.value isn't used for anything
-    UNKNOWN = 0
-    ULTRA_BLUE = 1
-    BLUE = 2
-    GREEN = 3
-    RED = 4
-    NIR = 5
-    SWIR1 = 6
-    THERMAL = 7
-    SWIR2 = 8
-    PANCHROMATIC = 9
-    CIRRUS = 10
-    TIRS1 = 11
-    TIRS2 = 12
-    INFRARED2 = 13
-    INFRARED1 = 14
-    ALPHA = 15
+    UNKNOWN_BAND = 0
+    ULTRA_BLUE = 1001
+    BLUE = 1002
+    GREEN = 1003
+    RED = 1004
+    NIR = 1005
+    SWIR1 = 1006
+    THERMAL = 1007
+    SWIR2 = 1008
+    PANCHROMATIC = 1009
+    CIRRUS = 1010
+    TIRS1 = 1011
+    TIRS2 = 1012
+    INFRARED2 = 1013
+    INFRARED1 = 1014
+    ALPHA = 1015
 
 
 class DataType(Enum):
@@ -123,7 +125,11 @@ class BandMap:
         SpacecraftID.LANDSAT_8: {
             # TODO min resolution should be 15 for LANDSAT_8?
             'max_resolution': 30,
-            Band.ULTRA_BLUE: {'number': 1, 'wavelength_range': (0.435, 0.451), 'description': 'Coastal and aerosol studies', 'resolution_m': 30},
+            Band.ULTRA_BLUE: {
+                'number': 1,
+                'wavelength_range': (0.435, 0.451),
+                'description': 'Coastal and aerosol studies',
+                'resolution_m': 30},
             Band.BLUE: {'number': 2, 'wavelength_range': (0.452, 0.512), 'description': 'Bathymetric mapping, distinguishing soil from vegetation, and deciduous from coniferous vegetation', 'resolution_m': 30},
             Band.GREEN: {'number': 3, 'wavelength_range': (0.533, 0.590), 'description': 'Emphasizes peak vegetation, which is useful for assessing plant vigor', 'resolution_m': 30},
             Band.RED: {'number': 4, 'wavelength_range': (0.636, 0.673), 'description': 'Discriminates vegetation slopes', 'resolution_m': 30},
@@ -1022,6 +1028,7 @@ class Sentinel2:
 
 class MetadataService(metaclass=__Singleton):
 
+
     """
     Notes on WRS-2 Landsat 8's Operational Land Imager (OLI) and/or Thermal Infrared Sensor (TIRS) sensors acquired
     nearly 10,000 scenes from just after its February 11, 2013 launch through April 10, 2013, during when the
@@ -1130,7 +1137,8 @@ LIMIT 1"""
             end_date=None,
             sort_by=None,
             limit=10,
-            sql_filters=None):
+            sql_filters=None,
+            base_mount_path='/imagery') -> List[Metadata]:
         # # Perform a synchronous query.
         query_builder = 'SELECT * FROM [bigquery-public-data:cloud_storage_geo_index.landsat_index]'
 
@@ -1206,7 +1214,10 @@ return bIntersecting;"""
         query.timeout_ms = self.m_timeout_ms
         query.run()
 
-        return query.rows
+        metadata_rows = []
+        for row in query.rows:
+            metadata_rows.append(Metadata(row, base_mount_path))
+        return metadata_rows
 
 
 class Storage(metaclass=__Singleton):
