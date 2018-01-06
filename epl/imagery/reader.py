@@ -479,7 +479,11 @@ LLNppprrrOOYYDDDMM_AA.TIF  where:
             partial = self.product_id[:25]
             search = glob.glob(self.base_mount_path + "/c1" + path + partial + "*")
             if len(search) != 1:
-                raise Exception("glob returned {0} results for the following path search {1}".format(len(search), partial))
+                # there is a potential situation where AWS has processed the PRE and removed PRE data but google only has PRE
+                partial = self.scene_id[:16]
+                search = glob.glob(self.base_mount_path + path + partial + "*")
+                if len(search) != 1:
+                    raise Exception("glob returned {0} results for the following path search {1}".format(len(search), partial))
             # update the product_id
             self.product_id = search[0].split("/")[-1]
 
@@ -1127,7 +1131,10 @@ LIMIT 1"""
                                                          str(collection_date.day).zfill(2))
 
         paths = glob.glob(path + directory)
-        return paths
+        metadata_rows = []
+        for row in paths:
+            metadata_rows.append(Metadata(row, mount_base_path))
+        return metadata_rows
 
     def search(
             self,

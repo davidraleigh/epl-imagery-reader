@@ -124,19 +124,6 @@ class TestMetaDataSQL(unittest.TestCase):
                 (bounding_box[1] < test_box[3] < bounding_box[3]) or
                 (bounding_box[1] < test_box[1] < bounding_box[3]))
 
-    def test_no_bounding_box(self):
-        d_start = date(2003, 4, 4)
-        d_end = date(2003, 4, 7)
-        sql_filters = ['wrs_row=49', 'wrs_path=125']
-        metadata_service = MetadataService()
-        rows = metadata_service.search(
-            satellite_id=None,
-            start_date=d_start,
-            end_date=d_end,
-            bounding_box=None,
-            sql_filters=sql_filters)
-        self.assertEqual(len(rows), 3)
-
     def test_metadata_singleton(self):
         metadata_service_1 = MetadataService()
         metadata_service_2 = MetadataService()

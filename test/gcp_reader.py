@@ -20,6 +20,19 @@ from test.tools.test_helpers import xml_compare
 
 
 class TestGCPMetadataSQL(unittest.TestCase):
+    def test_no_bounding_box(self):
+        d_start = date(2003, 4, 4)
+        d_end = date(2003, 4, 7)
+        sql_filters = ['wrs_row=49', 'wrs_path=125']
+        metadata_service = MetadataService()
+        rows = metadata_service.search(
+            satellite_id=None,
+            start_date=d_start,
+            end_date=d_end,
+            bounding_box=None,
+            sql_filters=sql_filters)
+        self.assertEqual(len(rows), 3)
+
     def test_metatdata_file_list(self):
         wkt = "POLYGON((136.2469482421875 -27.57843813308233,138.6639404296875 -27.57843813308233," \
               "138.6639404296875 -29.82351878748485,136.2469482421875 -29.82351878748485,136." \
