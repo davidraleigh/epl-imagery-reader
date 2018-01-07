@@ -56,9 +56,9 @@ class TestAWSMetadata(unittest.TestCase):
                                        limit=1,
                                        sql_filters=sql_filters)
 
-        metadata = Metadata(rows[0], '/imagery')
-        self.assertNotEqual(rows[0][1], metadata.product_id)
-        self.assertNotEqual(rows[0][7], metadata.collection_category)
+        metadata = rows[0]
+        self.assertEqual('LC08_L1GT_114210_20170828_20170828_01_RT', metadata.product_id)
+        self.assertEqual('RT', metadata.collection_category)
 
     def test_aws_without_google(self):
         metadata_service = MetadataService()
@@ -107,7 +107,7 @@ class TestAWSMetadata(unittest.TestCase):
         image_key = message_json['Records'][0]['s3']['object']['key']
         path_name = '/imagery/' + os.path.dirname(image_key)
         # basename = os.path.basename(path_name)
-        metadata = path_name
+        metadata = Metadata(path_name)
         self.assertEqual(115, metadata.wrs_path)
         self.assertEqual(62, metadata.wrs_row)
 
@@ -118,7 +118,7 @@ class TestAWSMetadata(unittest.TestCase):
 
     def test_cloud_cover(self):
         failed = "/imagery/c1/L8/020/035/LC08_L1TP_020035_20171028_20171108_01_T1"
-        metadata = failed
+        metadata = Metadata(failed)
         self.assertIsNotNone(metadata)
         metadata.parse_mtl("LC08_L1TP_020035_20171028_20171108_01_T1_MTL.json")
         self.assertIsNotNone(metadata.cloud_cover)
@@ -198,10 +198,10 @@ class TestAWSPixelFunctions(unittest.TestCase):
             sql_filters=sql_filters)
 
         for row in rows:
-            self.metadata_set.append(Metadata(row, self.base_mount_path))
+            self.metadata_set.append(row)
 
     def test_pixel_1(self):
-        metadata = Metadata(self.m_row_data, self.base_mount_path)
+        metadata = self.m_row_data
         landsat = Landsat(metadata)  # , gsurl[2])
 
         code = """import numpy as np
