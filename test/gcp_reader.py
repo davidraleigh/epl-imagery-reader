@@ -20,6 +20,34 @@ from test.tools.test_helpers import xml_compare
 
 
 class TestGCPMetadataSQL(unittest.TestCase):
+    def test_all_sat_data(self):
+        metadata_service = MetadataService()
+        sql_filters = ['cloud_cover=0']
+        d_start = date(2004, 6, 24)
+        d_end = date(2008, 6, 24)
+        bounding_box = (-115.927734375, 34.52466147177172, -114.31054687499999, 35.84029065139799)
+        rows = metadata_service.search(
+            start_date=d_start,
+            end_date=d_end,
+            bounding_box=bounding_box,
+            sql_filters=sql_filters)
+        rows = list(rows)
+        first_item = rows[0]
+        self.assertEqual(len(rows), 10)
+
+        rows = metadata_service.search(
+            satellite_id=SpacecraftID.UNKNOWN_SPACECRAFT,
+            start_date=d_start,
+            end_date=d_end,
+            bounding_box=bounding_box,
+            sql_filters=sql_filters)
+
+        rows = list(rows)
+        other_item = rows[0]
+        self.assertEqual(len(rows), 10)
+
+        self.assertEqual(first_item.scene_id, other_item.scene_id)
+
     def test_no_bounding_box(self):
         d_start = date(2003, 4, 4)
         d_end = date(2003, 4, 7)

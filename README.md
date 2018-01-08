@@ -108,3 +108,8 @@ LIMIT 1
 ```
 
 ## Development
+
+creating proto
+```bash
+python -mgrpc_tools.protoc -I=./proto/ --python_out=./epl/service/imagery --grpc_python_out=./epl/service/imagery ./proto/epl_imagery_api.proto
+```

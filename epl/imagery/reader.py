@@ -20,7 +20,7 @@ import glob
 import re
 import numpy as np
 
-from typing import List
+from typing import Generator
 
 from pyqtree import Index
 from datetime import date
@@ -870,7 +870,7 @@ class Landsat(Imagery):
 
         elem_raster_band = etree.SubElement(vrt_dataset, "VRTRasterBand")
 
-        if color_interp is not None:
+        if color_interp:
             etree.SubElement(elem_raster_band, "ColorInterp").text = color_interp
 
         elem_simple_source = self.__get_source_elem(band_number, calculated_metadata, block_size)
@@ -1145,12 +1145,12 @@ LIMIT 1"""
             sort_by=None,
             limit=10,
             sql_filters=None,
-            base_mount_path='/imagery') -> List[Metadata]:
+            base_mount_path='/imagery') -> Generator[Metadata, None, None]:
         # # Perform a synchronous query.
         query_builder = 'SELECT * FROM [bigquery-public-data:cloud_storage_geo_index.landsat_index]'
 
         clause_start = 'WHERE'
-        if satellite_id:
+        if satellite_id or satellite_id is SpacecraftID.UNKNOWN_SPACECRAFT:
             query_builder += ' {0} spacecraft_id="{1}"'.format(clause_start, satellite_id.name)
             clause_start = 'AND'
 
@@ -1173,21 +1173,22 @@ LIMIT 1"""
                                  '({0} >= west_lon AND east_lon >= {0}))'.format(minx, maxx, clause_start)
                 query_builder += ' AND ((south_lat <= {0} AND north_lat >= {0}) OR ' \
                                  '(south_lat > {0} AND {1} >= south_lat))'.format(miny, maxy)
-            clause_start = 'AND'
+                clause_start = 'AND'
 
-        if start_date is not None:
+        if start_date:
             query_builder += ' {0} date_acquired>="{1}"'.format(clause_start, start_date.isoformat())
             clause_start = 'AND'
-        if end_date is not None:
+        if end_date:
             query_builder += ' {0} date_acquired<="{1}"'.format(clause_start, end_date.isoformat())
             clause_start = 'AND'
 
-        if sql_filters is not None and len(sql_filters) > 0:
-
+        if sql_filters and len(sql_filters) > 0:
+            # because
             query_builder += ' {0} {1}'.format(clause_start, sql_filters[0])
-            clause_start = 'AND'
             for idx in range(1, len(sql_filters)):
                 query_builder += ' AND {}'.format(sql_filters[idx])
+
+            clause_start = 'AND'
 
         # TODO sort by area
         """
@@ -1214,17 +1215,18 @@ if (!bIntersecting)
 
 return bIntersecting;"""
 
-        if sort_by is not None:
+        if sort_by:
             query_builder += ' SORT BY {}'.format(sort_by)
 
         query = self.m_client.run_sync_query('{} LIMIT {}'.format(query_builder, limit))
         query.timeout_ms = self.m_timeout_ms
         query.run()
 
-        metadata_rows = []
-        for row in query.rows:
-            metadata_rows.append(Metadata(row, base_mount_path))
-        return metadata_rows
+        return (Metadata(row, base_mount_path) for row in query.rows)
+        # metadata_rows = []
+        # for row in query.rows:
+        #     metadata_rows.append(Metadata(row, base_mount_path))
+        # return metadata_rows
 
 
 class Storage(metaclass=__Singleton):

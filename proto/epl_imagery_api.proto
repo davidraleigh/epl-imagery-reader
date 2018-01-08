@@ -32,11 +32,11 @@ package geometry;
 /*
  gRPC Interfaces for working with geometry operators
 */
-service GeometryOperators {
+service ImageryOperators {
     // Execute a single geometry operation
-    rpc MetadataSearch(MetadataRequest) returns (MetadataResult) {}
+    rpc MetadataSearch(MetadataRequest) returns (stream MetadataResult) {}
 
-    rpc StreamOperations(stream OperatorRequest) returns (stream OperatorResult) {}
+//    rpc StreamOperations(stream OperatorRequest) returns (stream OperatorResult) {}
 }
 
 
@@ -47,7 +47,7 @@ message MetadataRequest {
     string end_date = 4;
     string sort_by= 5;
     int32 limit = 6;
-    string sql_filters = 7;
+    repeated string sql_filters = 7;
 }
 
 message MetadataResult {

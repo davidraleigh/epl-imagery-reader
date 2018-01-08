@@ -30,6 +30,8 @@ class TestAWSMetadata(unittest.TestCase):
                                       start_date=start_date,
                                       end_date=start_date,
                                       sql_filters=["wrs_path=139", "wrs_row=45", "collection_number='PRE'"])
+        # turn gernator into list
+        rows = list(rows)
         self.assertEqual(len(rows), 1)
         metadata = rows[0]
         self.assertEqual(metadata.get_aws_file_path(), "/imagery/L8/139/045/LC81390452014295LGN00")
@@ -38,6 +40,7 @@ class TestAWSMetadata(unittest.TestCase):
                                       start_date=date(2017, 3, 4),
                                       end_date=date(2017, 3, 4),
                                       sql_filters=["wrs_path=139", "wrs_row=45", "collection_number!='PRE'"])
+        rows = list(rows)
         self.assertEqual(len(rows), 1)
         metadata = rows[0]
         self.assertEqual(metadata.get_aws_file_path(),
@@ -53,9 +56,10 @@ class TestAWSMetadata(unittest.TestCase):
                                        start_date=d_start,
                                        end_date=d_end,
                                        bounding_box=bounding_box,
-                                       limit=1,
+                                       limit=2,
                                        sql_filters=sql_filters)
-
+        # generator to list
+        rows = list(rows)
         metadata = rows[0]
         self.assertEqual('LC08_L1GT_114210_20170828_20170828_01_RT', metadata.product_id)
         self.assertEqual('RT', metadata.collection_category)
@@ -178,6 +182,7 @@ class TestAWSPixelFunctions(unittest.TestCase):
         rows = metadata_service.search(SpacecraftID.LANDSAT_8, start_date=d_start, end_date=d_end,
                                        bounding_box=bounding_box,
                                        limit=1, sql_filters=sql_filters)
+        rows = list(rows)
         self.m_row_data = rows[0]
         wkt_iowa = "POLYGON((-93.76075744628906 42.32707774458643,-93.47854614257812 42.32707774458643," \
                    "-93.47854614257812 42.12674735753131,-93.76075744628906 42.12674735753131," \
