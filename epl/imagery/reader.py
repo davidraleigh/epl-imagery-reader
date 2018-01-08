@@ -417,6 +417,14 @@ LLNppprrrOOYYDDDMM_AA.TIF  where:
         self.__wrs_geometries = WRSGeometries()
 
     @property
+    def base_mount_path(self):
+        return self.__base_mount_path
+
+    @property
+    def full_mount_path(self):
+        return self.__full_mount_path
+
+    @property
     def band_map(self):
         return self.__band_map
 
@@ -1255,8 +1263,8 @@ class Storage(metaclass=__Singleton):
         if PLATFORM_PROVIDER == "AWS":
             return True
 
-        if metadata.__full_mount_path in self.__mounted_sub_folders and \
-                self.__mounted_sub_folders[metadata.__full_mount_path]:
+        if metadata.full_mount_path in self.__mounted_sub_folders and \
+                self.__mounted_sub_folders[metadata.full_mount_path]:
             return True
         return False
 
@@ -1271,24 +1279,24 @@ class Storage(metaclass=__Singleton):
         # full_mount_path = base_path.rstrip("\/") + os.path.sep + bucket_sub_folder.strip("\/")
         # subprocess.run("exit 1", shell=True, check=True)
         # subprocess.run(["ls", "-l", "/dev/null"], stdout=subprocess.PIPE)
-        if metadata.__full_mount_path in self.__mounted_sub_folders and \
-                        request_key in self.__mounted_sub_folders[metadata.__full_mount_path]:
+        if metadata.full_mount_path in self.__mounted_sub_folders and \
+                        request_key in self.__mounted_sub_folders[metadata.full_mount_path]:
             return True
 
         # This is a little weird. It could be that from a crash, some of the folders are already mounted by gcsfuse
         # this would set it so that those mountings were removed. If there are two Storage scripts running in parallel
         # on the same machine then maybe there would be conflicts. Not sure how to share those resources without
         # destroying them, but still cleaning up after them. Virtual files seems like the way to go with all this.
-        if metadata.__full_mount_path not in self.__mounted_sub_folders:
-            self.__mounted_sub_folders[metadata.__full_mount_path] = set()
+        if metadata.full_mount_path not in self.__mounted_sub_folders:
+            self.__mounted_sub_folders[metadata.full_mount_path] = set()
 
         try:
-            if not os.path.isdir(metadata.__full_mount_path):
-                os.makedirs(metadata.__full_mount_path)
+            if not os.path.isdir(metadata.full_mount_path):
+                os.makedirs(metadata.full_mount_path)
             else:
                 # check to see if directory is already mounted if so maybe just return True?
-                if len(os.listdir(metadata.__full_mount_path)) > 0:
-                    self.__mounted_sub_folders[metadata.__full_mount_path].add(request_key)
+                if len(os.listdir(metadata.full_mount_path)) > 0:
+                    self.__mounted_sub_folders[metadata.full_mount_path].add(request_key)
                     return True
                 # hard to know what to do if it's mounted and it's empty...
                 # TODO make a test for that case
@@ -1299,14 +1307,14 @@ class Storage(metaclass=__Singleton):
 
         val = call(["gcsfuse",
                     "--only-dir",
-                    metadata.__full_mount_path.lstrip(metadata.__base_mount_path).lstrip("\/"),
+                    metadata.full_mount_path.lstrip(metadata.base_mount_path).lstrip("\/"),
                     self.bucket,
-                    metadata.__full_mount_path])
+                    metadata.full_mount_path])
         # TODO return error message if necessary
         if val != 0:
             return False
 
-        self.__mounted_sub_folders[metadata.__full_mount_path].add(request_key)
+        self.__mounted_sub_folders[metadata.full_mount_path].add(request_key)
         return True
 
     def __unmount_sub_folder(self, full_mount_path, request_key, force=False):

@@ -357,6 +357,7 @@ class TestLandsat(unittest.TestCase):
         rows = self.metadata_service.search(SpacecraftID.LANDSAT_8, start_date=d_start, end_date=d_end,
                                             bounding_box=bounding_box,
                                             limit=1)
+        rows = list(rows)
         metadata = rows[0]
         storage = Storage(metadata.bucket_name)
 
@@ -381,6 +382,7 @@ class TestLandsat(unittest.TestCase):
                                             limit=1,
                                             sql_filters=sql_filters)
 
+        rows = list(rows)
         metadata = rows[0]
 
         landsat = Landsat(metadata)
@@ -398,6 +400,7 @@ class TestLandsat(unittest.TestCase):
         rows = self.metadata_service.search(SpacecraftID.LANDSAT_8, start_date=d_start, end_date=d_end,
                                             bounding_box=utah_box,
                                             limit=10, sql_filters=['collection_number=="PRE"', "cloud_cover<=5"])
+        rows = list(rows)
         self.assertEqual(len(rows), 1)
 
         #     metadata_row = ['LC80390332016208LGN00', '', 'LANDSAT_8', 'OLI_TIRS', '2016-07-26',
