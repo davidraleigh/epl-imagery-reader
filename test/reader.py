@@ -25,6 +25,7 @@ class TestMetaDataSQL(unittest.TestCase):
         sql_filters = ['scene_id="LC80390332016208LGN00"']
         metadata_service = MetadataService()
         rows = metadata_service.search(SpacecraftID.LANDSAT_8, sql_filters=sql_filters)
+        rows = list(rows)
         self.assertEqual(len(rows), 1)
 
     def test_start_date(self):
@@ -32,6 +33,7 @@ class TestMetaDataSQL(unittest.TestCase):
         metadata_service = MetadataService()
         d = date(2016, 6, 24)
         rows = metadata_service.search(SpacecraftID.LANDSAT_8, start_date=d)
+        rows = list(rows)
         self.assertEqual(len(rows), 10)
         for row in rows:
             self.assertEqual(row.spacecraft_id.name, SpacecraftID.LANDSAT_8.name)
@@ -43,6 +45,7 @@ class TestMetaDataSQL(unittest.TestCase):
         metadata_service = MetadataService()
         d = date(2016, 6, 24)
         rows = metadata_service.search(SpacecraftID.LANDSAT_7, end_date=d)
+        rows = list(rows)
         self.assertEqual(len(rows), 10)
         for row in rows:
             self.assertEqual(row.spacecraft_id.name, SpacecraftID.LANDSAT_7.name)
@@ -54,6 +57,7 @@ class TestMetaDataSQL(unittest.TestCase):
         metadata_service = MetadataService()
         d = date(2016, 6, 24)
         rows = metadata_service.search(SpacecraftID.LANDSAT_8, start_date=d, end_date=d)
+        rows = list(rows)
         self.assertEqual(len(rows), 10)
         for row in rows:
             self.assertEqual(row.spacecraft_id.name, SpacecraftID.LANDSAT_8.name)
@@ -66,6 +70,7 @@ class TestMetaDataSQL(unittest.TestCase):
         d_start = date(2015, 6, 24)
         d_end = date(2016, 6, 24)
         rows = metadata_service.search(SpacecraftID.LANDSAT_8, start_date=d_start, end_date=d_end)
+        rows = list(rows)
         self.assertEqual(len(rows), 10)
         for row in rows:
             self.assertEqual(row.spacecraft_id.name, SpacecraftID.LANDSAT_8.name)
@@ -82,6 +87,8 @@ class TestMetaDataSQL(unittest.TestCase):
                                                 start_date=d_start,
                                                 end_date=d_end,
                                                 bounding_box=bounding_box)
+
+        metadata_rows = list(metadata_rows)
 
         self.assertEqual(len(metadata_rows), 10)
         for row in metadata_rows:
@@ -109,6 +116,8 @@ class TestMetaDataSQL(unittest.TestCase):
             end_date=d_end,
             bounding_box=bounding_box,
             sql_filters=sql_filters)
+
+        rows = list(rows)
 
         self.assertEqual(len(rows), 10)
         for row in rows:
@@ -457,6 +466,7 @@ class TestLandsat(unittest.TestCase):
         d_end = date(2016, 7, 28)
         rows = self.metadata_service.search(SpacecraftID.LANDSAT_8, start_date=d_start, end_date=d_end, limit=1,
                                             sql_filters=['scene_id="LC80390332016208LGN00"'])
+        rows = list(rows)
         metadata = rows[0]
         landsat = Landsat(metadata)
         scale_params = [[0.0, 65535], [0.0, 65535], [0.0, 65535]]

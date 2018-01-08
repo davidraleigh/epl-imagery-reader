@@ -97,7 +97,7 @@ message MetadataResult {
     int32 utm_epsg_code = 20;
 
     //  (minx, miny, maxx, maxy)
-    repeated float bounds = 21;
+    ServiceEnvelope2D bounds = 21;
 }
 
 

@@ -318,21 +318,21 @@ LLNppprrrOOYYDDDMM_AA.TIF  where:
         # TODO we should flesh out the AWS from path instantiation
         if not isinstance(row, tuple):
             # TODO there should be Metadata class for AWS and GOOGLE?
-            self.full_mount_path = row
+            self.__full_mount_path = row
             self.__wrs_geometries = WRSGeometries()
-            self.product_id = os.path.basename(self.full_mount_path)
+            self.product_id = os.path.basename(self.__full_mount_path)
             # we know this is Landsat 8
             self.spacecraft_id = SpacecraftID.LANDSAT_8
-            self.band_map = BandMap(self.spacecraft_id)
+            self.__band_map = BandMap(self.spacecraft_id)
 
-            reg_results_1 = self.metadata_reg.search(self.full_mount_path)
+            reg_results_1 = self.metadata_reg.search(self.__full_mount_path)
             self.wrs_path = int(reg_results_1.group(1))
             self.wrs_row = int(reg_results_1.group(2))
             self.data_type = reg_results_1.group(4)
             self.date_acquired = date(int(reg_results_1.group(5)), int(reg_results_1.group(6)), int(reg_results_1.group(7))).strftime("%Y-%m-%d")
             self.collection_category = reg_results_1.group(8)
 
-            mtl_file_path = "{0}/{1}_MTL.json".format(self.full_mount_path, self.name_prefix)
+            mtl_file_path = "{0}/{1}_MTL.json".format(self.__full_mount_path, self.name_prefix)
             mtl = self.parse_mtl(mtl_file_path)
 
             # '16:18:27.0722979Z'
@@ -389,32 +389,36 @@ LLNppprrrOOYYDDDMM_AA.TIF  where:
         # TODO, test some AWS data that is sensed on one date and then processed at another
         self.doy = datetime.strptime(self.date_acquired, "%Y-%m-%d").timetuple().tm_yday
 
-        self.band_map = BandMap(self.spacecraft_id)
+        self.__band_map = BandMap(self.spacecraft_id)
 
         # TODO dateline testing
-        self.center_lat = (self.north_lat - self.south_lat) / 2 + self.south_lat
-        self.center_lon = (self.east_lon - self.west_lon) / 2 + self.west_lon
+        center_lat = (self.north_lat - self.south_lat) / 2 + self.south_lat
+        center_lon = (self.east_lon - self.west_lon) / 2 + self.west_lon
 
-        self.utm_epsg_code = self.get_utm_epsg_code(self.center_lon, self.center_lat)
+        self.utm_epsg_code = self.get_utm_epsg_code(center_lon, center_lat)
 
         #  (minx, miny, maxx, maxy)
         self.bounds = (self.west_lon, self.south_lat, self.east_lon, self.north_lat)
 
         gsurl = urlparse(self.base_url)
-        self.bucket_name = gsurl[1]
-        self.data_prefix = gsurl[2]
-        self.base_mount_path = base_mount_path
+        self.__bucket_name = gsurl[1]
+        self.__data_prefix = gsurl[2]
+        self.__base_mount_path = base_mount_path
 
         if PLATFORM_PROVIDER == "GCP":
-            self.full_mount_path = base_mount_path.rstrip("\/") + os.path.sep + self.data_prefix.strip("\/")
+            self.__full_mount_path = base_mount_path.rstrip("\/") + os.path.sep + self.__data_prefix.strip("\/")
         else:
-            self.full_mount_path = self.get_aws_file_path()
+            self.__full_mount_path = self.get_aws_file_path()
 
         # self.__file_list = None
         # self.thread = threading.Thread(target=self.__query_file_list(), args=())
         # self.thread.daemon = True
         # self.thread.start()
         self.__wrs_geometries = WRSGeometries()
+
+    @property
+    def band_map(self):
+        return self.__band_map
 
     @property
     def name_prefix(self):
@@ -477,11 +481,11 @@ LLNppprrrOOYYDDDMM_AA.TIF  where:
         # non-PRE s3://landsat-pds/c1/L8/139/045/LC08_L1TP_139045_20170304_20170316_01_T1/
         if self.collection_number != "PRE":
             partial = self.product_id[:25]
-            search = glob.glob(self.base_mount_path + "/c1" + path + partial + "*")
+            search = glob.glob(self.__base_mount_path + "/c1" + path + partial + "*")
             if len(search) != 1:
                 # there is a potential situation where AWS has processed the PRE and removed PRE data but google only has PRE
                 partial = self.scene_id[:16]
-                search = glob.glob(self.base_mount_path + path + partial + "*")
+                search = glob.glob(self.__base_mount_path + path + partial + "*")
                 if len(search) != 1:
                     raise Exception("glob returned {0} results for the following path search {1}".format(len(search), partial))
             # update the product_id
@@ -492,16 +496,16 @@ LLNppprrrOOYYDDDMM_AA.TIF  where:
 
             return search[0]
         else:
-            path = self.base_mount_path + path + self.scene_id
+            path = self.__base_mount_path + path + self.scene_id
 
         return path
 
     # TODO make private
     def get_full_file_path(self, band_number):
-        return "{0}/{1}_B{2}.TIF".format(self.full_mount_path, self.name_prefix, band_number)
+        return "{0}/{1}_B{2}.TIF".format(self.__full_mount_path, self.name_prefix, band_number)
 
     def __query_file_list(self):
-        bucket = self.__storage_client.list_buckets(prefix=self.bucket_name + self.data_prefix)
+        bucket = self.__storage_client.list_buckets(prefix=self.__bucket_name + self.__data_prefix)
         results = []
         for i in bucket:
             results.append(i)
@@ -730,7 +734,7 @@ class Landsat(Imagery):
             if isinstance(band_definition, FunctionDetails):
                 for band_number in band_definition.band_definitions:
                     if isinstance(band_number, Band):
-                        band_number_set.add(metadata.band_map.get_number(band_number))
+                        band_number_set.add(metadata.__band_map.get_number(band_number))
                     else:
                         band_number_set.add(band_number)
             elif isinstance(band_definition, Band):
@@ -859,7 +863,7 @@ class Landsat(Imagery):
         for band_number in band_definition.band_definitions:
             # TODO, I don't like this reuse of this variable
             if isinstance(band_number, Band):
-                band_number = metadata.band_map.get_number(band_number)
+                band_number = metadata.__band_map.get_number(band_number)
 
             elem_simple_source = self.__get_source_elem(band_number, calculated_metadata, block_size)
             elem_raster_band.append(elem_simple_source)
@@ -1251,8 +1255,8 @@ class Storage(metaclass=__Singleton):
         if PLATFORM_PROVIDER == "AWS":
             return True
 
-        if metadata.full_mount_path in self.__mounted_sub_folders and \
-                self.__mounted_sub_folders[metadata.full_mount_path]:
+        if metadata.__full_mount_path in self.__mounted_sub_folders and \
+                self.__mounted_sub_folders[metadata.__full_mount_path]:
             return True
         return False
 
@@ -1267,24 +1271,24 @@ class Storage(metaclass=__Singleton):
         # full_mount_path = base_path.rstrip("\/") + os.path.sep + bucket_sub_folder.strip("\/")
         # subprocess.run("exit 1", shell=True, check=True)
         # subprocess.run(["ls", "-l", "/dev/null"], stdout=subprocess.PIPE)
-        if metadata.full_mount_path in self.__mounted_sub_folders and \
-                        request_key in self.__mounted_sub_folders[metadata.full_mount_path]:
+        if metadata.__full_mount_path in self.__mounted_sub_folders and \
+                        request_key in self.__mounted_sub_folders[metadata.__full_mount_path]:
             return True
 
         # This is a little weird. It could be that from a crash, some of the folders are already mounted by gcsfuse
         # this would set it so that those mountings were removed. If there are two Storage scripts running in parallel
         # on the same machine then maybe there would be conflicts. Not sure how to share those resources without
         # destroying them, but still cleaning up after them. Virtual files seems like the way to go with all this.
-        if metadata.full_mount_path not in self.__mounted_sub_folders:
-            self.__mounted_sub_folders[metadata.full_mount_path] = set()
+        if metadata.__full_mount_path not in self.__mounted_sub_folders:
+            self.__mounted_sub_folders[metadata.__full_mount_path] = set()
 
         try:
-            if not os.path.isdir(metadata.full_mount_path):
-                os.makedirs(metadata.full_mount_path)
+            if not os.path.isdir(metadata.__full_mount_path):
+                os.makedirs(metadata.__full_mount_path)
             else:
                 # check to see if directory is already mounted if so maybe just return True?
-                if len(os.listdir(metadata.full_mount_path)) > 0:
-                    self.__mounted_sub_folders[metadata.full_mount_path].add(request_key)
+                if len(os.listdir(metadata.__full_mount_path)) > 0:
+                    self.__mounted_sub_folders[metadata.__full_mount_path].add(request_key)
                     return True
                 # hard to know what to do if it's mounted and it's empty...
                 # TODO make a test for that case
@@ -1295,14 +1299,14 @@ class Storage(metaclass=__Singleton):
 
         val = call(["gcsfuse",
                     "--only-dir",
-                    metadata.full_mount_path.lstrip(metadata.base_mount_path).lstrip("\/"),
+                    metadata.__full_mount_path.lstrip(metadata.__base_mount_path).lstrip("\/"),
                     self.bucket,
-                    metadata.full_mount_path])
+                    metadata.__full_mount_path])
         # TODO return error message if necessary
         if val != 0:
             return False
 
-        self.__mounted_sub_folders[metadata.full_mount_path].add(request_key)
+        self.__mounted_sub_folders[metadata.__full_mount_path].add(request_key)
         return True
 
     def __unmount_sub_folder(self, full_mount_path, request_key, force=False):
