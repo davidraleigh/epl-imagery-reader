@@ -59,6 +59,7 @@ class TestGCPMetadataSQL(unittest.TestCase):
             end_date=d_end,
             bounding_box=None,
             sql_filters=sql_filters)
+        rows = list(rows)
         self.assertEqual(len(rows), 3)
 
     def test_metatdata_file_list(self):
@@ -81,6 +82,8 @@ class TestGCPMetadataSQL(unittest.TestCase):
             bounding_box=bounding_box,
             sql_filters=sql_filters)
 
+        rows = list(rows)
+
         metadata = rows[0]
         self.assertEqual(len(metadata.get_file_list()), 0)
 
@@ -91,6 +94,7 @@ class TestGCPMetadataSQL(unittest.TestCase):
         bounding_box = (-115.927734375, 34.52466147177172, -78.31054687499999, 44.84029065139799)
         rows = self.metadata_service.search(SpacecraftID.LANDSAT_8, start_date=d_start, end_date=d_end,
                                             bounding_box=bounding_box, limit=1)
+        rows = list(rows)
         metadata = rows[0]
         landsat = Landsat(metadata)
         self.assertIsNotNone(landsat)
@@ -124,6 +128,8 @@ class TestGCPLandsat(unittest.TestCase):
             limit=10,
             sql_filters=sql_filters)
 
+        rows = list(rows)
+
         # mounted directory in docker container
         base_mount_path = '/imagery'
 
@@ -149,6 +155,8 @@ class TestGCPLandsat(unittest.TestCase):
             end_date=d_end,
             bounding_box=bounding_box,
             sql_filters=sql_filters)
+
+        rows = list(rows)
 
         self.assertEqual(len(rows), 1)
 
@@ -186,6 +194,8 @@ class TestGCPLandsat(unittest.TestCase):
             bounding_box=bounding_box,
             sql_filters=sql_filters)
 
+        rows = list(rows)
+
         self.assertEqual(len(rows), 1)
 
         metadata = rows[0]
@@ -217,6 +227,8 @@ class TestGCPLandsat(unittest.TestCase):
             bounding_box=bounding_box,
             sql_filters=sql_filters)
 
+        rows = list(rows)
+
         metadata = rows[0]
         landsat = Landsat(metadata)
         vrt = landsat.get_vrt([4])
@@ -243,6 +255,8 @@ class TestGCPLandsat(unittest.TestCase):
             bounding_box=bounding_box,
             sql_filters=sql_filters)
 
+        rows = list(rows)
+
         metadata = rows[0]
         landsat = Landsat(metadata)
         vrt = landsat.get_vrt([4])
@@ -260,6 +274,8 @@ class TestGCPLandsat(unittest.TestCase):
         rows = self.metadata_service.search(SpacecraftID.LANDSAT_8, start_date=d_start, end_date=d_end,
                                             bounding_box=bounding_box,
                                             limit=1, sql_filters=sql_filters)
+
+        rows = list(rows)
 
         metadata = rows[0]
         landsat = Landsat(metadata)
@@ -295,6 +311,8 @@ class TestStorage(unittest.TestCase):
         bounding_box = (-115.927734375, 34.52466147177172, -78.31054687499999, 44.84029065139799)
         rows = metadata_service.search(SpacecraftID.LANDSAT_8, start_date=d_start, end_date=d_end, bounding_box=bounding_box, limit=1)
 
+        rows = list(rows)
+
         metadata = rows[0]
         storage = Storage(metadata.bucket_name)
 
@@ -310,6 +328,8 @@ class TestStorage(unittest.TestCase):
         rows = metadata_service.search(SpacecraftID.LANDSAT_8, start_date=d_start, end_date=d_end,
                                        bounding_box=bounding_box, limit=1)
 
+        rows = list(rows)
+
         metadata = rows[0]
         storage_1 = Storage(metadata.bucket_name)
         storage_2 = Storage(metadata.bucket_name)
@@ -322,6 +342,7 @@ class TestStorage(unittest.TestCase):
         bounding_box = (-115.927734375, 34.52466147177172, -78.31054687499999, 44.84029065139799)
         rows = metadata_service.search(SpacecraftID.LANDSAT_8, start_date=d_start, end_date=d_end,
                                        bounding_box=bounding_box, limit=1)
+        rows = list(rows)
         metadata = rows[0]
         storage = Storage(metadata.bucket_name)
 
@@ -362,6 +383,7 @@ class TestGCPPixelFunctions(unittest.TestCase):
         rows = metadata_service.search(SpacecraftID.LANDSAT_8, start_date=d_start, end_date=d_end,
                                        bounding_box=bounding_box,
                                        limit=1, sql_filters=sql_filters)
+        rows = list(rows)
         self.m_metadata = rows[0]
         wkt_iowa = "POLYGON((-93.76075744628906 42.32707774458643,-93.47854614257812 42.32707774458643," \
                    "-93.47854614257812 42.12674735753131,-93.76075744628906 42.12674735753131," \
@@ -380,6 +402,8 @@ class TestGCPPixelFunctions(unittest.TestCase):
             bounding_box=self.taos_shape.bounds,
             limit=10,
             sql_filters=sql_filters)
+
+        rows = list(rows)
 
         for row in rows:
             self.metadata_set.append(row)
@@ -474,6 +498,7 @@ def ndvi_numpy(in_ar, out_ar, xoff, yoff, xsize, ysize, raster_xsize, raster_ysi
             end_date=d_end,
             bounding_box=bounding_box,
             sql_filters=sql_filters)
+        rows = list(rows)
         metadata = rows[0]
         landsat = Landsat(metadata)
 
@@ -527,6 +552,7 @@ def ndvi_numpy(in_ar, out_ar, xoff, yoff, xsize, ysize, raster_xsize, raster_ysi
             end_date=d_end,
             bounding_box=bounding_box,
             sql_filters=sql_filters)
+        rows = list(rows)
         metadata = rows[0]
         landsat = Landsat(metadata)
 
@@ -622,6 +648,7 @@ def ndvi_numpy(in_ar, out_ar, xoff, yoff, xsize, ysize, raster_xsize, raster_ysi
     #     sql_filters = ['scene_id="LC80330342017072LGN00"']
     #     metadata_service = MetadataService()
     #     rows = metadata_service.search(SpacecraftID.LANDSAT_8, sql_filters=sql_filters)
+    #rows = list(rows)
     #
     #
     #     metadata = rows[0]
@@ -760,6 +787,8 @@ class TestRasterMetadata(unittest.TestCase):
                                             limit=2,
                                             sql_filters=sql_filters)
 
+        rows = list(rows)
+
         metadata_1 = rows[0]
         metadata_2 = rows[1]
 
@@ -789,6 +818,7 @@ class TestRasterMetadata(unittest.TestCase):
         rows = metadata_service.search(
             SpacecraftID.LANDSAT_8,
             sql_filters=sql_filters)
+        rows = list(rows)
         self.assertEqual(len(rows), 1)
 
         metadata = rows[0]
@@ -830,6 +860,7 @@ class TestRasterMetadata(unittest.TestCase):
         rows = metadata_service.search(
             SpacecraftID.LANDSAT_8,
             sql_filters=sql_filters)
+        rows = list(rows)
         self.assertEqual(len(rows), 1)
 
         metadata = rows[0]

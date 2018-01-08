@@ -61,7 +61,7 @@ class TestAWSMetadata(unittest.TestCase):
         # generator to list
         rows = list(rows)
         metadata = rows[0]
-        self.assertEqual('LC08_L1GT_114210_20170828_20170828_01_RT', metadata.product_id)
+        self.assertEqual('LC08_L1GT_135215_20170916_20170916_01_RT', metadata.product_id)
         self.assertEqual('RT', metadata.collection_category)
 
     def test_aws_without_google(self):
