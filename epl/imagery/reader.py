@@ -746,7 +746,7 @@ class Landsat(Imagery):
             if isinstance(band_definition, FunctionDetails):
                 for band_number in band_definition.band_definitions:
                     if isinstance(band_number, Band):
-                        band_number_set.add(metadata.__band_map.get_number(band_number))
+                        band_number_set.add(metadata.band_map.get_number(band_number))
                     else:
                         band_number_set.add(band_number)
             elif isinstance(band_definition, Band):
@@ -875,7 +875,7 @@ class Landsat(Imagery):
         for band_number in band_definition.band_definitions:
             # TODO, I don't like this reuse of this variable
             if isinstance(band_number, Band):
-                band_number = metadata.__band_map.get_number(band_number)
+                band_number = metadata.band_map.get_number(band_number)
 
             elem_simple_source = self.__get_source_elem(band_number, calculated_metadata, block_size)
             elem_raster_band.append(elem_simple_source)
@@ -1166,7 +1166,7 @@ LIMIT 1"""
         query_builder = 'SELECT * FROM [bigquery-public-data:cloud_storage_geo_index.landsat_index]'
 
         clause_start = 'WHERE'
-        if satellite_id or satellite_id is SpacecraftID.UNKNOWN_SPACECRAFT:
+        if satellite_id and satellite_id is not SpacecraftID.UNKNOWN_SPACECRAFT:
             query_builder += ' {0} spacecraft_id="{1}"'.format(clause_start, satellite_id.name)
             clause_start = 'AND'
 
