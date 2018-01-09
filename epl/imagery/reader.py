@@ -339,11 +339,11 @@ LLNppprrrOOYYDDDMM_AA.TIF  where:
             sensing_time = mtl['L1_METADATA_FILE']['PRODUCT_METADATA']['SCENE_CENTER_TIME']
 
             # '2017-10-28'
-            date_aquired = mtl['L1_METADATA_FILE']['PRODUCT_METADATA']['DATE_ACQUIRED']
+            date_acquired = mtl['L1_METADATA_FILE']['PRODUCT_METADATA']['DATE_ACQUIRED']
 
-            reg_results_2 = self.datetime_reg.search( date_aquired + "T" + sensing_time)
-            date_aquired = reg_results_2.group(1) + reg_results_2.group(2) + reg_results_2.group(3)
-            self.sensing_time = datetime.strptime(date_aquired, "%Y-%m-%dT%H:%M:%S.%fZ")
+            reg_results_2 = self.datetime_reg.search( date_acquired + "T" + sensing_time)
+            date_acquired = reg_results_2.group(1) + reg_results_2.group(2) + reg_results_2.group(3)
+            self.sensing_time = datetime.strptime(date_acquired, "%Y-%m-%dT%H:%M:%S.%fZ")
             self.date_acquired = self.sensing_time.date()
             # '2017-11-08T23:42:51Z'
             self.cloud_cover = mtl['L1_METADATA_FILE']['IMAGE_ATTRIBUTES']['CLOUD_COVER']
@@ -415,6 +415,10 @@ LLNppprrrOOYYDDDMM_AA.TIF  where:
         # self.thread.daemon = True
         # self.thread.start()
         self.__wrs_geometries = WRSGeometries()
+
+    @property
+    def bucket_name(self):
+        return self.__bucket_name
 
     @property
     def base_mount_path(self):
@@ -1152,8 +1156,8 @@ LIMIT 1"""
             self,
             satellite_id=None,
             bounding_box=None,
-            start_date=None,
-            end_date=None,
+            start_date: datetime=None,
+            end_date: datetime=None,
             sort_by=None,
             limit=10,
             sql_filters=None,
@@ -1188,10 +1192,18 @@ LIMIT 1"""
                 clause_start = 'AND'
 
         if start_date:
-            query_builder += ' {0} date_acquired>="{1}"'.format(clause_start, start_date.isoformat())
+            # changes to avoid SQL errors for exclusive vs inclusive date range searches. If there is no time included
+            # the sql result for a date range of one
+            # TODO, it would be nice if type date wasn't accepted. oh well
+            if type(start_date) is date:
+                start_date = datetime.combine(start_date, datetime.min.time())
+            query_builder += ' {0} sensing_time>="{1}"'.format(clause_start, start_date.isoformat())
             clause_start = 'AND'
         if end_date:
-            query_builder += ' {0} date_acquired<="{1}"'.format(clause_start, end_date.isoformat())
+            if type(end_date) is date:
+                # TODO, should this be datetime.combine(end_date, datetime.min.time())
+                end_date = datetime.combine(end_date, datetime.max.time())
+            query_builder += ' {0} sensing_time<="{1}"'.format(clause_start, end_date.isoformat())
             clause_start = 'AND'
 
         if sql_filters and len(sql_filters) > 0:
@@ -1230,7 +1242,9 @@ return bIntersecting;"""
         if sort_by:
             query_builder += ' SORT BY {}'.format(sort_by)
 
-        query = self.m_client.run_sync_query('{} LIMIT {}'.format(query_builder, limit))
+        query_string = '{} LIMIT {}'.format(query_builder, limit)
+
+        query = self.m_client.run_sync_query(query_string)
         query.timeout_ms = self.m_timeout_ms
         query.run()
 

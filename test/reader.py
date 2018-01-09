@@ -11,7 +11,6 @@ from urllib.parse import urlparse
 
 from lxml import etree
 
-
 from shapely.geometry import shape
 from shapely.geometry import box
 from shapely.wkt import loads
