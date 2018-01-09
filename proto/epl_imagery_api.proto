@@ -42,7 +42,8 @@ service ImageryOperators {
 
 message MetadataRequest {
     SpacecraftID satellite_id = 1;
-    ServiceEnvelope2D bounding_box = 2;
+//    ServiceEnvelope2D bounding_box = 2;
+    repeated float bounding_box = 2;
     google.protobuf.Timestamp start_date = 3;
     google.protobuf.Timestamp end_date = 4;
     string sort_by= 5;
@@ -97,7 +98,8 @@ message MetadataResult {
     int32 utm_epsg_code = 20;
 
     //  (minx, miny, maxx, maxy)
-    ServiceEnvelope2D bounds = 21;
+    repeated float bounds = 21;
+//    ServiceEnvelope2D bounds = 21;
 }
 
 

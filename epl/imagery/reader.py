@@ -1170,7 +1170,7 @@ LIMIT 1"""
             query_builder += ' {0} spacecraft_id="{1}"'.format(clause_start, satellite_id.name)
             clause_start = 'AND'
 
-        if bounding_box is not None:
+        if bounding_box:
             minx = bounding_box[0]
             miny = bounding_box[1]
             maxx = bounding_box[2]
