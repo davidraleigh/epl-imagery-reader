@@ -99,6 +99,8 @@ class DataType(Enum):
     UINT32 = (gdal.GDT_UInt32, "UInt32", 0, 4294967295)
     FLOAT32 = (gdal.GDT_Float32, "Float32", -3.4E+38, 3.4E+38)
     FLOAT64 = (gdal.GDT_Float64, "Float64", -1.7E+308, 1.7E+308)
+
+    # TODO this seem to be swapped
     CFLOAT32 = (gdal.GDT_CFloat32, "CFloat32", -3.4E+38, 3.4E+38)
     CFLOAT64 = (gdal.GDT_CFloat64, "CFloat64", -1.7E+308, 1.7E+308)
 
@@ -324,15 +326,16 @@ LLNppprrrOOYYDDDMM_AA.TIF  where:
         # TODO we should flesh out the AWS from path instantiation
         if isinstance(row, str):
             self.__construct_aws(row)
+            self.spacecraft_id = SpacecraftID[self.spacecraft_id]
         elif isinstance(row, tuple):
             self.__construct(row, base_mount_path)
+            self.spacecraft_id = SpacecraftID[self.spacecraft_id]
         else:
             self.__construct_grpc(row)
+            self.spacecraft_id = SpacecraftID(self.spacecraft_id)
 
         # calculated fields
 
-        # convert from string to Enum
-        self.spacecraft_id = SpacecraftID[self.spacecraft_id]  # SpacecraftID REQUIRED The spacecraft that acquired this
 
         # TODO, test some AWS data that is sensed on one date and then processed at another
         self.doy = datetime.strptime(self.date_acquired, "%Y-%m-%d").timetuple().tm_yday
@@ -383,11 +386,13 @@ LLNppprrrOOYYDDDMM_AA.TIF  where:
         self.total_size = row[16]  # INTEGER	NULLABLE The total size of this scene in bytes.
         self.base_url = row[17]  # STRING	NULLABLE The base URL for this scene in Cloud Storage.
 
+        self.__base_mount_path = base_mount_path
+
         if PLATFORM_PROVIDER == "GCP":
             gsurl = urlparse(self.base_url)
             self.__bucket_name = gsurl[1]
             self.__data_prefix = gsurl[2]
-            self.__base_mount_path = base_mount_path
+
             self.__full_mount_path = base_mount_path.rstrip("\/") + os.path.sep + self.__data_prefix.strip("\/")
         else:
             self.__full_mount_path = self.get_aws_file_path()
