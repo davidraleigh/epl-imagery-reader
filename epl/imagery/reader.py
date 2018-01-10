@@ -315,43 +315,40 @@ LLNppprrrOOYYDDDMM_AA.TIF  where:
      TIF         = GeoTIFF file extension
     """
     def __init__(self, row, base_mount_path='/imagery'):
+        # self.__file_list = None
+        # self.thread = threading.Thread(target=self.__query_file_list(), args=())
+        # self.thread.daemon = True
+        # self.thread.start()
+        self.__wrs_geometries = WRSGeometries()
+
         # TODO we should flesh out the AWS from path instantiation
-        if not isinstance(row, tuple):
-            # TODO there should be Metadata class for AWS and GOOGLE?
-            self.__full_mount_path = row
-            self.__wrs_geometries = WRSGeometries()
-            self.product_id = os.path.basename(self.__full_mount_path)
-            # we know this is Landsat 8
-            self.spacecraft_id = SpacecraftID.LANDSAT_8
-            self.__band_map = BandMap(self.spacecraft_id)
+        if isinstance(row, str):
+            self.__construct_aws(row)
+        elif isinstance(row, tuple):
+            self.__construct(row, base_mount_path)
+        else:
+            self.__construct_grpc(row)
 
-            reg_results_1 = self.metadata_reg.search(self.__full_mount_path)
-            self.wrs_path = int(reg_results_1.group(1))
-            self.wrs_row = int(reg_results_1.group(2))
-            self.data_type = reg_results_1.group(4)
-            self.date_acquired = date(int(reg_results_1.group(5)), int(reg_results_1.group(6)), int(reg_results_1.group(7))).strftime("%Y-%m-%d")
-            self.collection_category = reg_results_1.group(8)
+        # calculated fields
 
-            mtl_file_path = "{0}/{1}_MTL.json".format(self.__full_mount_path, self.name_prefix)
-            mtl = self.parse_mtl(mtl_file_path)
+        # convert from string to Enum
+        self.spacecraft_id = SpacecraftID[self.spacecraft_id]  # SpacecraftID REQUIRED The spacecraft that acquired this
 
-            # '16:18:27.0722979Z'
-            sensing_time = mtl['L1_METADATA_FILE']['PRODUCT_METADATA']['SCENE_CENTER_TIME']
+        # TODO, test some AWS data that is sensed on one date and then processed at another
+        self.doy = datetime.strptime(self.date_acquired, "%Y-%m-%d").timetuple().tm_yday
 
-            # '2017-10-28'
-            date_acquired = mtl['L1_METADATA_FILE']['PRODUCT_METADATA']['DATE_ACQUIRED']
+        self.__band_map = BandMap(self.spacecraft_id)
 
-            reg_results_2 = self.datetime_reg.search( date_acquired + "T" + sensing_time)
-            date_acquired = reg_results_2.group(1) + reg_results_2.group(2) + reg_results_2.group(3)
-            self.sensing_time = datetime.strptime(date_acquired, "%Y-%m-%dT%H:%M:%S.%fZ")
-            self.date_acquired = self.sensing_time.date()
-            # '2017-11-08T23:42:51Z'
-            self.cloud_cover = mtl['L1_METADATA_FILE']['IMAGE_ATTRIBUTES']['CLOUD_COVER']
-            self.cloud_cover_land = mtl['L1_METADATA_FILE']['IMAGE_ATTRIBUTES']['CLOUD_COVER_LAND']
-            self.date_processed = datetime.strptime(mtl['L1_METADATA_FILE']['METADATA_FILE_INFO']['FILE_DATE'], "%Y-%m-%dT%H:%M:%SZ")
-            # self.sensing_time = datetime.combine(date(2011, 01, 01), datetime.time(10, 23))
-            return
+        # TODO dateline testing
+        center_lat = (self.north_lat - self.south_lat) / 2 + self.south_lat
+        center_lon = (self.east_lon - self.west_lon) / 2 + self.west_lon
 
+        self.utm_epsg_code = self.get_utm_epsg_code(center_lon, center_lat)
+
+        #  (minx, miny, maxx, maxy)
+        self.bounds = (self.west_lon, self.south_lat, self.east_lon, self.north_lat)
+
+    def __construct(self, row, base_mount_path):
         # TODO, this could use a shallow copy? instead of creating an object like this? And thne all the attributes
         # would just call the array indices?
 
@@ -359,7 +356,7 @@ LLNppprrrOOYYDDDMM_AA.TIF  where:
         # a particular ground station.
         self.product_id = row[1]  # STRING	NULLABLE Unique identifier for a particular scene processed by the USGS at
         # a particular time, or null for pre-collection data.
-        self.spacecraft_id = SpacecraftID[row[2].upper()]  # SpacecraftID REQUIRED The spacecraft that acquired this
+        self.spacecraft_id = row[2].upper()  # SpacecraftID REQUIRED The spacecraft that acquired this
         # scene: one of 'LANDSAT_4' through 'LANDSAT_8'.
         self.sensor_id = row[3]  # STRING	NULLABLE The type of spacecraft sensor that acquired this scene: 'TM' for
         # the Thematic Mapper, 'ETM' for the Enhanced Thematic Mapper+, or 'OLI/TIRS' for the Operational Land Imager
@@ -386,35 +383,54 @@ LLNppprrrOOYYDDDMM_AA.TIF  where:
         self.total_size = row[16]  # INTEGER	NULLABLE The total size of this scene in bytes.
         self.base_url = row[17]  # STRING	NULLABLE The base URL for this scene in Cloud Storage.
 
-        # TODO, test some AWS data that is sensed on one date and then processed at another
-        self.doy = datetime.strptime(self.date_acquired, "%Y-%m-%d").timetuple().tm_yday
-
-        self.__band_map = BandMap(self.spacecraft_id)
-
-        # TODO dateline testing
-        center_lat = (self.north_lat - self.south_lat) / 2 + self.south_lat
-        center_lon = (self.east_lon - self.west_lon) / 2 + self.west_lon
-
-        self.utm_epsg_code = self.get_utm_epsg_code(center_lon, center_lat)
-
-        #  (minx, miny, maxx, maxy)
-        self.bounds = (self.west_lon, self.south_lat, self.east_lon, self.north_lat)
-
-        gsurl = urlparse(self.base_url)
-        self.__bucket_name = gsurl[1]
-        self.__data_prefix = gsurl[2]
-        self.__base_mount_path = base_mount_path
-
         if PLATFORM_PROVIDER == "GCP":
+            gsurl = urlparse(self.base_url)
+            self.__bucket_name = gsurl[1]
+            self.__data_prefix = gsurl[2]
+            self.__base_mount_path = base_mount_path
             self.__full_mount_path = base_mount_path.rstrip("\/") + os.path.sep + self.__data_prefix.strip("\/")
         else:
             self.__full_mount_path = self.get_aws_file_path()
 
-        # self.__file_list = None
-        # self.thread = threading.Thread(target=self.__query_file_list(), args=())
-        # self.thread.daemon = True
-        # self.thread.start()
-        self.__wrs_geometries = WRSGeometries()
+    def __construct_grpc(self, metadata_message):
+        for key in metadata_message.DESCRIPTOR.fields:
+            setattr(self, key.name, getattr(metadata_message, key.name))
+
+    def __construct_aws(self, row):
+        # TODO there should be Metadata class for AWS and GOOGLE?
+        self.__full_mount_path = row
+        self.product_id = os.path.basename(self.__full_mount_path)
+        # we know this is Landsat 8
+        self.spacecraft_id = SpacecraftID.LANDSAT_8.name
+
+        reg_results_1 = self.metadata_reg.search(self.__full_mount_path)
+        self.wrs_path = int(reg_results_1.group(1))
+        self.wrs_row = int(reg_results_1.group(2))
+        self.data_type = reg_results_1.group(4)
+        self.date_acquired = date(int(reg_results_1.group(5)), int(reg_results_1.group(6)),
+                                  int(reg_results_1.group(7))).strftime("%Y-%m-%d")
+        self.collection_category = reg_results_1.group(8)
+
+        mtl_file_path = "{0}/{1}_MTL.json".format(self.__full_mount_path, self.name_prefix)
+        mtl = self.parse_mtl(mtl_file_path)
+
+        # '16:18:27.0722979Z'
+        sensing_time = mtl['L1_METADATA_FILE']['PRODUCT_METADATA']['SCENE_CENTER_TIME']
+
+        # '2017-10-28'
+        date_acquired = mtl['L1_METADATA_FILE']['PRODUCT_METADATA']['DATE_ACQUIRED']
+
+        reg_results_2 = self.datetime_reg.search(date_acquired + "T" + sensing_time)
+        date_acquired = reg_results_2.group(1) + reg_results_2.group(2) + reg_results_2.group(3)
+        self.sensing_time = datetime.strptime(date_acquired, "%Y-%m-%dT%H:%M:%S.%fZ")
+        self.date_acquired = self.sensing_time.date()
+        # '2017-11-08T23:42:51Z'
+        self.cloud_cover = mtl['L1_METADATA_FILE']['IMAGE_ATTRIBUTES']['CLOUD_COVER']
+        self.cloud_cover_land = mtl['L1_METADATA_FILE']['IMAGE_ATTRIBUTES']['CLOUD_COVER_LAND']
+        self.date_processed = datetime.strptime(mtl['L1_METADATA_FILE']['METADATA_FILE_INFO']['FILE_DATE'],
+                                                "%Y-%m-%dT%H:%M:%SZ")
+        # self.sensing_time = datetime.combine(date(2011, 01, 01), datetime.time(10, 23))
+        return
 
     @property
     def bucket_name(self):
@@ -494,12 +510,15 @@ LLNppprrrOOYYDDDMM_AA.TIF  where:
         if self.collection_number != "PRE":
             partial = self.product_id[:25]
             search = glob.glob(self.__base_mount_path + "/c1" + path + partial + "*")
-            if len(search) != 1:
+            if len(search) == 0:
                 # there is a potential situation where AWS has processed the PRE and removed PRE data but google only has PRE
                 partial = self.scene_id[:16]
                 search = glob.glob(self.__base_mount_path + path + partial + "*")
-                if len(search) != 1:
+                if len(search) == 0:
                     raise Exception("glob returned {0} results for the following path search {1}".format(len(search), partial))
+            if len(search) > 1:
+                print("retrieved more than one entry. for {0} from method call 'get_aws_file_path'"
+                              .format(partial))
             # update the product_id
             self.product_id = search[0].split("/")[-1]
 
@@ -739,7 +758,11 @@ class Landsat(Imagery):
         for metadata in self.__metadata:
             self.storage.unmount_sub_folder(metadata, request_key=str(self.__id))
 
-    def __calculate_metadata(self, metadata: Metadata, band_definitions: list, extent: tuple=None, extent_cs=None) -> RasterMetadata:
+    def __calculate_metadata(self,
+                             metadata: Metadata,
+                             band_definitions: list,
+                             extent: tuple=None,
+                             extent_cs=None) -> RasterMetadata:
         # (in case one is calculated from a band that's included elsewhere in the metadata)
         band_number_set = set()
         for band_definition in band_definitions:
@@ -1405,6 +1428,7 @@ Notes on WRS-2 Landsat 8's Operational Land Imager (OLI) and/or Thermal Infrared
     # def get_path_row(self, bounds) -> set:
     #     return self.__spatial_index.intersect(bounds)
 
+    # TODO return wkb
     def get_wrs_geometry(self, wrs_path, wrs_row, timeout=10):
         self.__read_thread.join(timeout=timeout)
         if self.__read_thread.is_alive():

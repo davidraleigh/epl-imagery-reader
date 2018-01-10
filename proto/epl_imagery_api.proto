@@ -36,9 +36,70 @@ service ImageryOperators {
     // Execute a single geometry operation
     rpc MetadataSearch(MetadataRequest) returns (stream MetadataResult) {}
 
+    // TODO maybe this should be separated into different rpcs for each result type
+    rpc ImagerySearchNArray(ImageryRequest) returns (NDArrayResult) {}
 //    rpc StreamOperations(stream OperatorRequest) returns (stream OperatorResult) {}
 }
 
+message ImageryRequest {
+    repeated MetadataResult metadata = 1;
+    repeated BandDefinition band_definitions = 2;
+
+    // TODO rename extent to bounding_box
+    repeated float extent = 4;
+    ServiceSpatialReference extent_cs = 5;
+    DataType output_type = 6;
+
+    // TODO rename to something more clear
+    float xRes = 7;
+
+    // TODO rename to something more clear
+    float yRes = 8;
+}
+
+// TODO maybe this should be separated into different messages for each result type
+message NDArrayResult {
+    repeated float data_float = 1;
+    repeated float data_int32 = 2;
+    repeated float data_int64 = 3;
+    repeated bytes data_bytes = 4;
+    DataType dtype = 5;
+    repeated int32 shape = 6;
+}
+//dtype	Data-type of the array’s elements.
+//flags	Information about the memory layout of the array.
+//flat	A 1-D iterator over the array.
+//imag	The imaginary part of the array.
+//real	The real part of the array.
+//size	Number of elements in the array.
+//itemsize	Length of one array element in bytes.
+//nbytes	Total bytes consumed by the elements of the array.
+//ndim	Number of array dimensions.
+//shape	Tuple of array dimensions.
+//strides	Tuple of bytes to step in each dimension when traversing an array.
+//ctypes	An object to simplify the interaction of the array with the ctypes module.
+//base	Base object if memory is from some other object.
+
+
+message RawImageryResult {
+
+}
+
+message BandDefinition {
+    int32 band_number = 1;
+    Band band_type = 2;
+    string band_function = 3;
+    repeated float scale_params = 4;
+}
+
+message BandFunctionDetails {
+    string name = 1;
+    repeated BandDefinition band_definitions = 2;
+    DataType data_type = 3;
+    string code = 4;
+    map<string, string> arguments = 5;
+    DataType transfer_type = 6;
+}
 
 message MetadataRequest {
     SpacecraftID satellite_id = 1;
@@ -51,6 +112,7 @@ message MetadataRequest {
     repeated string sql_filters = 7;
 }
 
+// TODO rename to Metadata
 message MetadataResult {
 
     //  # STRING	REQUIRED   Unique identifier for a particular Landsat image downlinked to
@@ -99,6 +161,7 @@ message MetadataResult {
 
     //  (minx, miny, maxx, maxy)
     repeated float bounds = 21;
+    repeated bytes wrs_polygon_wkb = 22;
 //    ServiceEnvelope2D bounds = 21;
 }
 
@@ -154,6 +217,17 @@ enum SpacecraftID {
     LANDSAT_7 = 128;
     LANDSAT_8 = 256;
     ALL = 512;
+}
+
+/*
+  Type of geometry encoding
+*/
+enum GeometryEncodingType {
+    unknown = 0;
+    wkb = 1; // well-known binary
+    wkt = 2; // well-known text
+    geojson = 3; // geojson
+    esrishape = 4; // esri shape binary
 }
 
 enum ServiceOperatorType {
@@ -221,7 +295,7 @@ message ServiceGeometry {
 
     // TODO review esri encoding typename (this is for the esri shape binary format)
     // type can be 'wkt', 'wkb', 'geojson', or 'esri'
-    DataType geometry_encoding_type = 2;
+    GeometryEncodingType geometry_encoding_type = 2;
 
     // the geometry encoded as base64 (wkb or esri) or as a string (wkt or geojson)
     repeated string geometry_string = 3;
