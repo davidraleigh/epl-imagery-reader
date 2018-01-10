@@ -52,6 +52,7 @@ class __Singleton(type):
         return cls._instance
 
 
+# TODO this should be IntFlag to allow for combinations
 class SpacecraftID(IntEnum):
     UNKNOWN_SPACECRAFT = 0
     LANDSAT_1_MSS = 1
@@ -91,24 +92,36 @@ class Band(Enum):
 
 class DataType(Enum):
     # Byte, UInt16, Int16, UInt32, Int32, Float32, Float64, CInt16, CInt32, CFloat32 or CFloat64
-
-    BYTE = (gdal.GDT_Byte, "Byte", 0, 255)
-    INT16 = (gdal.GDT_Int16, "Int16", -32768, 32767)
-    UINT16 = (gdal.GDT_UInt16, "UInt16", 0, 65535)
-    INT32 = (gdal.GDT_Int32, "Int32", -2147483648, 2147483647)
-    UINT32 = (gdal.GDT_UInt32, "UInt32", 0, 4294967295)
-    FLOAT32 = (gdal.GDT_Float32, "Float32", -3.4E+38, 3.4E+38)
-    FLOAT64 = (gdal.GDT_Float64, "Float64", -1.7E+308, 1.7E+308)
+    """enum DataType {
+    BYTE = 0;
+    INT16 = 1;
+    UINT16 = 2;
+    INT32 = 3;
+    UINT32 = 4;
+    FLOAT32 = 5;
+    FLOAT64 = 6;
+    CFLOAT32 = 7;
+    CFLOAT64 = 8;
+}
+    """
+    BYTE = (gdal.GDT_Byte, "Byte", 0, 255, 0)
+    INT16 = (gdal.GDT_Int16, "Int16", -32768, 32767, 1)
+    UINT16 = (gdal.GDT_UInt16, "UInt16", 0, 65535, 2)
+    INT32 = (gdal.GDT_Int32, "Int32", -2147483648, 2147483647, 3)
+    UINT32 = (gdal.GDT_UInt32, "UInt32", 0, 4294967295, 4)
+    FLOAT32 = (gdal.GDT_Float32, "Float32", -3.4E+38, 3.4E+38, 5)
+    FLOAT64 = (gdal.GDT_Float64, "Float64", -1.7E+308, 1.7E+308, 6)
 
     # TODO this seem to be swapped
-    CFLOAT32 = (gdal.GDT_CFloat32, "CFloat32", -3.4E+38, 3.4E+38)
-    CFLOAT64 = (gdal.GDT_CFloat64, "CFloat64", -1.7E+308, 1.7E+308)
+    CFLOAT32 = (gdal.GDT_CFloat32, "CFloat32", -3.4E+38, 3.4E+38, 7)
+    CFLOAT64 = (gdal.GDT_CFloat64, "CFloat64", -1.7E+308, 1.7E+308, 8)
 
-    def __init__(self, gdal_type, name, range_min, range_max):
+    def __init__(self, gdal_type, name, range_min, range_max, grpc_num):
         self.__gdal_type = gdal_type
         self.__name = name
         self.range_min = range_min
         self.range_max = range_max
+        self.__grpc_num = grpc_num
 
     @property
     def gdal(self):
@@ -428,12 +441,18 @@ LLNppprrrOOYYDDDMM_AA.TIF  where:
         reg_results_2 = self.datetime_reg.search(date_acquired + "T" + sensing_time)
         date_acquired = reg_results_2.group(1) + reg_results_2.group(2) + reg_results_2.group(3)
         self.sensing_time = datetime.strptime(date_acquired, "%Y-%m-%dT%H:%M:%S.%fZ")
-        self.date_acquired = self.sensing_time.date()
+        self.date_acquired = self.sensing_time.date().isoformat()
         # '2017-11-08T23:42:51Z'
         self.cloud_cover = mtl['L1_METADATA_FILE']['IMAGE_ATTRIBUTES']['CLOUD_COVER']
         self.cloud_cover_land = mtl['L1_METADATA_FILE']['IMAGE_ATTRIBUTES']['CLOUD_COVER_LAND']
         self.date_processed = datetime.strptime(mtl['L1_METADATA_FILE']['METADATA_FILE_INFO']['FILE_DATE'],
                                                 "%Y-%m-%dT%H:%M:%SZ")
+
+        # TODO, this is a crummy estimate. should use WRS paths result or actually select the extremes (distortion in projection makes this incorrect)
+        self.north_lat = mtl['L1_METADATA_FILE']['PRODUCT_METADATA']['CORNER_LL_LAT_PRODUCT']  # FLOAT	NULLABLE The northern latitude of the bounding box of this scene.
+        self.south_lat = mtl['L1_METADATA_FILE']['PRODUCT_METADATA']['CORNER_UL_LAT_PRODUCT']  # FLOAT	NULLABLE The southern latitude of the bounding box of this scene.
+        self.west_lon = mtl['L1_METADATA_FILE']['PRODUCT_METADATA']['CORNER_UL_LON_PRODUCT']  # FLOAT	NULLABLE The western longitude of the bounding box of this scene.
+        self.east_lon = mtl['L1_METADATA_FILE']['PRODUCT_METADATA']['CORNER_UL_LON_PRODUCT']  # FLOAT	NULLABLE The eastern longitude of the bounding box of this scene.
         # self.sensing_time = datetime.combine(date(2011, 01, 01), datetime.time(10, 23))
         return
 

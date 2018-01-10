@@ -130,7 +130,7 @@ class TestAWSMetadata(unittest.TestCase):
         self.assertIsNotNone(metadata.date_acquired)
         self.assertIsNotNone(metadata.sensing_time)
 
-        self.assertEqual(metadata.sensing_time.date(), metadata.date_acquired)
+        self.assertEqual(metadata.sensing_time.date().isoformat(), metadata.date_acquired)
         self.assertNotEqual(metadata.date_acquired, metadata.date_processed.date())
 
     def test_gt(self):
