@@ -70,7 +70,7 @@ class SpacecraftID(IntEnum):
     ALL = 512
 
 
-class Band(Enum):
+class Band(IntEnum):
     # Crazy Values so that the Band.<ENUM>.value isn't used for anything
     UNKNOWN_BAND = 0
     ULTRA_BLUE = 1001
@@ -406,9 +406,9 @@ LLNppprrrOOYYDDDMM_AA.TIF  where:
             self.__bucket_name = gsurl[1]
             self.__data_prefix = gsurl[2]
 
-            self.__full_mount_path = base_mount_path.rstrip("\/") + os.path.sep + self.__data_prefix.strip("\/")
+            self.full_mount_path = base_mount_path.rstrip("\/") + os.path.sep + self.__data_prefix.strip("\/")
         else:
-            self.__full_mount_path = self.get_aws_file_path()
+            self.full_mount_path = self.get_aws_file_path()
 
     def __construct_grpc(self, metadata_message):
         for key in metadata_message.DESCRIPTOR.fields:
@@ -416,12 +416,12 @@ LLNppprrrOOYYDDDMM_AA.TIF  where:
 
     def __construct_aws(self, row):
         # TODO there should be Metadata class for AWS and GOOGLE?
-        self.__full_mount_path = row
-        self.product_id = os.path.basename(self.__full_mount_path)
+        self.full_mount_path = row
+        self.product_id = os.path.basename(self.full_mount_path)
         # we know this is Landsat 8
         self.spacecraft_id = SpacecraftID.LANDSAT_8.name
 
-        reg_results_1 = self.metadata_reg.search(self.__full_mount_path)
+        reg_results_1 = self.metadata_reg.search(self.full_mount_path)
         self.wrs_path = int(reg_results_1.group(1))
         self.wrs_row = int(reg_results_1.group(2))
         self.data_type = reg_results_1.group(4)
@@ -429,7 +429,7 @@ LLNppprrrOOYYDDDMM_AA.TIF  where:
                                   int(reg_results_1.group(7))).strftime("%Y-%m-%d")
         self.collection_category = reg_results_1.group(8)
 
-        mtl_file_path = "{0}/{1}_MTL.json".format(self.__full_mount_path, self.name_prefix)
+        mtl_file_path = "{0}/{1}_MTL.json".format(self.full_mount_path, self.name_prefix)
         mtl = self.parse_mtl(mtl_file_path)
 
         # '16:18:27.0722979Z'
@@ -463,10 +463,6 @@ LLNppprrrOOYYDDDMM_AA.TIF  where:
     @property
     def base_mount_path(self):
         return self.__base_mount_path
-
-    @property
-    def full_mount_path(self):
-        return self.__full_mount_path
 
     @property
     def band_map(self):
@@ -557,7 +553,7 @@ LLNppprrrOOYYDDDMM_AA.TIF  where:
 
     # TODO make private
     def get_full_file_path(self, band_number):
-        return "{0}/{1}_B{2}.TIF".format(self.__full_mount_path, self.name_prefix, band_number)
+        return "{0}/{1}_B{2}.TIF".format(self.full_mount_path, self.name_prefix, band_number)
 
     def __query_file_list(self):
         bucket = self.__storage_client.list_buckets(prefix=self.__bucket_name + self.__data_prefix)

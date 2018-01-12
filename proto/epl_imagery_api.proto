@@ -97,7 +97,9 @@ message NDArrayResult {
     repeated uint64 data_uint64 = 5;
     repeated bytes data_bytes = 6;
     repeated double data_double = 7;
+
     DataType dtype = 8;
+
     repeated int32 shape = 9;
 }
 //dtype	Data-type of the array’s elements.
@@ -122,7 +124,7 @@ message RawImageryResult {
 message BandDefinition {
     int32 band_number = 1;
     Band band_type = 2;
-    string band_function = 3;
+    BandFunctionDetails band_function = 3;
     repeated float scale_params = 4;
 }
 
@@ -197,6 +199,7 @@ message MetadataResult {
     repeated float bounds = 21;
     repeated bytes wrs_polygon_wkb = 22;
 //    ServiceEnvelope2D bounds = 21;
+    string full_mount_path = 23;
 }
 
 

@@ -349,22 +349,6 @@ class TestLandsat(unittest.TestCase):
         for row in metadata_rows:
             self.metadata_set.append(row)
 
-    def test_gdal_info(self):
-        d_start = date(2015, 6, 24)
-        d_end = date(2016, 6, 24)
-        bounding_box = (-115.927734375, 34.52466147177172, -78.31054687499999, 44.84029065139799)
-        rows = self.metadata_service.search(SpacecraftID.LANDSAT_8, start_date=d_start, end_date=d_end,
-                                            bounding_box=bounding_box,
-                                            limit=1)
-        rows = list(rows)
-        metadata = rows[0]
-        storage = Storage(metadata.bucket_name)
-
-        b_mounted = storage.mount_sub_folder(metadata, "generic")
-        self.assertTrue(b_mounted)
-        b_deleted = storage.unmount_sub_folder(metadata, "generic")
-        self.assertTrue(b_deleted)
-
     # TODO test PRE rejection
     # TODO test date range rejection
     # TODO test Satellite Rejection
