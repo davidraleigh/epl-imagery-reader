@@ -286,6 +286,11 @@ class TestBandMap(unittest.TestCase):
         self.assertRaises(KeyError, lambda: band_map.get_band_enum(12))
 
 
+class TestDataType(unittest.TestCase):
+    def test_bitwise(self):
+        a = DataType.UINT32
+        b = DataType.UINT16
+
 class TestWRSGeometries(unittest.TestCase):
     test_cases = [[15.74326, 26.98611, 1, 1, 1, 0, 13001, 13001, 13, 1, 'D', 1, 2233],
                   [2.74362, 6.65058, 942, 942, 1, 0, 61198, 61198, 61, 198, 'A', 1, 3174],

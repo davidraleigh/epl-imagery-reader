@@ -93,35 +93,43 @@ class Band(IntEnum):
 class DataType(Enum):
     # Byte, UInt16, Int16, UInt32, Int32, Float32, Float64, CInt16, CInt32, CFloat32 or CFloat64
     """enum DataType {
-    BYTE = 0;
-    INT16 = 1;
-    UINT16 = 2;
-    INT32 = 3;
-    UINT32 = 4;
-    FLOAT32 = 5;
-    FLOAT64 = 6;
-    CFLOAT32 = 7;
-    CFLOAT64 = 8;
+    UKNOWN = 0;
+    BYTE = 0;  1
+    INT16 = 1; 2
+    UINT16 = 2; 4
+
+    INT32 = 3; 8
+    UINT32 = 4; 16
+    FLOAT32 = 5; 32
+    FLOAT64 = 6; 64
+    CFLOAT32 = 7; 128
+    CFLOAT64 = 8; 256
 }
     """
-    BYTE = (gdal.GDT_Byte, "Byte", 0, 255, 0)
-    INT16 = (gdal.GDT_Int16, "Int16", -32768, 32767, 1)
-    UINT16 = (gdal.GDT_UInt16, "UInt16", 0, 65535, 2)
-    INT32 = (gdal.GDT_Int32, "Int32", -2147483648, 2147483647, 3)
-    UINT32 = (gdal.GDT_UInt32, "UInt32", 0, 4294967295, 4)
-    FLOAT32 = (gdal.GDT_Float32, "Float32", -3.4E+38, 3.4E+38, 5)
-    FLOAT64 = (gdal.GDT_Float64, "Float64", -1.7E+308, 1.7E+308, 6)
+    BYTE = (gdal.GDT_Byte, "Byte", 0, 255, 0, np.uint8)
+    INT16 = (gdal.GDT_Int16, "Int16", -32768, 32767, 1, np.int16)
+    UINT16 = (gdal.GDT_UInt16, "UInt16", 0, 65535, 2, np.uint16)
+    INT32 = (gdal.GDT_Int32, "Int32", -2147483648, 2147483647, 3, np.int32)
+    UINT32 = (gdal.GDT_UInt32, "UInt32", 0, 4294967295, 4, np.uint32)
+    FLOAT32 = (gdal.GDT_Float32, "Float32", -3.4E+38, 3.4E+38, 5, np.float)
+    FLOAT64 = (gdal.GDT_Float64, "Float64", -1.7E+308, 1.7E+308, 6, np.float64)
 
-    # TODO this seem to be swapped
-    CFLOAT32 = (gdal.GDT_CFloat32, "CFloat32", -3.4E+38, 3.4E+38, 7)
-    CFLOAT64 = (gdal.GDT_CFloat64, "CFloat64", -1.7E+308, 1.7E+308, 8)
+    CFLOAT32 = (gdal.GDT_CFloat32, "CFloat32", -1.7E+308, 1.7E+308, 7, np.complex64)
+    CFLOAT64 = (gdal.GDT_CFloat64, "CFloat64", -3.4E+38, 3.4E+38, 8, np.complex64)
 
-    def __init__(self, gdal_type, name, range_min, range_max, grpc_num):
+    def __init__(self, gdal_type, name, range_min, range_max, grpc_num, numpy_type):
         self.__gdal_type = gdal_type
         self.__name = name
         self.range_min = range_min
         self.range_max = range_max
         self.__grpc_num = grpc_num
+        self.__numpy_type = numpy_type
+
+    def __or__(self, other):
+        return self.__grpc_num | other.__grpc_num
+
+    def __and__(self, other):
+        return self.__grpc_num & other.__grpc_num
 
     @property
     def gdal(self):
@@ -130,6 +138,14 @@ class DataType(Enum):
     @property
     def name(self):
         return self.__name
+
+    @property
+    def grpc_num(self):
+        return self.__grpc_num
+
+    @property
+    def numpy_type(self):
+        return self.__numpy_type
 
 
 class BandMap:
