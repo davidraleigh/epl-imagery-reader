@@ -88,11 +88,8 @@ message ImageryRequest {
 message NDArrayResult {
     repeated float data_float = 1;
     repeated int32 data_int32 = 2;
-    repeated int64 data_int64 = 3;
-    repeated uint32 data_uint32 = 4;
-    repeated uint64 data_uint64 = 5;
-    repeated bytes data_bytes = 6;
-    repeated double data_double = 7;
+    repeated uint32 data_uint32 = 3;
+    repeated double data_double = 5;
 
     GDALDataType dtype = 8;
 

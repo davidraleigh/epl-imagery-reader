@@ -857,8 +857,7 @@ class Landsat(Imagery):
                                    scale_params=scale_params,
                                    envelope_boundary=envelope_boundary,
                                    polygon_boundary_wkb=polygon_boundary_wkb,
-                                   xRes=spatial_resolution_m,
-                                   yRes=spatial_resolution_m)
+                                   spatial_resolution_m=spatial_resolution_m)
         nda = dataset.ReadAsArray()
         del dataset
         
