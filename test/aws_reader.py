@@ -91,7 +91,7 @@ class TestAWSMetadata(unittest.TestCase):
         self.assertIsNotNone(metadata)
 
         landsat = Landsat(metadata)
-        nda = landsat.fetch_imagery_array([4, 3, 2], [[0, 40000], [0, 40000], [0, 40000]], xRes=240, yRes=240)
+        nda = landsat.fetch_imagery_array([4, 3, 2], [[0, 40000], [0, 40000], [0, 40000]], spatial_resolution_m=240)
         self.assertIsNotNone(nda)
 
     def test_aws_from_image_key(self):

@@ -60,8 +60,7 @@ class ImageryServicer():
                                                boundary_cs=request.extent_cs,
                                                output_type=imagery_reader.DataType[
                                                    epl_imagery_api_pb2.GDALDataType.Name(request.output_type)],
-                                               xRes=request.xRes,
-                                               yRes=request.yRes)
+                                               spatial_resolution_m=request.spatial_resolution_m)
 
         result = epl_imagery_api_pb2.NDArrayResult()
         result.shape.extend(nd_array.shape)

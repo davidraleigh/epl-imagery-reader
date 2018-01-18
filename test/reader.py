@@ -463,9 +463,9 @@ class TestLandsat(unittest.TestCase):
         landsat = Landsat(metadata)
         scale_params = [[0.0, 65535], [0.0, 65535], [0.0, 65535]]
         # nda = landsat.__get_ndarray(band_numbers, metadata, scale_params)
-        nda = landsat.fetch_imagery_array([Band.RED, Band.GREEN, Band.BLUE], scale_params, xRes=240, yRes=240)
+        nda = landsat.fetch_imagery_array([Band.RED, Band.GREEN, Band.BLUE], scale_params, spatial_resolution_m=240)
         self.assertIsNotNone(nda)
-        nda2 = landsat.fetch_imagery_array([4, 3, 2], scale_params, xRes=240, yRes=240)
+        nda2 = landsat.fetch_imagery_array([4, 3, 2], scale_params, spatial_resolution_m=240)
         np.testing.assert_almost_equal(nda, nda2)
         # 'scene_id': 'LC80390332016208LGN00'
 
@@ -487,7 +487,7 @@ class TestLandsat(unittest.TestCase):
         # get a numpy.ndarray from bands for specified imagery
         band_numbers = [Band.RED, Band.GREEN, Band.BLUE]
         scale_params = [[0.0, 65535], [0.0, 65535], [0.0, 65535]]
-        nda = landsat.fetch_imagery_array(band_numbers, scale_params, self.taos_shape.wkb, xRes=480, yRes=480)
+        nda = landsat.fetch_imagery_array(band_numbers, scale_params, self.taos_shape.wkb, spatial_resolution_m=480)
         self.assertIsNotNone(nda)
 
         # TODO needs shape test
@@ -547,7 +547,7 @@ class TestLandsat(unittest.TestCase):
 
         for data_type in DataType:
             nda = landsat.fetch_imagery_array(band_numbers, scaleParams, envelope_boundary=self.taos_shape.bounds,
-                                              output_type=data_type, yRes=240, xRes=240)
+                                              output_type=data_type, spatial_resolution_m=240)
             self.assertIsNotNone(nda)
             self.assertGreaterEqual(data_type.range_max, nda.max())
             self.assertLessEqual(data_type.range_min, nda.min())
@@ -563,7 +563,7 @@ class TestLandsat(unittest.TestCase):
                                           scaleParams,
                                           envelope_boundary=self.taos_shape.bounds,
                                           output_type=DataType.UINT16,
-                                          xRes=120, yRes=120)
+                                          spatial_resolution_m=120)
         self.assertIsNotNone(nda)
 
     def test_rastermetadata_cache(self):
@@ -574,16 +574,16 @@ class TestLandsat(unittest.TestCase):
         # 'nir', 'swir1', 'swir2'
         band_numbers = [Band.NIR, Band.SWIR1, Band.SWIR2]
         scaleParams = [[0.0, 40000.0], [0.0, 40000.0], [0.0, 40000.0]]
-        nda = landsat.fetch_imagery_array(band_numbers, scaleParams, polygon_boundary_wkb=self.taos_shape.wkb, xRes=120, yRes=120)
+        nda = landsat.fetch_imagery_array(band_numbers, scaleParams, polygon_boundary_wkb=self.taos_shape.wkb, spatial_resolution_m=120)
         self.assertIsNotNone(nda)
         self.assertEqual((902, 648, 3), nda.shape)
 
         band_numbers = [Band.RED, Band.BLUE, Band.GREEN]
-        nda = landsat.fetch_imagery_array(band_numbers, scaleParams, polygon_boundary_wkb=self.taos_shape.wkb, xRes=120, yRes=120)
+        nda = landsat.fetch_imagery_array(band_numbers, scaleParams, polygon_boundary_wkb=self.taos_shape.wkb, spatial_resolution_m=120)
         self.assertIsNotNone(nda)
         self.assertEqual((902, 648, 3), nda.shape)
 
         band_numbers = [Band.RED, Band.BLUE, Band.GREEN]
-        nda = landsat.fetch_imagery_array(band_numbers, scaleParams, xRes=120, yRes=120)
+        nda = landsat.fetch_imagery_array(band_numbers, scaleParams, spatial_resolution_m=120)
         self.assertIsNotNone(nda)
         self.assertNotEqual((902, 648, 3), nda.shape)

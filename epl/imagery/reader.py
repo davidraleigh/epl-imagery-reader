@@ -845,10 +845,9 @@ class Landsat(Imagery):
                             scale_params=None,
                             polygon_boundary_wkb: bytes=None,
                             envelope_boundary: tuple=None,
-                            boundary_cs: pyproj.Proj=None,
+                            boundary_cs=4326,
                             output_type: DataType=DataType.BYTE,
-                            xRes=60,
-                            yRes=60) -> np.ndarray:
+                            spatial_resolution_m=60) -> np.ndarray:
         # TODO remove this, right?
         if polygon_boundary_wkb:
             envelope_boundary = shapely.wkb.loads(polygon_boundary_wkb).bounds
@@ -858,8 +857,8 @@ class Landsat(Imagery):
                                    scale_params=scale_params,
                                    envelope_boundary=envelope_boundary,
                                    polygon_boundary_wkb=polygon_boundary_wkb,
-                                   xRes=xRes,
-                                   yRes=yRes)
+                                   xRes=spatial_resolution_m,
+                                   yRes=spatial_resolution_m)
         nda = dataset.ReadAsArray()
         del dataset
         
@@ -974,8 +973,7 @@ class Landsat(Imagery):
                 translate_args=None,
                 envelope_boundary: tuple=None,
                 boundary_cs: pyproj.Proj=None,
-                xRes=30,
-                yRes=30):
+                spatial_resolution_m=60):
         # TODO remove this check, make Metadata a mandatory input
         if not metadata:
             metadata = self.__metadata[0]
@@ -1063,14 +1061,13 @@ class Landsat(Imagery):
                     scale_params=None,
                     envelope_boundary: tuple = None,
                     polygon_boundary_wkb: bytes = None,
-                    xRes=60,
-                    yRes=60):
+                    spatial_resolution_m=60):
         dataset_translated = self.__get_translated_datasets(band_definitions,
                                                             output_type,
                                                             scale_params,
                                                             envelope_boundary,
-                                                            xRes=xRes,
-                                                            yRes=yRes)
+                                                            xRes=spatial_resolution_m,
+                                                            yRes=spatial_resolution_m)
 
         b_alpha_channel = Band.ALPHA in band_definitions
         # if there is no need to warp the data

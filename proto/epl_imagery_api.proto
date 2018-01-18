@@ -75,17 +75,13 @@ message ImageryRequest {
     repeated BandDefinition band_definitions = 2;
 
     // TODO rename extent to bounding_box
-    repeated float extent = 4;
-    ServiceSpatialReference extent_cs = 5;
+    repeated float envelope_boundary = 4;
+    ServiceSpatialReference boundary_cs = 5;
     GDALDataType output_type = 6;
 
-    // TODO rename to something more clear
-    float xRes = 7;
+    float spatial_resolution_m = 7;
 
-    // TODO rename to something more clear
-    float yRes = 8;
-
-    bytes cutline_wkb = 9;
+    bytes polygon_boundary_wkb = 9;
 }
 
 // TODO maybe this should be separated into different messages for each result type
