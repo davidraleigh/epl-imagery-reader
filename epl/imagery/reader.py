@@ -52,8 +52,12 @@ class __Singleton(type):
         return cls._instance
 
 
+class DatasetID(IntEnum):
+    pass
+
+
 # TODO this should be IntFlag to allow for combinations
-class SpacecraftID(IntEnum):
+class SpacecraftID(DatasetID):
     UNKNOWN_SPACECRAFT = 0
     LANDSAT_1_MSS = 1
     LANDSAT_2_MSS = 2
@@ -67,7 +71,7 @@ class SpacecraftID(IntEnum):
     LANDSAT_45 = 96
     LANDSAT_7 = 128
     LANDSAT_8 = 256
-    ALL = 512
+    LANDSAT = 512
 
 
 class Band(IntEnum):
@@ -182,7 +186,7 @@ class BandMap:
             Band.THERMAL: {'number': 6, 'wavelength_range': (10.40, 12.50), 'description': 'Thermal mapping and estimated soil moisture (60m downsample Landsat7, 120m downsample landsat 4&5)', 'resolution_m': 30},
             Band.SWIR2: {'number': 7, 'wavelength_range': (2.09, 2.35), 'description': 'Hydrothermally altered rocks associated with mineral deposits', 'resolution_m': 30},
         },
-        SpacecraftID.LANDSAT_123_MSS:{
+        SpacecraftID.LANDSAT_123_MSS: {
             'max_resolution': 60,
             Band.GREEN: {'number': 4, 'wavelength_range': (0.5, 0.6), 'description': 'Sediment-laden water, delineates areas of shallow water', 'resolution_m': 60},
             Band.RED: {'number': 5, 'wavelength_range': (0.6, 0.7), 'description': 'Cultural features', 'resolution_m': 60},
@@ -770,7 +774,7 @@ class Imagery:
     storage = None
 
     # def __init__(self, base_mount_path, bucket_name="gcp-public-data-landsat"):
-    def __init__(self, bucket_name):
+    def __init__(self, bucket_name: str):
         self.bucket_name = bucket_name
         self.storage = Storage(self.bucket_name)
 
@@ -839,21 +843,21 @@ class Landsat(Imagery):
     def fetch_imagery_array(self,
                             band_definitions,
                             scale_params=None,
-                            cutline_wkb: bytes=None,
-                            extent: tuple=None,
-                            extent_cs: pyproj.Proj=None,
+                            polygon_boundary_wkb: bytes=None,
+                            envelope_boundary: tuple=None,
+                            boundary_cs: pyproj.Proj=None,
                             output_type: DataType=DataType.BYTE,
                             xRes=60,
                             yRes=60) -> np.ndarray:
         # TODO remove this, right?
-        if cutline_wkb:
-            extent = shapely.wkb.loads(cutline_wkb).bounds
+        if polygon_boundary_wkb:
+            envelope_boundary = shapely.wkb.loads(polygon_boundary_wkb).bounds
 
         dataset = self.get_dataset(band_definitions,
                                    output_type=output_type,
                                    scale_params=scale_params,
-                                   extent=extent,
-                                   cutline_wkb=cutline_wkb,
+                                   envelope_boundary=envelope_boundary,
+                                   polygon_boundary_wkb=polygon_boundary_wkb,
                                    xRes=xRes,
                                    yRes=yRes)
         nda = dataset.ReadAsArray()
@@ -863,7 +867,11 @@ class Landsat(Imagery):
             return nda.transpose((1, 2, 0))
         return nda
 
-    def __get_source_elem(self, band_number, calculated_metadata: RasterMetadata, block_size=256):
+    def __get_source_elem(self,
+                          band_number,
+                          calculated_metadata:
+                          RasterMetadata,
+                          block_size=256):
         elem_simple_source = etree.Element("SimpleSource")
 
         # if the input had multiple bands this setting would be where you change that
@@ -939,7 +947,13 @@ class Landsat(Imagery):
             elem_simple_source = self.__get_source_elem(band_number, calculated_metadata, block_size)
             elem_raster_band.append(elem_simple_source)
 
-    def __get_band_elem(self, vrt_dataset, band_number, position_number, calculated_metadata: RasterMetadata, metadata, block_size=256):
+    def __get_band_elem(self,
+                        vrt_dataset,
+                        band_number,
+                        position_number,
+                        calculated_metadata: RasterMetadata,
+                        metadata,
+                        block_size=256):
         # I think this needs to be removed.
         color_interp = metadata.band_map.get_name(band_number).capitalize()
 
@@ -958,8 +972,8 @@ class Landsat(Imagery):
                 band_definitions: list,
                 metadata: Metadata=None,
                 translate_args=None,
-                extent: tuple=None,
-                extent_cs: pyproj.Proj=None,
+                envelope_boundary: tuple=None,
+                boundary_cs: pyproj.Proj=None,
                 xRes=30,
                 yRes=30):
         # TODO remove this check, make Metadata a mandatory input
@@ -976,7 +990,7 @@ class Landsat(Imagery):
         position_number = 1
 
         # self.get_band_metadata(band_definitions)
-        calculated_metadata = self.__calculate_metadata(metadata, band_definitions, extent=extent, extent_cs=extent_cs)
+        calculated_metadata = self.__calculate_metadata(metadata, band_definitions, extent=envelope_boundary, extent_cs=boundary_cs)
         geo_transform = calculated_metadata.geo_transform
         etree.SubElement(vrt_dataset, "GeoTransform").text = ",".join(map("  {:.16e}".format, geo_transform))
         vrt_dataset.set("rasterXSize", str(calculated_metadata.x_dst_size))
@@ -1022,7 +1036,7 @@ class Landsat(Imagery):
                                   band_definitions,
                                   output_type: DataType,
                                   scale_params=None,
-                                  extent: tuple=None,
+                                  envelope_boundary: tuple=None,
                                   xRes=60,
                                   yRes=60):
         translated = []
@@ -1030,7 +1044,7 @@ class Landsat(Imagery):
             if self.storage.mount_sub_folder(metadata, request_key=str(self.__id)) is False:
                 return None
 
-            vrt = self.get_vrt(band_definitions, metadata=metadata, extent=extent)
+            vrt = self.get_vrt(band_definitions, metadata=metadata, envelope_boundary=envelope_boundary)
             # http://gdal.org/python/
             # http://gdal.org/python/osgeo.gdal-module.html#TranslateOptions
             dataset_translated = gdal.Translate('', vrt.decode('utf-8'),
@@ -1047,25 +1061,25 @@ class Landsat(Imagery):
                     band_definitions,
                     output_type: DataType,
                     scale_params=None,
-                    extent: tuple = None,
-                    cutline_wkb: bytes = None,
+                    envelope_boundary: tuple = None,
+                    polygon_boundary_wkb: bytes = None,
                     xRes=60,
                     yRes=60):
         dataset_translated = self.__get_translated_datasets(band_definitions,
                                                             output_type,
                                                             scale_params,
-                                                            extent,
+                                                            envelope_boundary,
                                                             xRes=xRes,
                                                             yRes=yRes)
 
         b_alpha_channel = Band.ALPHA in band_definitions
         # if there is no need to warp the data
-        if not cutline_wkb and len(dataset_translated) == 1 and not b_alpha_channel:
+        if not polygon_boundary_wkb and len(dataset_translated) == 1 and not b_alpha_channel:
             return dataset_translated[0]
 
         dataset_warped = self.__get_warped(dataset_translated,
                                            output_type=output_type,
-                                           cutline_wkb=cutline_wkb,
+                                           polygon_boundary_wkb=polygon_boundary_wkb,
                                            dstAlpha=b_alpha_channel)
 
         for dataset in dataset_translated:
@@ -1076,16 +1090,16 @@ class Landsat(Imagery):
     def __get_warped(self,
                      dataset_translated: ogr,
                      output_type: DataType,
-                     cutline_wkb: bytes=None,
+                     polygon_boundary_wkb: bytes=None,
                      dstAlpha: bool=False):
         cutlineDSName = None
-        if cutline_wkb:
+        if polygon_boundary_wkb:
             cutlineDSName = '/vsimem/cutline.json'
             cutline_ds = ogr.GetDriverByName('GeoJSON').CreateDataSource(cutlineDSName)
             cutline_lyr = cutline_ds.CreateLayer('cutline')
             f = ogr.Feature(cutline_lyr.GetLayerDefn())
 
-            f.SetGeometry(ogr.CreateGeometryFromWkb(cutline_wkb))
+            f.SetGeometry(ogr.CreateGeometryFromWkb(polygon_boundary_wkb))
             cutline_lyr.CreateFeature(f)
             f = None
             cutline_lyr = None

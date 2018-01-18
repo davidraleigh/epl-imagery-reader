@@ -291,6 +291,7 @@ class TestDataType(unittest.TestCase):
         a = DataType.UINT32
         b = DataType.UINT16
 
+
 class TestWRSGeometries(unittest.TestCase):
     test_cases = [[15.74326, 26.98611, 1, 1, 1, 0, 13001, 13001, 13, 1, 'D', 1, 2233],
                   [2.74362, 6.65058, 942, 942, 1, 0, 61198, 61198, 61, 198, 'A', 1, 3174],
@@ -475,7 +476,7 @@ class TestLandsat(unittest.TestCase):
         # get a numpy.ndarray from bands for specified imagery
         band_numbers = [Band.RED, Band.GREEN, Band.BLUE]
         scale_params = [[0.0, 65535], [0.0, 65535], [0.0, 65535]]
-        vrt = landsat.get_vrt(band_numbers, extent=self.taos_shape.bounds)
+        vrt = landsat.get_vrt(band_numbers, envelope_boundary=self.taos_shape.bounds)
 
         self.assertIsNotNone(vrt)
 
@@ -498,7 +499,7 @@ class TestLandsat(unittest.TestCase):
         # get a numpy.ndarray from bands for specified imagery
         band_numbers = [Band.RED, Band.GREEN, Band.BLUE]
         scale_params = [[0.0, 65535], [0.0, 65535], [0.0, 65535]]
-        nda = landsat.fetch_imagery_array(band_numbers, scale_params, extent=self.taos_shape.bounds)
+        nda = landsat.fetch_imagery_array(band_numbers, scale_params, envelope_boundary=self.taos_shape.bounds)
         self.assertIsNotNone(nda)
         self.assertEqual((1804, 1295, 3), nda.shape)
 
@@ -512,7 +513,7 @@ class TestLandsat(unittest.TestCase):
         # 'nir', 'swir1', 'swir2'
         band_numbers = [Band.NIR, Band.SWIR1, Band.SWIR2]
         scaleParams = [[0.0, 40000.0], [0.0, 40000.0], [0.0, 40000.0]]
-        nda = landsat.fetch_imagery_array(band_numbers, scaleParams, cutline_wkb=self.taos_shape.wkb)
+        nda = landsat.fetch_imagery_array(band_numbers, scaleParams, polygon_boundary_wkb=self.taos_shape.wkb)
         self.assertIsNotNone(nda)
         self.assertEqual((1804, 1295, 3), nda.shape)
 
@@ -522,7 +523,7 @@ class TestLandsat(unittest.TestCase):
         # get a numpy.ndarray from bands for specified imagery
         band_numbers = [Band.RED, Band.GREEN, Band.BLUE]
         scaleParams = [[0.0, 40000], [0.0, 40000], [0.0, 40000]]
-        nda = landsat.fetch_imagery_array(band_numbers, scaleParams, extent=self.taos_shape.bounds)
+        nda = landsat.fetch_imagery_array(band_numbers, scaleParams, envelope_boundary=self.taos_shape.bounds)
 
         self.assertIsNotNone(nda)
         # GDAL helper functions for generating VRT
@@ -533,7 +534,7 @@ class TestLandsat(unittest.TestCase):
         # 'nir', 'swir1', 'swir2'
         band_numbers = [Band.NIR, Band.SWIR1, Band.SWIR2]
         scaleParams = [[0.0, 40000.0], [0.0, 40000.0], [0.0, 40000.0]]
-        nda = landsat.fetch_imagery_array(band_numbers, scaleParams, cutline_wkb=self.taos_shape.wkb)
+        nda = landsat.fetch_imagery_array(band_numbers, scaleParams, polygon_boundary_wkb=self.taos_shape.wkb)
         self.assertIsNotNone(nda)
         self.assertEqual((1804, 1295, 3), nda.shape)
 
@@ -545,7 +546,7 @@ class TestLandsat(unittest.TestCase):
         scaleParams = [[0.0, 40000], [0.0, 40000], [0.0, 40000]]
 
         for data_type in DataType:
-            nda = landsat.fetch_imagery_array(band_numbers, scaleParams, extent=self.taos_shape.bounds,
+            nda = landsat.fetch_imagery_array(band_numbers, scaleParams, envelope_boundary=self.taos_shape.bounds,
                                               output_type=data_type, yRes=240, xRes=240)
             self.assertIsNotNone(nda)
             self.assertGreaterEqual(data_type.range_max, nda.max())
@@ -560,7 +561,7 @@ class TestLandsat(unittest.TestCase):
 
         nda = landsat.fetch_imagery_array(band_numbers,
                                           scaleParams,
-                                          extent=self.taos_shape.bounds,
+                                          envelope_boundary=self.taos_shape.bounds,
                                           output_type=DataType.UINT16,
                                           xRes=120, yRes=120)
         self.assertIsNotNone(nda)
@@ -573,12 +574,12 @@ class TestLandsat(unittest.TestCase):
         # 'nir', 'swir1', 'swir2'
         band_numbers = [Band.NIR, Band.SWIR1, Band.SWIR2]
         scaleParams = [[0.0, 40000.0], [0.0, 40000.0], [0.0, 40000.0]]
-        nda = landsat.fetch_imagery_array(band_numbers, scaleParams, cutline_wkb=self.taos_shape.wkb, xRes=120, yRes=120)
+        nda = landsat.fetch_imagery_array(band_numbers, scaleParams, polygon_boundary_wkb=self.taos_shape.wkb, xRes=120, yRes=120)
         self.assertIsNotNone(nda)
         self.assertEqual((902, 648, 3), nda.shape)
 
         band_numbers = [Band.RED, Band.BLUE, Band.GREEN]
-        nda = landsat.fetch_imagery_array(band_numbers, scaleParams, cutline_wkb=self.taos_shape.wkb, xRes=120, yRes=120)
+        nda = landsat.fetch_imagery_array(band_numbers, scaleParams, polygon_boundary_wkb=self.taos_shape.wkb, xRes=120, yRes=120)
         self.assertIsNotNone(nda)
         self.assertEqual((902, 648, 3), nda.shape)
 

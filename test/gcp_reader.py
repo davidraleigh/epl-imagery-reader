@@ -723,7 +723,7 @@ def ndvi_numpy2(in_ar, out_ar, xoff, yoff, xsize, ysize, raster_xsize, raster_ys
         gdal.SetConfigOption('GDAL_VRT_ENABLE_PYTHON', "YES")
         nda = landsat.fetch_imagery_array([pixel_function_details],
                                           scale_params=scale_params,
-                                          cutline_wkb=self.taos_shape.wkb,
+                                          polygon_boundary_wkb=self.taos_shape.wkb,
                                           output_type=DataType.FLOAT32)
 
         self.assertIsNotNone(nda)
@@ -736,7 +736,7 @@ def ndvi_numpy2(in_ar, out_ar, xoff, yoff, xsize, ysize, raster_xsize, raster_ys
                                                  data_type=DataType.FLOAT32)
 
         nda2 = landsat.fetch_imagery_array([pixel_function_details],
-                                           cutline_wkb=self.taos_shape.wkb,
+                                           polygon_boundary_wkb=self.taos_shape.wkb,
                                            output_type=DataType.FLOAT32)
 
         self.assertIsNotNone(nda2)
@@ -760,12 +760,12 @@ def ndvi_numpy(in_ar, out_ar, xoff, yoff, xsize, ysize, raster_xsize, raster_ysi
         gdal.SetConfigOption('GDAL_VRT_ENABLE_PYTHON', "YES")
         nda = landsat.fetch_imagery_array([pixel_function_details, Band.GREEN, Band.BLUE],
                                           scale_params=scale_params,
-                                          cutline_wkb=self.taos_shape.wkb,
+                                          polygon_boundary_wkb=self.taos_shape.wkb,
                                           output_type=DataType.BYTE)
 
         nda2 = landsat.fetch_imagery_array([Band.RED, Band.GREEN, Band.BLUE],
                                            scale_params=scale_params,
-                                           cutline_wkb=self.taos_shape.wkb,
+                                           polygon_boundary_wkb=self.taos_shape.wkb,
                                            output_type=DataType.BYTE)
         self.assertIsNotNone(nda)
         np.testing.assert_almost_equal(nda, nda2)
@@ -780,7 +780,7 @@ def ndvi_numpy(in_ar, out_ar, xoff, yoff, xsize, ysize, raster_xsize, raster_ysi
                                        data_type=DataType.UINT16,
                                        transfer_type=DataType.FLOAT32)
         nda = landsat.fetch_imagery_array([pixel_native],
-                                          cutline_wkb=self.taos_shape.wkb,
+                                          polygon_boundary_wkb=self.taos_shape.wkb,
                                           output_type=DataType.FLOAT32)
 
         self.assertIsNotNone(nda)
@@ -891,7 +891,7 @@ class TestRasterMetadata(unittest.TestCase):
         # get a numpy.ndarray from bands for specified imagery
         band_numbers = [Band.RED, Band.GREEN, Band.BLUE]
         scale_params = [[0.0, 65535], [0.0, 65535], [0.0, 65535]]
-        vrt = landsat.get_vrt(band_numbers, extent=taos_shape.bounds)
+        vrt = landsat.get_vrt(band_numbers, envelope_boundary=taos_shape.bounds)
 
         with open('clipped_LC80330342017072LGN00.vrt', 'r') as myfile:
             data = myfile.read()

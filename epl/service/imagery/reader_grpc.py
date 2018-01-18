@@ -54,10 +54,10 @@ class ImageryServicer():
 
         output_data_type = imagery_reader.DataType[epl_imagery_api_pb2.GDALDataType.Name(request.output_type)]
         nd_array = landsat.fetch_imagery_array(band_definitions=band_definitions,
-                                               extent=tuple(request.extent),
-                                               cutline_wkb=request.cutline_wkb,
+                                               envelope_boundary=tuple(request.extent),
+                                               polygon_boundary_wkb=request.cutline_wkb,
                                                scale_params=scale_params,
-                                               extent_cs=request.extent_cs,
+                                               boundary_cs=request.extent_cs,
                                                output_type=imagery_reader.DataType[
                                                    epl_imagery_api_pb2.GDALDataType.Name(request.output_type)],
                                                xRes=request.xRes,
@@ -105,7 +105,6 @@ class ImageryServicer():
 
         for metadata in metadata_generator:
             for attr, value in vars(metadata).items():
-                print(attr)
                 # TODO rename bounding_box
                 if attr == "bounds":
                     result.bounds.extend(value)
@@ -123,6 +122,7 @@ class ImageryServicer():
 def serve():
     # options=(('grpc.max_message_length', <a large integer of your choice>,),))
     MB = 1024 * 1024
+    # https://github.com/grpc/grpc/issues/7927
     GRPC_CHANNEL_OPTIONS = [('grpc.max_message_length', 64 * MB), ('grpc.max_receive_message_length', 64 * MB)]
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10), options=GRPC_CHANNEL_OPTIONS)
     epl_imagery_api_pb2_grpc.add_ImageryOperatorsServicer_to_server(ImageryServicer(), server)
