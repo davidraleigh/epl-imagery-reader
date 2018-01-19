@@ -1,8 +1,11 @@
 import grpc
 import time
+import tempfile
+import os
 
 import numpy as np
 
+from osgeo import gdal
 from typing import List
 
 import epl.imagery.reader as imagery_reader
@@ -15,6 +18,11 @@ from concurrent import futures
 
 _ONE_DAY_IN_SECONDS = 60 * 60 * 24
 _DATE_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
+
+# options=(('grpc.max_message_length', <a large integer of your choice>,),))
+MB = 1024 * 1024
+# https://github.com/grpc/grpc/issues/7927
+GRPC_CHANNEL_OPTIONS = [('grpc.max_message_length', 64 * MB), ('grpc.max_receive_message_length', 64 * MB)]
 
 
 class ImageryServicer():
@@ -42,6 +50,42 @@ class ImageryServicer():
 
         return band_definitions
 
+    def ImageryCompleteFile(self,
+                            request: epl_imagery_api_pb2.ImageryFileRequest,
+                            context):
+
+        imagery_request = request.imagery_request
+        band_definitions = ImageryServicer._clean_band_definitions(imagery_request.band_definitions)
+        scale_params = list(
+            map(lambda x: x.scale_params, (filter(lambda x: len(x.scale_params) > 0, imagery_request.band_definitions))))
+
+        metadata_list = [imagery_reader.Metadata(metadata) for metadata in imagery_request.metadata]
+        landsat = imagery_reader.Landsat(metadata_list)
+
+        dataset = landsat.get_dataset(band_definitions=band_definitions,
+                                      output_type=imagery_reader.DataType[
+                                                   epl_imagery_api_pb2.GDALDataType.Name(imagery_request.output_type)],
+                                      scale_params=scale_params,
+                                      envelope_boundary=tuple(imagery_request.envelope_boundary),
+                                      polygon_boundary_wkb=imagery_request.polygon_boundary_wkb,
+                                      spatial_resolution_m=imagery_request.spatial_resolution_m)
+
+        ext = imagery_reader.FileTypeMap.get_suffix(request.file_type)
+        temp = tempfile.NamedTemporaryFile(suffix=ext)
+        dataset_translated = gdal.Translate(temp.name, dataset, format=epl_imagery_api_pb2.ImageryFileType.Name(request.file_type), noData=0)
+        del dataset
+        temp.flush()
+        del dataset_translated
+        # x_src_size = float(dataset.RasterXSize)
+        # y_src_size = float(dataset.RasterYSize)
+        big_file_result = epl_imagery_api_pb2.BigFileResult(file_size=os.path.getsize(temp.name),
+                                                            file_type=request.file_type)
+        with open(temp.name, "rb") as binary_file:
+            # Read the whole file at once
+            big_file_result.data = binary_file.read()
+
+        return big_file_result
+
     def ImagerySearchNArray(self,
                             request: epl_imagery_api_pb2.ImageryRequest,
                             context) -> epl_imagery_api_pb2.NDArrayResult:
@@ -54,10 +98,10 @@ class ImageryServicer():
 
         output_data_type = imagery_reader.DataType[epl_imagery_api_pb2.GDALDataType.Name(request.output_type)]
         nd_array = landsat.fetch_imagery_array(band_definitions=band_definitions,
-                                               envelope_boundary=tuple(request.extent),
-                                               polygon_boundary_wkb=request.cutline_wkb,
+                                               envelope_boundary=tuple(request.envelope_boundary),
+                                               polygon_boundary_wkb=request.polygon_boundary_wkb,
                                                scale_params=scale_params,
-                                               boundary_cs=request.extent_cs,
+                                               boundary_cs=request.boundary_cs,
                                                output_type=imagery_reader.DataType[
                                                    epl_imagery_api_pb2.GDALDataType.Name(request.output_type)],
                                                spatial_resolution_m=request.spatial_resolution_m)
@@ -119,10 +163,6 @@ class ImageryServicer():
 
 
 def serve():
-    # options=(('grpc.max_message_length', <a large integer of your choice>,),))
-    MB = 1024 * 1024
-    # https://github.com/grpc/grpc/issues/7927
-    GRPC_CHANNEL_OPTIONS = [('grpc.max_message_length', 64 * MB), ('grpc.max_receive_message_length', 64 * MB)]
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10), options=GRPC_CHANNEL_OPTIONS)
     epl_imagery_api_pb2_grpc.add_ImageryOperatorsServicer_to_server(ImageryServicer(), server)
     server.add_insecure_port('[::]:50051')

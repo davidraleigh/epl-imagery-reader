@@ -66,7 +66,15 @@ service ImageryOperators {
 
     // TODO maybe this should be separated into different rpcs for each result type
     rpc ImagerySearchNArray(ImageryRequest) returns (NDArrayResult) {}
+
+    rpc ImageryCompleteFile(ImageryFileRequest) returns (BigFileResult) {}
 //    rpc StreamOperations(stream OperatorRequest) returns (stream OperatorResult) {}
+}
+
+message ImageryFileRequest {
+    ImageryRequest imagery_request = 1;
+    ImageryFileType file_type = 2;
+    uint64 max_file_size = 3;
 }
 
 // TODO reorder to match fetch_imagery_array
@@ -77,11 +85,23 @@ message ImageryRequest {
     // TODO rename extent to bounding_box
     repeated float envelope_boundary = 4;
     ServiceSpatialReference boundary_cs = 5;
-    GDALDataType output_type = 6;
+    bytes polygon_boundary_wkb = 6;
 
-    float spatial_resolution_m = 7;
+    GDALDataType output_type = 7;
+    float spatial_resolution_m = 8;
+}
 
-    bytes polygon_boundary_wkb = 9;
+enum ImageryFileType {
+    UNKNOWN = 0;
+    PNG = 1;
+    JPEG = 2;
+    GEOTIFF = 3;
+}
+
+message BigFileResult {
+    bytes data = 1;
+    ImageryFileType file_type = 2;
+    uint64 file_size = 3;
 }
 
 // TODO maybe this should be separated into different messages for each result type

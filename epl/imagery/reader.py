@@ -247,6 +247,12 @@ class BandMap:
         return self.__map[self.__spacecraft_id]['max_resolution']
 
 
+class FileTypeMap:
+    @staticmethod
+    def get_suffix(file_type):
+        return ".jpg"
+
+
 class FunctionDetails:
     """
     Make a pixel function

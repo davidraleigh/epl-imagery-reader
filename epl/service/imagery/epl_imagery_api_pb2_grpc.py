@@ -25,6 +25,11 @@ class ImageryOperatorsStub(object):
         request_serializer=epl__imagery__api__pb2.ImageryRequest.SerializeToString,
         response_deserializer=epl__imagery__api__pb2.NDArrayResult.FromString,
         )
+    self.ImageryCompleteFile = channel.unary_unary(
+        '/imagery.ImageryOperators/ImageryCompleteFile',
+        request_serializer=epl__imagery__api__pb2.ImageryFileRequest.SerializeToString,
+        response_deserializer=epl__imagery__api__pb2.BigFileResult.FromString,
+        )
 
 
 class ImageryOperatorsServicer(object):
@@ -46,6 +51,13 @@ class ImageryOperatorsServicer(object):
     context.set_details('Method not implemented!')
     raise NotImplementedError('Method not implemented!')
 
+  def ImageryCompleteFile(self, request, context):
+    # missing associated documentation comment in .proto file
+    pass
+    context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+    context.set_details('Method not implemented!')
+    raise NotImplementedError('Method not implemented!')
+
 
 def add_ImageryOperatorsServicer_to_server(servicer, server):
   rpc_method_handlers = {
@@ -58,6 +70,11 @@ def add_ImageryOperatorsServicer_to_server(servicer, server):
           servicer.ImagerySearchNArray,
           request_deserializer=epl__imagery__api__pb2.ImageryRequest.FromString,
           response_serializer=epl__imagery__api__pb2.NDArrayResult.SerializeToString,
+      ),
+      'ImageryCompleteFile': grpc.unary_unary_rpc_method_handler(
+          servicer.ImageryCompleteFile,
+          request_deserializer=epl__imagery__api__pb2.ImageryFileRequest.FromString,
+          response_serializer=epl__imagery__api__pb2.BigFileResult.SerializeToString,
       ),
   }
   generic_handler = grpc.method_handlers_generic_handler(
