@@ -9,7 +9,7 @@ os.chdir(src_path)
 sys.path.insert(0, src_path)
 
 kwargs = {
-    'name': 'epl',
+    'name': 'epl-imagery',
     'description': 'Echo Park Labs GCP Imagery Library',
     'long_description': open('README.md').read(),
     'author': 'Echo Park Labs',

@@ -1,3 +1,7 @@
 .idea/
 .DS_Store
 targetDirectory/
+build/
+dist/
+epl.egg-info
+epl_imagery.egg-info
