@@ -370,7 +370,7 @@ LLNppprrrOOYYDDDMM_AA.TIF  where:
             self.__construct(row, base_mount_path)
             self.spacecraft_id = SpacecraftID[self.spacecraft_id]
         else:
-            self.__construct_grpc(row)
+            self.__construct_grpc(row, base_mount_path)
             self.spacecraft_id = SpacecraftID(self.spacecraft_id)
 
         # calculated fields
@@ -436,9 +436,20 @@ LLNppprrrOOYYDDDMM_AA.TIF  where:
         else:
             self.full_mount_path = self.get_aws_file_path()
 
-    def __construct_grpc(self, metadata_message):
+    def __construct_grpc(self, metadata_message, base_mount_path):
         for key in metadata_message.DESCRIPTOR.fields:
             setattr(self, key.name, getattr(metadata_message, key.name))
+
+        self.__base_mount_path = base_mount_path
+
+        if PLATFORM_PROVIDER == "GCP":
+            gsurl = urlparse(self.base_url)
+            self.__bucket_name = gsurl[1]
+            self.__data_prefix = gsurl[2]
+
+            self.full_mount_path = base_mount_path.rstrip("\/") + os.path.sep + self.__data_prefix.strip("\/")
+        else:
+            self.full_mount_path = self.get_aws_file_path()
 
     def __construct_aws(self, row):
         # TODO there should be Metadata class for AWS and GOOGLE?
