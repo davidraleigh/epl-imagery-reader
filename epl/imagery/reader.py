@@ -52,12 +52,16 @@ class __Singleton(type):
         return cls._instance
 
 
-class DatasetID(IntEnum):
+class DataDeviceSubClass(IntEnum):
+    pass
+
+
+class DataDeviceClass(IntEnum):
     pass
 
 
 # TODO this should be IntFlag to allow for combinations
-class SpacecraftID(DatasetID):
+class SpacecraftID(DataDeviceSubClass):
     UNKNOWN_SPACECRAFT = 0
     LANDSAT_1_MSS = 1
     LANDSAT_2_MSS = 2
