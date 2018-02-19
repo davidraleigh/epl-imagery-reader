@@ -505,6 +505,8 @@ class TestLandsat(unittest.TestCase):
 
         # TODO needs shape test
 
+
+
     def test_mosaic_cutline(self):
         # GDAL helper functions for generating VRT
         landsat = Landsat(self.metadata_set)
