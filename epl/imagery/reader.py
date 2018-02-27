@@ -113,17 +113,28 @@ class DataType(Enum):
     CFLOAT32 = 7; 128
     CFLOAT64 = 8; 256
 }
+http://www.gdal.org/gdal_8h.html#a22e22ce0a55036a96f652765793fb7a4
+https://docs.scipy.org/doc/numpy-1.13.0/reference/arrays.dtypes.html#arrays-dtypes
+https://docs.scipy.org/doc/numpy-1.13.0/user/basics.types.html
     """
-    BYTE = (gdal.GDT_Byte, "Byte", 0, 255, 0, np.uint8)
-    INT16 = (gdal.GDT_Int16, "Int16", -32768, 32767, 1, np.int16)
-    UINT16 = (gdal.GDT_UInt16, "UInt16", 0, 65535, 2, np.uint16)
-    INT32 = (gdal.GDT_Int32, "Int32", -2147483648, 2147483647, 3, np.int32)
-    UINT32 = (gdal.GDT_UInt32, "UInt32", 0, 4294967295, 4, np.uint32)
-    FLOAT32 = (gdal.GDT_Float32, "Float32", -3.4E+38, 3.4E+38, 5, np.float)
-    FLOAT64 = (gdal.GDT_Float64, "Float64", -1.7E+308, 1.7E+308, 6, np.float64)
+    UNKNOWN_GDAL = (gdal.GDT_Unknown,   "Unknown",  1,           -1,         0, np.void)
 
-    CFLOAT32 = (gdal.GDT_CFloat32, "CFloat32", -1.7E+308, 1.7E+308, 7, np.complex64)
-    CFLOAT64 = (gdal.GDT_CFloat64, "CFloat64", -3.4E+38, 3.4E+38, 8, np.complex64)
+    BYTE         = (gdal.GDT_Byte,      "Byte",     0,           255,        1, np.uint8)
+
+    UINT16       = (gdal.GDT_UInt16,    "UInt16",   0,           65535,      2, np.uint16)
+    INT16        = (gdal.GDT_Int16,     "Int16",    -32768,      32767,      3, np.int16)
+
+    UINT32       = (gdal.GDT_UInt32,    "UInt32",   0,           4294967295, 4, np.uint32)
+    INT32        = (gdal.GDT_Int32,     "Int32",    -2147483648, 2147483647, 5, np.int32)
+
+    FLOAT32      = (gdal.GDT_Float32,   "Float32",  -3.4E+38,    3.4E+38,    6, np.float)
+    FLOAT64      = (gdal.GDT_Float64,   "Float64",  -1.7E+308,   1.7E+308,   7, np.float64)
+
+    # CINT16
+    # CINT32
+    #TODO I think these ranges are reversed CFloat32 and CFloat64
+    CFLOAT32     = (gdal.GDT_CFloat32, "CFloat32", -1.7E+308,   1.7E+308,   10, np.complex64)
+    CFLOAT64     = (gdal.GDT_CFloat64, "CFloat64", -3.4E+38,    3.4E+38,    11, np.complex64)
 
     def __init__(self, gdal_type, name, range_min, range_max, grpc_num, numpy_type):
         self.__gdal_type = gdal_type
@@ -293,6 +304,7 @@ class FunctionDetails:
         # TODO arguments should maybe have some kind of setter
         if arguments:
             self.arguments = {k: str(v) for k, v in arguments.items()}
+
         self.transfer_type = transfer_type
 
 
@@ -946,7 +958,8 @@ class Landsat(Imagery):
         etree.SubElement(elem_raster_band, "PixelFunctionLanguage").text = "Python"
         etree.SubElement(elem_raster_band, "PixelFunctionType").text = band_definition.name
 
-        if band_definition.transfer_type:
+        # if transfer type is defined and it's not unknown
+        if band_definition.transfer_type and band_definition.transfer_type is not DataType.UNKNOWN_GDAL:
             etree.SubElement(elem_raster_band, "SourceTransferType").text = band_definition.transfer_type.name
 
         if band_definition.code:
