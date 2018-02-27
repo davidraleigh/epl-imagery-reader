@@ -548,6 +548,9 @@ class TestLandsat(unittest.TestCase):
         scaleParams = [[0.0, 40000], [0.0, 40000], [0.0, 40000]]
 
         for data_type in DataType:
+            if data_type is DataType.UNKNOWN_GDAL:
+                continue
+
             nda = landsat.fetch_imagery_array(band_numbers, scaleParams, envelope_boundary=self.taos_shape.bounds,
                                               output_type=data_type, spatial_resolution_m=240)
             self.assertIsNotNone(nda)
