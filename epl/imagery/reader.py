@@ -448,7 +448,7 @@ LLNppprrrOOYYDDDMM_AA.TIF  where:
             self.__bucket_name = gsurl[1]
             self.__data_prefix = gsurl[2]
 
-            self.full_mount_path = base_mount_path.rstrip("\/") + os.path.sep + self.__data_prefix.strip("\/")
+            self.full_mount_path = base_mount_path.rstrip("\/") + os.path.sep + self.__bucket_name + os.path.sep + self.__data_prefix.strip("\/")
         else:
             self.full_mount_path = self.get_aws_file_path()
 
@@ -463,7 +463,7 @@ LLNppprrrOOYYDDDMM_AA.TIF  where:
             self.__bucket_name = gsurl[1]
             self.__data_prefix = gsurl[2]
 
-            self.full_mount_path = base_mount_path.rstrip("\/") + os.path.sep + self.__data_prefix.strip("\/")
+            self.full_mount_path = base_mount_path.rstrip("\/") + os.path.sep + self.__bucket_name + os.path.sep + self.__data_prefix.strip("\/")
         else:
             self.full_mount_path = self.get_aws_file_path()
 
@@ -1368,6 +1368,7 @@ class Storage(metaclass=__Singleton):
         self.__mounted_sub_folders = {}
 
     def __del__(self):
+        return
         # TODO, this is a gross way to skip Storage code on AWS
         if PLATFORM_PROVIDER == "AWS":
             return
@@ -1376,6 +1377,7 @@ class Storage(metaclass=__Singleton):
             self.__unmount_sub_folder(full_path, "", force=True)
 
     def is_mounted(self, metadata: Metadata):
+        return True
         # TODO, this is a gross way to skip Storage code on AWS
         if PLATFORM_PROVIDER == "AWS":
             return True
@@ -1386,6 +1388,7 @@ class Storage(metaclass=__Singleton):
         return False
 
     def mount_sub_folder(self, metadata: Metadata, request_key="temp"):
+        return True
         # TODO, this is a gross way to skip Storage code on AWS
         if PLATFORM_PROVIDER == "AWS":
             return True
@@ -1435,6 +1438,7 @@ class Storage(metaclass=__Singleton):
         return True
 
     def __unmount_sub_folder(self, full_mount_path, request_key, force=False):
+        return True
         # TODO, this is a gross way to skip Storage code on AWS
         if PLATFORM_PROVIDER == "AWS":
             return True

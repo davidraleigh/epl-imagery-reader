@@ -5,3 +5,5 @@ build/
 dist/
 epl.egg-info
 epl_imagery.egg-info
+venv
+*.pyc
