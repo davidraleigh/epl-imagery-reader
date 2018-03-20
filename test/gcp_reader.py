@@ -659,8 +659,8 @@ def ndvi_numpy(in_ar, out_ar, xoff, yoff, xsize, ysize, raster_xsize, raster_ysi
     # def test_translate_vrt(self):
     #     #                                                          LC80390332016208LGN00
     """
-    gdalbuildvrt -vrtnodata 0 0 0 -separate rgb_35.vrt /imagery/LC08/PRE/033/035/LC80330352017072LGN00/LC80330352017072LGN00_B4.TIF /imagery/LC08/PRE/033/035/LC80330352017072LGN00/LC80330352017072LGN00_B3.TIF /imagery/LC08/PRE/033/035/LC80330352017072LGN00/LC80330352017072LGN00_B2.TIF
-    gdalbuildvrt -separate rgb_34.vrt /imagery/LC08/PRE/033/034/LC80330342017072LGN00/LC80330342017072LGN00_B4.TIF /imagery/LC08/PRE/033/034/LC80330342017072LGN00/LC80330342017072LGN00_B3.TIF /imagery/LC08/PRE/033/034/LC80330342017072LGN00/LC80330342017072LGN00_B2.TIF
+    gdalbuildvrt -vrtnodata 0 0 0 -separate rgb_35.vrt /imagery/gcp-public-data-landsat/LC08/PRE/033/035/LC80330352017072LGN00/LC80330352017072LGN00_B4.TIF /imagery/gcp-public-data-landsat/LC08/PRE/033/035/LC80330352017072LGN00/LC80330352017072LGN00_B3.TIF /imagery/gcp-public-data-landsat/LC08/PRE/033/035/LC80330352017072LGN00/LC80330352017072LGN00_B2.TIF
+    gdalbuildvrt -separate rgb_34.vrt /imagery/gcp-public-data-landsat/LC08/PRE/033/034/LC80330342017072LGN00/LC80330342017072LGN00_B4.TIF /imagery/gcp-public-data-landsat/LC08/PRE/033/034/LC80330342017072LGN00/LC80330342017072LGN00_B3.TIF /imagery/gcp-public-data-landsat/LC08/PRE/033/034/LC80330342017072LGN00/LC80330342017072LGN00_B2.TIF
     """
     #     # gdal_translate -of VRT -ot Byte -scale -tr 60 60 rgb.vrt rgb_byte_scaled.vrt
     #
@@ -909,7 +909,7 @@ class TestRasterMetadata(unittest.TestCase):
         """
         gdal command for creating test data--/Users/davidraleigh/code/echopark/gcp-landsat-reader/test/clipped_LC80330342017072LGN00.vrt
         
-        gdalbuildvrt -te 404696.67322238116 4028985.0 482408.22401454527 4094313.7809402538 -separate rgb_clipped.vrt /imagery/LC08/PRE/033/034/LC80330342017072LGN00/LC80330342017072LGN00_B4.TIF /imagery/LC08/PRE/033/034/LC80330342017072LGN00/LC80330342017072LGN00_B3.TIF /imagery/LC08/PRE/033/034/LC80330342017072LGN00/LC80330342017072LGN00_B2.TIF
+        gdalbuildvrt -te 404696.67322238116 4028985.0 482408.22401454527 4094313.7809402538 -separate rgb_clipped.vrt /imagery/gcp-public-data-landsat/LC08/PRE/033/034/LC80330342017072LGN00/LC80330342017072LGN00_B4.TIF /imagery/gcp-public-data-landsat/LC08/PRE/033/034/LC80330342017072LGN00/LC80330342017072LGN00_B3.TIF /imagery/gcp-public-data-landsat/LC08/PRE/033/034/LC80330342017072LGN00/LC80330342017072LGN00_B2.TIF
         
         
         gdal command for creating test data--
