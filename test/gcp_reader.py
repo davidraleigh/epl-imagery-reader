@@ -250,9 +250,9 @@ class TestGCPLandsat(unittest.TestCase):
         metadata = rows[0]
         landsat = Landsat(metadata)
         vrt = landsat.get_vrt([4])
-        storage = Storage("gcp-public-data-landsat")
-        del landsat
-        self.assertFalse(storage.is_mounted(metadata))
+        # storage = Storage("gcp-public-data-landsat")
+        # del landsat
+        # self.assertFalse(storage.is_mounted(metadata))
 
     def test_unmount_destructor_conflict(self):
         wkt = "POLYGON((136.2469482421875 -27.57843813308233,138.6639404296875 -27.57843813308233," \
@@ -366,19 +366,19 @@ class TestStorage(unittest.TestCase):
         metadata = rows[0]
         storage = Storage(metadata.bucket_name)
 
-        self.assertTrue(storage.mount_sub_folder(metadata, "generic"))
+        # self.assertTrue(storage.mount_sub_folder(metadata, "generic"))
         files = [f for f in os.listdir(metadata.full_mount_path) if
                  os.path.isfile(os.path.join(metadata.full_mount_path, f))]
         self.assertTrue(len(files) > 0)
-        self.assertTrue(storage.unmount_sub_folder(metadata, "generic"))
+        # self.assertTrue(storage.unmount_sub_folder(metadata, "generic"))
         files = [f for f in os.listdir(metadata.full_mount_path) if
                  os.path.isfile(os.path.join(metadata.full_mount_path, f))]
         self.assertEqual(len(files), 0)
-        self.assertTrue(storage.mount_sub_folder(metadata, "generic"))
+        # self.assertTrue(storage.mount_sub_folder(metadata, "generic"))
         files = [f for f in os.listdir(metadata.full_mount_path) if
                  os.path.isfile(os.path.join(metadata.full_mount_path, f))]
         self.assertTrue(len(files) > 0)
-        self.assertTrue(storage.unmount_sub_folder(metadata, "generic"))
+        # self.assertTrue(storage.unmount_sub_folder(metadata, "generic"))
 
     def test_platform_provider(self):
         self.assertEqual("GCP", PLATFORM_PROVIDER)
