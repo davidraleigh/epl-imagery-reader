@@ -15,6 +15,7 @@ kwargs = {
     'author': 'Echo Park Labs',
     'author_email': 'david@echoparklabs.com',
     'url': 'https://bitbucket.org/EchoParkLabs/gcp-imagery-reader',
+    "namespace_package": ['epl.imagery'],
     'version': open('VERSION').read(),
     'packages': find_packages('.'),
     'zip_safe': False
