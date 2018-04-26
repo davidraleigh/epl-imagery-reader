@@ -8,6 +8,8 @@ old_path = os.getcwd()
 os.chdir(src_path)
 sys.path.insert(0, src_path)
 
+
+
 kwargs = {
     'name': 'epl.imagery',
     'description': 'Echo Park Labs GCP Imagery Library',
@@ -15,9 +17,9 @@ kwargs = {
     'author': 'Echo Park Labs',
     'author_email': 'david@echoparklabs.com',
     'url': 'https://bitbucket.org/EchoParkLabs/gcp-imagery-reader',
-    "namespace_package": ['epl'],
+    'namespace_package': ['epl'],
+    'packages': ['epl.imagery'],
     'version': open('VERSION').read(),
-    'packages': find_packages('.'),
     'zip_safe': False
 }
 
