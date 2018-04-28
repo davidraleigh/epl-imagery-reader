@@ -592,3 +592,22 @@ class TestLandsat(unittest.TestCase):
         nda = landsat.fetch_imagery_array(band_numbers, scaleParams, spatial_resolution_m=120)
         self.assertIsNotNone(nda)
         self.assertNotEqual((902, 648, 3), nda.shape)
+
+    def test_two_bands(self):
+        # specify the bands that approximate real color
+        landsat = Landsat(self.metadata_set)
+        band_numbers = [Band.RED, Band.BLUE]
+        scaleParams = [[0.0, 40000.0], [0.0, 40000.0]]
+        nda = landsat.fetch_imagery_array(band_numbers, scaleParams, polygon_boundary_wkb=self.taos_shape.wkb, spatial_resolution_m=120)
+        self.assertIsNotNone(nda)
+        self.assertEqual((902, 648, 2), nda.shape)
+
+    def test_one_band(self):
+        # specify the bands that approximate real color
+        landsat = Landsat(self.metadata_set)
+        band_numbers = [Band.RED]
+        scaleParams = [[0.0, 40000.0]]
+        nda = landsat.fetch_imagery_array(band_numbers, scaleParams, polygon_boundary_wkb=self.taos_shape.wkb,
+                                          spatial_resolution_m=120)
+        self.assertIsNotNone(nda)
+        self.assertEqual((902, 648), nda.shape)

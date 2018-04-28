@@ -894,7 +894,7 @@ class Landsat(Imagery):
         nda = dataset.ReadAsArray()
         del dataset
         
-        if len(band_definitions) > 2:
+        if len(band_definitions) >= 2:
             return nda.transpose((1, 2, 0))
         return nda
 

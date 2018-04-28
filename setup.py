@@ -9,7 +9,7 @@ os.chdir(src_path)
 sys.path.insert(0, src_path)
 
 
-
+# https://blog.shazam.com/python-microlibs-5be9461ad979
 kwargs = {
     'name': 'epl.imagery',
     'description': 'Echo Park Labs GCP Imagery Library',
