@@ -127,7 +127,7 @@ https://docs.scipy.org/doc/numpy-1.13.0/user/basics.types.html
     UINT32       = (gdal.GDT_UInt32,    "UInt32",   0,           4294967295, 4, np.uint32)
     INT32        = (gdal.GDT_Int32,     "Int32",    -2147483648, 2147483647, 5, np.int32)
 
-    FLOAT32      = (gdal.GDT_Float32,   "Float32",  -3.4E+38,    3.4E+38,    6, np.float)
+    FLOAT32      = (gdal.GDT_Float32,   "Float32",  -3.4E+38,    3.4E+38,    6, np.float32)
     FLOAT64      = (gdal.GDT_Float64,   "Float64",  -1.7E+308,   1.7E+308,   7, np.float64)
 
     # CINT16

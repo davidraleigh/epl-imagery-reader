@@ -551,8 +551,11 @@ class TestLandsat(unittest.TestCase):
             if data_type is DataType.UNKNOWN_GDAL:
                 continue
 
-            nda = landsat.fetch_imagery_array(band_numbers, scaleParams, envelope_boundary=self.taos_shape.bounds,
-                                              output_type=data_type, spatial_resolution_m=240)
+            nda = landsat.fetch_imagery_array(band_numbers,
+                                              scaleParams,
+                                              envelope_boundary=self.taos_shape.bounds,
+                                              output_type=data_type,
+                                              spatial_resolution_m=240)
             self.assertIsNotNone(nda)
             self.assertGreaterEqual(data_type.range_max, nda.max())
             self.assertLessEqual(data_type.range_min, nda.min())
