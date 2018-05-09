@@ -604,7 +604,6 @@ LLNppprrrOOYYDDDMM_AA.TIF  where:
 
         return path
 
-    # TODO make private
     def get_full_file_path(self, band_number):
         return "{0}/{1}_B{2}.TIF".format(self.full_mount_path, self.name_prefix, band_number)
 
@@ -894,7 +893,7 @@ class Landsat(Imagery):
         nda = dataset.ReadAsArray()
         del dataset
         
-        if len(band_definitions) >= 2:
+        if len(band_definitions) == 3:
             return nda.transpose((1, 2, 0))
         return nda
 
