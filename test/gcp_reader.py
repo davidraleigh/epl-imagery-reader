@@ -16,13 +16,16 @@ from epl.imagery import PLATFORM_PROVIDER
 from epl.imagery.reader import MetadataService, Landsat, \
     Storage, SpacecraftID, Metadata, BandMap, Band, \
     RasterMetadata, DataType, FunctionDetails
+from epl.imagery.metadata_helpers import LandsatQueryFilters
 from test.tools.test_helpers import xml_compare
 
 
 class TestGCPMetadataSQL(unittest.TestCase):
     def test_all_sat_data(self):
         metadata_service = MetadataService()
-        sql_filters = ['cloud_cover=0']
+        landsat_filters = LandsatQueryFilters()
+        landsat_filters.cloud_cover.set_value(0)
+        # sql_filters = ['cloud_cover=0']
         d_start = date(2004, 6, 24)
         d_end = date(2008, 6, 24)
         bounding_box = (-115.927734375, 34.52466147177172, -114.31054687499999, 35.84029065139799)
@@ -30,7 +33,7 @@ class TestGCPMetadataSQL(unittest.TestCase):
             start_date=d_start,
             end_date=d_end,
             bounding_box=bounding_box,
-            sql_filters=sql_filters)
+            data_filters=landsat_filters)
         rows = list(rows)
         first_item = rows[0]
         self.assertEqual(len(rows), 10)
@@ -40,7 +43,7 @@ class TestGCPMetadataSQL(unittest.TestCase):
             start_date=d_start,
             end_date=d_end,
             bounding_box=bounding_box,
-            sql_filters=sql_filters)
+            data_filters=landsat_filters)
 
         rows = list(rows)
         other_item = rows[0]
@@ -51,14 +54,19 @@ class TestGCPMetadataSQL(unittest.TestCase):
     def test_no_bounding_box(self):
         d_start = date(2003, 4, 4)
         d_end = date(2003, 4, 7)
-        sql_filters = ['wrs_row=49', 'wrs_path=125']
+
+        landsat_filters = LandsatQueryFilters()
+        landsat_filters.wrs_path.set_value(125)
+        landsat_filters.wrs_row.set_value(49)
+
+        # sql_filters = ['wrs_row=49', 'wrs_path=125']
         metadata_service = MetadataService()
         rows = metadata_service.search(
             satellite_id=None,
             start_date=d_start,
             end_date=d_end,
             bounding_box=None,
-            sql_filters=sql_filters)
+            data_filters=landsat_filters)
         rows = list(rows)
         self.assertEqual(len(rows), 3)
 
@@ -74,13 +82,16 @@ class TestGCPMetadataSQL(unittest.TestCase):
         d_start = date(2006, 8, 4)
         d_end = date(2006, 8, 5)
         bounding_box = polygon.bounds
-        sql_filters = ['wrs_row=79']
+        # sql_filters = ['wrs_row=79']
+        landsat_filters = LandsatQueryFilters()
+        # landsat_filters.wrs_path.set_value(125)
+        landsat_filters.wrs_row.set_value(79)
         rows = metadata_service.search(
             SpacecraftID.LANDSAT_5,
             start_date=d_start,
             end_date=d_end,
             bounding_box=bounding_box,
-            sql_filters=sql_filters)
+            data_filters=landsat_filters)
 
         rows = list(rows)
 
@@ -120,13 +131,16 @@ class TestGCPLandsat(unittest.TestCase):
         self.metadata_service = MetadataService()
 
         sql_filters = ['collection_number="PRE"']
+        landsat_filters = LandsatQueryFilters()
+        landsat_filters.collection_number.set_value("PRE")
+
         rows = self.metadata_service.search(
             SpacecraftID.LANDSAT_8,
             start_date=d_start,
             end_date=d_end,
             bounding_box=self.taos_shape.bounds,
             limit=10,
-            sql_filters=sql_filters)
+            data_filters=landsat_filters)
 
         rows = list(rows)
 
@@ -167,12 +181,14 @@ class TestGCPLandsat(unittest.TestCase):
         d_end = date(2006, 8, 5)
         bounding_box = polygon.bounds
         sql_filters = ['wrs_row=79']
+        landsat_filters = LandsatQueryFilters()
+        landsat_filters.wrs_row.set_value(79)
         rows = self.metadata_service.search(
             SpacecraftID.LANDSAT_5,
             start_date=d_start,
             end_date=d_end,
             bounding_box=bounding_box,
-            sql_filters=sql_filters)
+            data_filters=landsat_filters)
 
         rows = list(rows)
 
@@ -204,13 +220,15 @@ class TestGCPLandsat(unittest.TestCase):
         d_start = date(2006, 8, 4)
         d_end = date(2006, 8, 7)
         bounding_box = polygon.bounds
-        sql_filters = ['wrs_row=79']
+        landsat_filters = LandsatQueryFilters()
+        landsat_filters.wrs_row.set_value(79)
+        # sql_filters = ['wrs_row=79']
         rows = self.metadata_service.search(
             SpacecraftID.LANDSAT_5,
             start_date=d_start,
             end_date=d_end,
             bounding_box=bounding_box,
-            sql_filters=sql_filters)
+            data_filters=landsat_filters)
 
         rows = list(rows)
 
@@ -237,13 +255,15 @@ class TestGCPLandsat(unittest.TestCase):
         d_start = date(2006, 8, 4)
         d_end = date(2006, 8, 7)
         bounding_box = polygon.bounds
-        sql_filters = ['wrs_row=79']
+        # sql_filters = ['wrs_row=79']
+        landsat_filters = LandsatQueryFilters()
+        landsat_filters.wrs_row.set_value(79)
         rows = self.metadata_service.search(
             SpacecraftID.LANDSAT_5,
             start_date=d_start,
             end_date=d_end,
             bounding_box=bounding_box,
-            sql_filters=sql_filters)
+            data_filters=landsat_filters)
 
         rows = list(rows)
 
@@ -265,13 +285,15 @@ class TestGCPLandsat(unittest.TestCase):
         d_start = date(2006, 8, 4)
         d_end = date(2006, 8, 7)
         bounding_box = polygon.bounds
-        sql_filters = ['wrs_row=79']
+        # sql_filters = ['wrs_row=79']
+        landsat_filters = LandsatQueryFilters()
+        landsat_filters.wrs_row.set_value(79)
         rows = self.metadata_service.search(
             SpacecraftID.LANDSAT_5,
             start_date=d_start,
             end_date=d_end,
             bounding_box=bounding_box,
-            sql_filters=sql_filters)
+            data_filters=landsat_filters)
 
         rows = list(rows)
 
@@ -288,10 +310,12 @@ class TestGCPLandsat(unittest.TestCase):
         d_start = date(2015, 6, 24)
         d_end = date(2016, 6, 24)
         bounding_box = (-115.927734375, 34.52466147177172, -78.31054687499999, 44.84029065139799)
-        sql_filters = ['scene_id="LC80400312016103LGN00"']
+        # sql_filters = ['scene_id="LC80400312016103LGN00"']
+        landsat_filters = LandsatQueryFilters()
+        landsat_filters.scene_id.set_value("LC80400312016103LGN00")
         rows = self.metadata_service.search(SpacecraftID.LANDSAT_8, start_date=d_start, end_date=d_end,
                                             bounding_box=bounding_box,
-                                            limit=1, sql_filters=sql_filters)
+                                            limit=1, data_filters=landsat_filters)
 
         rows = list(rows)
 
@@ -399,10 +423,12 @@ class TestGCPPixelFunctions(unittest.TestCase):
         d_start = date(2015, 6, 24)
         d_end = date(2016, 6, 24)
         bounding_box = (-115.927734375, 34.52466147177172, -78.31054687499999, 44.84029065139799)
-        sql_filters = ['scene_id="LC80400312016103LGN00"']
+        # sql_filters = ['scene_id="LC80400312016103LGN00"']
+        landsat_filters = LandsatQueryFilters()
+        landsat_filters.scene_id.set_value("LC80400312016103LGN00")
         rows = metadata_service.search(SpacecraftID.LANDSAT_8, start_date=d_start, end_date=d_end,
                                        bounding_box=bounding_box,
-                                       limit=1, sql_filters=sql_filters)
+                                       limit=1, data_filters=landsat_filters)
         rows = list(rows)
         self.m_metadata = rows[0]
         wkt_iowa = "POLYGON((-93.76075744628906 42.32707774458643,-93.47854614257812 42.32707774458643," \
@@ -415,13 +441,15 @@ class TestGCPPixelFunctions(unittest.TestCase):
         d_end = date(2017, 3, 19)  # 2017-03-20, epl api is inclusive
 
         sql_filters = ['collection_number="PRE"']
+        landsat_filters = LandsatQueryFilters()
+        landsat_filters.collection_number.set_value("PRE")
         rows = self.metadata_service.search(
             SpacecraftID.LANDSAT_8,
             start_date=d_start,
             end_date=d_end,
             bounding_box=self.taos_shape.bounds,
             limit=10,
-            sql_filters=sql_filters)
+            data_filters=landsat_filters)
 
         rows = list(rows)
 
@@ -511,13 +539,15 @@ def ndvi_numpy(in_ar, out_ar, xoff, yoff, xsize, ysize, raster_xsize, raster_ysi
         d_start = date(2016, 4, 4)
         d_end = date(2016, 8, 7)
         bounding_box = self.iowa_polygon.bounds
-        sql_filters = ["cloud_cover<=15"]
+        # sql_filters = ["cloud_cover<=15"]
+        landsat_filters = LandsatQueryFilters()
+        landsat_filters.cloud_cover.set_range_end(15, True)
         rows = self.metadata_service.search(
             SpacecraftID.LANDSAT_8,
             start_date=d_start,
             end_date=d_end,
             bounding_box=bounding_box,
-            sql_filters=sql_filters)
+            data_filters=landsat_filters)
         rows = list(rows)
         metadata = rows[0]
         landsat = Landsat(metadata)
@@ -565,13 +595,15 @@ def ndvi_numpy(in_ar, out_ar, xoff, yoff, xsize, ysize, raster_xsize, raster_ysi
         d_start = date(2016, 4, 4)
         d_end = date(2016, 8, 7)
         bounding_box = self.iowa_polygon.bounds
-        sql_filters = ["cloud_cover<=15"]
+        # sql_filters = ["cloud_cover<=15"]
+        landsat_filters = LandsatQueryFilters()
+        landsat_filters.cloud_cover.set_range_end(15, True)
         rows = self.metadata_service.search(
             SpacecraftID.LANDSAT_8,
             start_date=d_start,
             end_date=d_end,
             bounding_box=bounding_box,
-            sql_filters=sql_filters)
+            data_filters=landsat_filters)
         rows = list(rows)
         metadata = rows[0]
         landsat = Landsat(metadata)
@@ -667,7 +699,7 @@ def ndvi_numpy(in_ar, out_ar, xoff, yoff, xsize, ysize, raster_xsize, raster_ysi
     #     self.assertTrue(True)
     #     sql_filters = ['scene_id="LC80330342017072LGN00"']
     #     metadata_service = MetadataService()
-    #     rows = metadata_service.search(SpacecraftID.LANDSAT_8, sql_filters=sql_filters)
+    #     rows = metadata_service.search(SpacecraftID.LANDSAT_8, data_filters=landsat_filters)
     #rows = list(rows)
     #
     #
@@ -800,12 +832,14 @@ class TestRasterMetadata(unittest.TestCase):
         d_end = date(2016, 6, 24)
         bounding_box = (-115.927734375, 34.52466147177172, -78.31054687499999, 44.84029065139799)
         sql_filters = ['data_type="L1T"']
+        landsat_filters = LandsatQueryFilters()
+        landsat_filters.data_type.set_value("L1T")
         rows = self.metadata_service.search(SpacecraftID.LANDSAT_8,
                                             start_date=d_start,
                                             end_date=d_end,
                                             bounding_box=bounding_box,
                                             limit=2,
-                                            sql_filters=sql_filters)
+                                            data_filters=landsat_filters)
 
         rows = list(rows)
 
@@ -834,10 +868,13 @@ class TestRasterMetadata(unittest.TestCase):
     # @unittest.skip("changed how bounds are queried")
     def test_bounds(self):
         metadata_service = MetadataService()
-        sql_filters = ['scene_id="LC80330342017072LGN00"', 'collection_number="PRE"']
+        landsat_filters = LandsatQueryFilters()
+        landsat_filters.scene_id.set_value("LC80330342017072LGN00")
+        landsat_filters.collection_number.set_value("PRE")
+        # sql_filters = ['scene_id="LC80330342017072LGN00"', 'collection_number="PRE"']
         rows = metadata_service.search(
             SpacecraftID.LANDSAT_8,
-            sql_filters=sql_filters)
+            data_filters=landsat_filters)
         rows = list(rows)
         self.assertEqual(len(rows), 1)
 
@@ -876,10 +913,13 @@ class TestRasterMetadata(unittest.TestCase):
         taos_shape = shapely.geometry.shape(taos_geom['features'][0]['geometry'])
 
         metadata_service = MetadataService()
-        sql_filters = ['scene_id="LC80330342017072LGN00"', 'collection_number="PRE"']
+        # sql_filters = ['scene_id="LC80330342017072LGN00"', 'collection_number="PRE"']
+        landsat_filters = LandsatQueryFilters()
+        landsat_filters.scene_id.set_value("LC80330342017072LGN00")
+        landsat_filters.collection_number.set_value("PRE")
         rows = metadata_service.search(
             SpacecraftID.LANDSAT_8,
-            sql_filters=sql_filters)
+            data_filters=landsat_filters)
         rows = list(rows)
         self.assertEqual(len(rows), 1)
 

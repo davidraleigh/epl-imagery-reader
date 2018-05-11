@@ -11,6 +11,7 @@ from shapely.wkt import loads
 
 from epl.imagery import PLATFORM_PROVIDER
 from epl.imagery.reader import MetadataService, SpacecraftID, Metadata, FunctionDetails, Landsat, DataType
+from epl.imagery.metadata_helpers import LandsatQueryFilters
 from test.tools.test_helpers import xml_compare
 
 
@@ -26,20 +27,25 @@ class TestAWSMetadata(unittest.TestCase):
         # non-PRE s3://landsat-pds/c1/L8/139/045/LC08_L1TP_139045_20170304_20170316_01_T1/
         metadataservice = MetadataService()
         start_date = datetime.datetime.strptime('14295', '%y%j').date()
+        landsat_filters = LandsatQueryFilters()
+        landsat_filters.wrs_path.set_value(139)
+        landsat_filters.wrs_row.set_value(45)
+        landsat_filters.collection_number.set_value("PRE")
         rows = metadataservice.search(SpacecraftID.LANDSAT_8,
                                       start_date=start_date,
                                       end_date=start_date,
-                                      sql_filters=["wrs_path=139", "wrs_row=45", "collection_number='PRE'"])
+                                      data_filters=landsat_filters)
         # turn gernator into list
         rows = list(rows)
         self.assertEqual(len(rows), 1)
         metadata = rows[0]
         self.assertEqual(metadata.get_aws_file_path(), "/imagery/L8/139/045/LC81390452014295LGN00")
 
+        landsat_filters.collection_number.set_not_value("PRE")
         rows = metadataservice.search(SpacecraftID.LANDSAT_8,
                                       start_date=date(2017, 3, 4),
                                       end_date=date(2017, 3, 4),
-                                      sql_filters=["wrs_path=139", "wrs_row=45", "collection_number!='PRE'"])
+                                      data_filters=landsat_filters)
         rows = list(rows)
         self.assertEqual(len(rows), 1)
         metadata = rows[0]
@@ -52,12 +58,14 @@ class TestAWSMetadata(unittest.TestCase):
         d_end = date(2017, 9, 24)
         bounding_box = (-115.927734375, 34.52466147177172, -78.31054687499999, 44.84029065139799)
         sql_filters = ['collection_number!="PRE"']
+        landsat_filters = LandsatQueryFilters()
+        landsat_filters.collection_number.set_not_value("PRE")
         rows = metadata_service.search(SpacecraftID.LANDSAT_8,
                                        start_date=d_start,
                                        end_date=d_end,
                                        bounding_box=bounding_box,
                                        limit=2,
-                                       sql_filters=sql_filters)
+                                       data_filters=landsat_filters)
         # generator to list
         rows = list(rows)
         metadata = rows[0]
@@ -149,7 +157,7 @@ class TestAWSMetadata(unittest.TestCase):
     #         start_date=d_start,
     #         end_date=d_end,
     #         bounding_box=bounding_box,
-    #         sql_filters=sql_filters)
+    #         data_filters=landsat_filters)
     #
     #     self.assertEqual(len(rows), 10)
     #     for row in rows:
@@ -178,10 +186,12 @@ class TestAWSPixelFunctions(unittest.TestCase):
         d_start = date(2015, 6, 24)
         d_end = date(2016, 6, 24)
         bounding_box = (-115.927734375, 34.52466147177172, -78.31054687499999, 44.84029065139799)
-        sql_filters = ['scene_id="LC80400312016103LGN00"']
+        # sql_filters = ['scene_id="LC80400312016103LGN00"']
+        landsat_filters = LandsatQueryFilters()
+        landsat_filters.scene_id.set_not_value("LC80400312016103LGN00")
         rows = metadata_service.search(SpacecraftID.LANDSAT_8, start_date=d_start, end_date=d_end,
                                        bounding_box=bounding_box,
-                                       limit=1, sql_filters=sql_filters)
+                                       limit=1, data_filters=landsat_filters)
         rows = list(rows)
         self.m_row_data = rows[0]
         wkt_iowa = "POLYGON((-93.76075744628906 42.32707774458643,-93.47854614257812 42.32707774458643," \
@@ -193,14 +203,16 @@ class TestAWSPixelFunctions(unittest.TestCase):
         d_start = date(2017, 3, 12)  # 2017-03-12
         d_end = date(2017, 3, 19)  # 2017-03-20, epl api is inclusive
 
-        sql_filters = ['collection_number="PRE"']
+        landsat_filters = LandsatQueryFilters()
+        landsat_filters.collection_number.set_not_value("PRE")
+        # sql_filters = ['collection_number="PRE"']
         rows = self.metadata_service.search(
             SpacecraftID.LANDSAT_8,
             start_date=d_start,
             end_date=d_end,
             bounding_box=self.taos_shape.bounds,
             limit=10,
-            sql_filters=sql_filters)
+            data_filters=landsat_filters)
 
         for row in rows:
             self.metadata_set.append(row)

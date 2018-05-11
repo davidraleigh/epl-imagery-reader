@@ -35,6 +35,7 @@ from subprocess import call
 from google.cloud import bigquery, storage
 
 from epl.imagery import PLATFORM_PROVIDER
+from epl.imagery.metadata_helpers import SpacecraftID, Band, BandMap, MetadataFilters
 
 
 class __Singleton(type):
@@ -50,52 +51,6 @@ class __Singleton(type):
         if cls._instance is None:
             cls._instance = super().__call__(*args, **kwargs)
         return cls._instance
-
-
-class DataDeviceSubClass(IntEnum):
-    pass
-
-
-class DataDeviceClass(IntEnum):
-    pass
-
-
-# TODO this should be IntFlag to allow for combinations
-class SpacecraftID(DataDeviceSubClass):
-    UNKNOWN_SPACECRAFT = 0
-    LANDSAT_1_MSS = 1
-    LANDSAT_2_MSS = 2
-    LANDSAT_3_MSS = 4
-    LANDSAT_123_MSS = 7
-    LANDSAT_4_MSS = 8
-    LANDSAT_5_MSS = 16
-    LANDSAT_45_MSS = 24
-    LANDSAT_4 = 32
-    LANDSAT_5 = 64
-    LANDSAT_45 = 96
-    LANDSAT_7 = 128
-    LANDSAT_8 = 256
-    LANDSAT = 512
-
-
-class Band(IntEnum):
-    # Crazy Values so that the Band.<ENUM>.value isn't used for anything
-    UNKNOWN_BAND = 0
-    ULTRA_BLUE = 1001
-    BLUE = 1002
-    GREEN = 1003
-    RED = 1004
-    NIR = 1005
-    SWIR1 = 1006
-    THERMAL = 1007
-    SWIR2 = 1008
-    PANCHROMATIC = 1009
-    CIRRUS = 1010
-    TIRS1 = 1011
-    TIRS2 = 1012
-    INFRARED2 = 1013
-    INFRARED1 = 1014
-    ALPHA = 1015
 
 
 class DataType(Enum):
@@ -165,101 +120,6 @@ https://docs.scipy.org/doc/numpy-1.13.0/user/basics.types.html
     @property
     def numpy_type(self):
         return self.__numpy_type
-
-
-class BandMap:
-
-     # TODO it would be nice to store data type, Byte, Unit16, etc.
-    __map = {
-        # TODO min resolution??
-        SpacecraftID.LANDSAT_8: {
-            # TODO min resolution should be 15 for LANDSAT_8?
-            'max_resolution': 30,
-            Band.ULTRA_BLUE: {
-                'number': 1,
-                'wavelength_range': (0.435, 0.451),
-                'description': 'Coastal and aerosol studies',
-                'resolution_m': 30},
-            Band.BLUE: {'number': 2, 'wavelength_range': (0.452, 0.512), 'description': 'Bathymetric mapping, distinguishing soil from vegetation, and deciduous from coniferous vegetation', 'resolution_m': 30},
-            Band.GREEN: {'number': 3, 'wavelength_range': (0.533, 0.590), 'description': 'Emphasizes peak vegetation, which is useful for assessing plant vigor', 'resolution_m': 30},
-            Band.RED: {'number': 4, 'wavelength_range': (0.636, 0.673), 'description': 'Discriminates vegetation slopes', 'resolution_m': 30},
-            Band.NIR: {'number': 5, 'wavelength_range': (0.851, 0.879), 'description': 'Emphasizes biomass content and shorelines', 'resolution_m': 30},
-            Band.SWIR1: {'number': 6, 'wavelength_range': (1.566, 1.651), 'description': 'Discriminates moisture content of soil and vegetation; penetrates thin clouds', 'resolution_m': 30},
-            Band.SWIR2: {'number': 7, 'wavelength_range': (2.107, 2.294), 'description': 'Improved moisture content of soil and vegetation and thin cloud penetration', 'resolution_m': 30},
-            Band.PANCHROMATIC: {'number': 8, 'wavelength_range': (0.503, 0.676), 'description': '15 meter resolution, sharper image definition', 'resolution_m': 15},
-            Band.CIRRUS: {'number': 9, 'wavelength_range': (1.363, 1.384), 'description': 'Improved detection of cirrus cloud contamination', 'resolution_m': 30},
-            Band.TIRS1: {'number': 10, 'wavelength_range': (10.60, 11.19), 'description': '100 meter resolution, thermal mapping and estimated soil moisture', 'resolution_m': 30},
-            Band.TIRS2: {'number': 11, 'wavelength_range': (11.50, 12.51), 'description': '100 meter resolution, Improved thermal mapping and estimated soil moisture', 'resolution_m': 30},
-        },
-        SpacecraftID.LANDSAT_45: {
-            'max_resolution': 30,
-            Band.BLUE: {'number': 1, 'wavelength_range': (0.45, 0.52), 'description': 'Bathymetric mapping, distinguishing soil from vegetation, and deciduous from coniferous vegetation', 'resolution_m': 30},
-            Band.GREEN: {'number': 2, 'wavelength_range': (0.52, 0.60), 'description': 'Emphasizes peak vegetation, which is useful for assessing plant vigor', 'resolution_m': 30},
-            Band.RED: {'number': 3, 'wavelength_range': (0.63, 0.69), 'description': 'Discriminates vegetation slopes', 'resolution_m': 30},
-            Band.NIR: {'number': 4, 'wavelength_range': (0.77, 0.90), 'description': 'Emphasizes biomass content and shorelines', 'resolution_m': 30},
-            Band.SWIR1: {'number': 5, 'wavelength_range': (1.55, 1.75), 'description': 'Discriminates moisture content of soil and vegetation; penetrates thin clouds', 'resolution_m': 30},
-            Band.THERMAL: {'number': 6, 'wavelength_range': (10.40, 12.50), 'description': 'Thermal mapping and estimated soil moisture (60m downsample Landsat7, 120m downsample landsat 4&5)', 'resolution_m': 30},
-            Band.SWIR2: {'number': 7, 'wavelength_range': (2.09, 2.35), 'description': 'Hydrothermally altered rocks associated with mineral deposits', 'resolution_m': 30},
-        },
-        SpacecraftID.LANDSAT_123_MSS: {
-            'max_resolution': 60,
-            Band.GREEN: {'number': 4, 'wavelength_range': (0.5, 0.6), 'description': 'Sediment-laden water, delineates areas of shallow water', 'resolution_m': 60},
-            Band.RED: {'number': 5, 'wavelength_range': (0.6, 0.7), 'description': 'Cultural features', 'resolution_m': 60},
-            Band.INFRARED1: {'number': 6, 'wavelength_range': (0.7, 0.8), 'description': 'Vegetation boundary between land and water, and landforms', 'resolution_m': 60},
-            Band.INFRARED2: {'number': 7, 'wavelength_range': (0.8, 1.1), 'description': 'Penetrates atmospheric haze best, emphasizes vegetation, boundary between land and water, and landforms', 'resolution_m': 60},
-        },
-        SpacecraftID.LANDSAT_45_MSS: {
-            'max_resolution': 60,
-            Band.GREEN: {'number': 1, 'wavelength_range': (0.5, 0.6), 'description': 'Sediment-laden water, delineates areas of shallow water', 'resolution_m': 60},
-            Band.RED: {'number': 2, 'wavelength_range': (0.6, 0.7), 'description': 'Cultural features', 'resolution_m': 60},
-            Band.INFRARED1: {'number': 3, 'wavelength_range': (0.7, 0.8), 'description': 'Vegetation boundary between land and water, and landforms', 'resolution_m': 60},
-            Band.INFRARED2: {'number': 4, 'wavelength_range': (0.8, 1.1), 'description': 'Penetrates atmospheric haze best, emphasizes vegetation, boundary between land and water, and landforms', 'resolution_m': 60},
-        }
-    }
-
-    # shallow copy
-    __map[SpacecraftID.LANDSAT_7] = copy.copy(__map[SpacecraftID.LANDSAT_45])
-    __map[SpacecraftID.LANDSAT_7][Band.PANCHROMATIC] = {'number': 8, 'wavelength_range': (0.52, 0.90), 'description': '15 meter resolution, sharper image definition', 'resolution_m': 15}
-
-    __enum_map = {}
-    for spacecrafID in __map:
-        for band_key in __map[spacecrafID]:
-            if isinstance(__map[spacecrafID][band_key], dict):
-                if spacecrafID not in __enum_map:
-                    __enum_map[spacecrafID] = {}
-                __enum_map[spacecrafID][__map[spacecrafID][band_key]['number']] = band_key
-
-    def __init__(self, spacecraft_id: SpacecraftID):
-        if spacecraft_id & SpacecraftID.LANDSAT_123_MSS:
-            self.__spacecraft_id = SpacecraftID.LANDSAT_123_MSS
-        elif spacecraft_id & SpacecraftID.LANDSAT_45_MSS:
-            self.__spacecraft_id = SpacecraftID.LANDSAT_45_MSS
-        elif spacecraft_id & SpacecraftID.LANDSAT_45:
-            self.__spacecraft_id = SpacecraftID.LANDSAT_45
-        elif spacecraft_id & SpacecraftID.LANDSAT_7:
-            self.__spacecraft_id = SpacecraftID.LANDSAT_7
-        elif spacecraft_id == SpacecraftID.LANDSAT_8:
-            self.__spacecraft_id = SpacecraftID.LANDSAT_8
-        else:
-            self.__spacecraft_id = None
-
-    def get_name(self, band_number):
-        return self.__enum_map[self.__spacecraft_id][band_number].name
-
-    def get_band_enum(self, band_number):
-        return self.__enum_map[self.__spacecraft_id][band_number]
-
-    def get_number(self, band_enum: Band):
-        return self.__map[self.__spacecraft_id][band_enum]['number']
-
-    def get_resolution(self, band_enum: Band):
-        return self.__map[self.__spacecraft_id][band_enum]['resolution_m']
-
-    def get_details(self):
-        return self.__map[self.__spacecraft_id]
-
-    def get_max_resolution(self):
-        return self.__map[self.__spacecraft_id]['max_resolution']
 
 
 class FileTypeMap:
@@ -1262,7 +1122,7 @@ LIMIT 1"""
             end_date: datetime=None,
             sort_by=None,
             limit=10,
-            sql_filters=None,
+            data_filters:MetadataFilters=None,
             base_mount_path='/imagery') -> Generator[Metadata, None, None]:
         # # Perform a synchronous query.
         query_builder = 'SELECT * FROM [bigquery-public-data:cloud_storage_geo_index.landsat_index]'
@@ -1308,13 +1168,15 @@ LIMIT 1"""
             query_builder += ' {0} sensing_time<="{1}"'.format(clause_start, end_date.isoformat())
             clause_start = 'AND'
 
-        if sql_filters and len(sql_filters) > 0:
-            # because
-            query_builder += ' {0} {1}'.format(clause_start, sql_filters[0])
-            for idx in range(1, len(sql_filters)):
-                query_builder += ' AND {}'.format(sql_filters[idx])
+        if data_filters is not None:
+            query_builder = data_filters.get(query_builder)
+            # if sql_filters and len(sql_filters) > 0:
+            #     # because
+            #     query_builder += ' {0} {1}'.format(clause_start, sql_filters[0])
+            #     for idx in range(1, len(sql_filters)):
+            #         query_builder += ' AND {}'.format(sql_filters[idx])
 
-            clause_start = 'AND'
+
 
         # TODO sort by area
         """
