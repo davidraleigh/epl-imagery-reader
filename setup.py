@@ -11,14 +11,14 @@ sys.path.insert(0, src_path)
 
 # https://blog.shazam.com/python-microlibs-5be9461ad979
 kwargs = {
-    'name': 'epl.imagery',
+    'name': 'epl.imagery.native',
     'description': 'Echo Park Labs GCP Imagery Library',
     'long_description': open('README.md').read(),
     'author': 'Echo Park Labs',
     'author_email': 'david@echoparklabs.com',
     'url': 'https://bitbucket.org/EchoParkLabs/gcp-imagery-reader',
     'namespace_package': ['epl'],
-    'packages': ['epl.imagery'],
+    'packages': ['epl.imagery.native'],
     'version': open('VERSION').read(),
     'zip_safe': False
 }

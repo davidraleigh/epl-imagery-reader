@@ -6,19 +6,13 @@ import shapely.geometry
 
 import numpy as np
 
-from osgeo import gdal
-from urllib.parse import urlparse
-
-from lxml import etree
-
 from shapely.geometry import shape
 from shapely.geometry import box
-from shapely.wkt import loads
 
 from datetime import date
-from epl.imagery.reader import MetadataService, Landsat, Storage, SpacecraftID, Metadata, BandMap, Band, WRSGeometries, \
-    RasterBandMetadata, RasterMetadata, DataType, FunctionDetails
-from epl.imagery.metadata_helpers import _QueryParam, _RangeQueryParam, LandsatQueryFilters
+from epl.imagery.native.reader import MetadataService, Landsat, SpacecraftID, Metadata, BandMap, Band, WRSGeometries, \
+    DataType
+from epl.imagery.native.metadata_helpers import _QueryParam, _RangeQueryParam, LandsatQueryFilters
 
 
 class TestMetaDataSQL(unittest.TestCase):

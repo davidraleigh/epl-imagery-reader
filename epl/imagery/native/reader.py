@@ -22,20 +22,19 @@ import numpy as np
 
 from typing import Generator
 
-from pyqtree import Index
 from datetime import date
 from datetime import datetime
 from osgeo import osr, ogr, gdal
 from urllib.parse import urlparse
 from lxml import etree
-from enum import Enum, IntEnum
+from enum import Enum
 from subprocess import call
 
 # Imports the Google Cloud client library
 from google.cloud import bigquery, storage
 
 from epl.imagery import PLATFORM_PROVIDER
-from epl.imagery.metadata_helpers import SpacecraftID, Band, BandMap, MetadataFilters
+from epl.imagery.native.metadata_helpers import SpacecraftID, Band, BandMap, MetadataFilters
 
 
 class __Singleton(type):

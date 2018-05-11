@@ -1,8 +1,6 @@
-import os
 import py_compile
 import unittest
 from datetime import date
-from urllib.parse import urlparse
 
 import numpy as np
 import pyproj
@@ -13,10 +11,10 @@ from osgeo import gdal
 from shapely.wkt import loads
 
 from epl.imagery import PLATFORM_PROVIDER
-from epl.imagery.reader import MetadataService, Landsat, \
-    Storage, SpacecraftID, Metadata, BandMap, Band, \
+from epl.imagery.native.reader import MetadataService, Landsat, \
+    Storage, SpacecraftID, BandMap, Band, \
     RasterMetadata, DataType, FunctionDetails
-from epl.imagery.metadata_helpers import LandsatQueryFilters
+from epl.imagery.native.metadata_helpers import LandsatQueryFilters
 from test.tools.test_helpers import xml_compare
 
 
