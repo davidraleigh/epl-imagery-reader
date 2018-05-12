@@ -16,6 +16,25 @@ from epl.imagery.native.metadata_helpers import _QueryParam, _RangeQueryParam, L
 
 
 class TestMetaDataSQL(unittest.TestCase):
+    def test_where_start(self):
+        # sql_filters = ['scene_id="LC80270312016188LGN00"']
+        landsat_filters = LandsatQueryFilters()
+        landsat_filters.scene_id.set_value("LC80270312016188LGN00")
+        metadata_service = MetadataService()
+        metadata_rows = metadata_service.search(
+            SpacecraftID.UNKNOWN_SPACECRAFT,
+            data_filters=landsat_filters)
+
+        metadata_set = list(metadata_rows)
+        self.assertEqual(1, len(metadata_set))
+        # landsat = Landsat(metadata_set)
+        # data = landsat.fetch_imagery_array(
+        #     band_definitions=[Band.RED, Band.GREEN, Band.BLUE, Band.ALPHA],
+        #     spatial_resolution_m=960)
+        #
+        # self.assertEqual(data.shape, (249, 245, 4))
+        # self.assertEqual(data.dtype, np.uint8)
+
     def test_scene_id(self):
         landsat_filters = LandsatQueryFilters()
         landsat_filters.scene_id.set_value("LC80390332016208LGN00")
