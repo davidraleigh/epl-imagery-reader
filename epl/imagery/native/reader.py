@@ -33,7 +33,7 @@ from subprocess import call
 # Imports the Google Cloud client library
 from google.cloud import bigquery, storage
 
-from epl.imagery import PLATFORM_PROVIDER
+from epl.imagery.native import PLATFORM_PROVIDER
 from epl.imagery.native.metadata_helpers import SpacecraftID, Band, BandMap, MetadataFilters
 
 
