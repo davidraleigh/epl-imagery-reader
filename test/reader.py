@@ -164,28 +164,28 @@ class TestMetadata(unittest.TestCase):
 
         a = TestingParams()
         a.test_param.set_value(2.1)
-        self.assertEqual("WHERE test_param=2.1", a.test_param.get())
+        self.assertEqual(" WHERE test_param=2.1", a.test_param.get())
 
         a.test_param.set_value("waffles")
-        self.assertEqual('WHERE test_param="waffles"', a.test_param.get())
+        self.assertEqual(' WHERE test_param="waffles"', a.test_param.get())
 
         a.test_param.set_range_start(1, True)
-        self.assertEqual("WHERE test_param >= 1", a.test_param.get())
+        self.assertEqual(" WHERE test_param >= 1", a.test_param.get())
 
         a.test_param.set_range_start(1, False)
-        self.assertEqual("WHERE test_param > 1", a.test_param.get())
+        self.assertEqual(" WHERE test_param > 1", a.test_param.get())
 
         a.test_param.set_value(1)
-        self.assertEqual("WHERE test_param=1", a.test_param.get())
+        self.assertEqual(" WHERE test_param=1", a.test_param.get())
 
         a.test_param.set_range_start(1, True)
-        self.assertEqual("WHERE test_param >= 1", a.test_param.get())
+        self.assertEqual(" WHERE test_param >= 1", a.test_param.get())
 
         a.test_param.set_range_end(20, False)
-        self.assertEqual("WHERE test_param >= 1 AND test_param < 20", a.test_param.get())
+        self.assertEqual(" WHERE test_param >= 1 AND test_param < 20", a.test_param.get())
 
         a.test_param.set_value(1)
-        self.assertEqual("WHERE test_param=1", a.test_param.get())
+        self.assertEqual(" WHERE test_param=1", a.test_param.get())
 
     def test_query_param_2(self):
         class TestingParams:
@@ -194,33 +194,33 @@ class TestMetadata(unittest.TestCase):
 
         a = TestingParams()
         a.test_param.set_value(2.1)
-        self.assertEqual("WHERE test_param=2.1", a.test_param.get())
+        self.assertEqual(" WHERE test_param=2.1", a.test_param.get())
 
         a.test_param.set_value("waffles")
-        self.assertEqual('WHERE test_param="waffles"', a.test_param.get())
+        self.assertEqual(' WHERE test_param="waffles"', a.test_param.get())
 
         a.test_param.set_range_start(1, True)
-        self.assertEqual("WHERE test_param >= 1", a.test_param.get())
+        self.assertEqual(" WHERE test_param >= 1", a.test_param.get())
 
         a.test_param.set_range_start(1, False)
-        self.assertEqual("WHERE test_param > 1", a.test_param.get())
+        self.assertEqual(" WHERE test_param > 1", a.test_param.get())
 
         a.test_param.set_value(1)
-        self.assertEqual("WHERE test_param=1", a.test_param.get())
+        self.assertEqual(" WHERE test_param=1", a.test_param.get())
 
         a.test_param.set_range_start(1, True)
-        self.assertEqual("WHERE test_param >= 1", a.test_param.get())
+        self.assertEqual(" WHERE test_param >= 1", a.test_param.get())
 
         a.test_param.set_range_end(20, False)
-        self.assertEqual("WHERE test_param >= 1 AND test_param < 20", a.test_param.get())
+        self.assertEqual(" WHERE test_param >= 1 AND test_param < 20", a.test_param.get())
 
         a.test_param.set_value(1)
-        self.assertEqual("WHERE test_param=1", a.test_param.get())
+        self.assertEqual(" WHERE test_param=1", a.test_param.get())
 
         self.assertEqual("", a.test_param_2.get())
 
         a.test_param_2.set_value(1)
-        self.assertEqual("WHERE test_param_2=1", a.test_param_2.get())
+        self.assertEqual(" WHERE test_param_2=1", a.test_param_2.get())
 
     def test_query_param_landsat(self):
         a = LandsatQueryFilters()
@@ -231,7 +231,7 @@ class TestMetadata(unittest.TestCase):
         a.wrs_path.set_value(9)
 
         result = a.get()
-        self.assertEqual('WHERE cloud_cover >= 20 AND cloud_cover < 80 AND collection_category="PRE" AND scene_id="LC80330352017072LGN00" AND wrs_path=9', result)
+        self.assertEqual(' WHERE cloud_cover >= 20 AND cloud_cover < 80 AND collection_category="PRE" AND scene_id="LC80330352017072LGN00" AND wrs_path=9', result)
 
     def test_bounds(self):
         row = ('LC80330352017072LGN00', '', 'LANDSAT_8', 'OLI_TIRS', '2017-03-13', '2017-03-13T17:38:14.0196140Z',
