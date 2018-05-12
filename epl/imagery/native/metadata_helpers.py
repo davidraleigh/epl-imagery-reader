@@ -17,11 +17,11 @@ class _QueryParam:
         self.value = not_value
         self.equals = False
 
-    def get(self, sql_message=""):
+    def get(self, sql_message="", b_start=False):
         if self.value is None:
             return sql_message
 
-        sql_message += "WHERE " if len(sql_message) == 0 else " AND "
+        sql_message += "WHERE " if b_start else " AND "
         if self.value is not None:
             operand = "=" if self.equals else "!="
             if isinstance(self.value, str):
@@ -72,24 +72,25 @@ class _RangeQueryParam(_QueryParam):
 
         return sql_message
 
-    def get(self, sql_message=""):
+    def get(self, sql_message="", b_start=False):
         if self.value is None and self.start is None and self.end is None:
             return sql_message
 
         if self.value is not None:
             sql_message = super().get(sql_message)
         else:
-            sql_message += "WHERE " if len(sql_message) == 0 else " AND "
+            sql_message += "WHERE " if b_start else " AND "
             sql_message = self._get_range(sql_message)
 
         return sql_message
 
 
 class MetadataFilters:
-    def get(self, sql_message=""):
+    def get(self, sql_message="", b_start=False):
         sorted_keys = sorted(self.__dict__)
         for key in sorted_keys:
-            sql_message = self.__dict__[key].get(sql_message)
+            sql_message = self.__dict__[key].get(sql_message, b_start)
+            b_start = False
 
         # for attr, value in self.__dict__.items():
         #     sql_message = value.get(sql_message)

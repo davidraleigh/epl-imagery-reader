@@ -1121,7 +1121,7 @@ LIMIT 1"""
             end_date: datetime=None,
             sort_by=None,
             limit=10,
-            data_filters:MetadataFilters=None,
+            data_filters: MetadataFilters=None,
             base_mount_path='/imagery') -> Generator[Metadata, None, None]:
         # # Perform a synchronous query.
         query_builder = 'SELECT * FROM [bigquery-public-data:cloud_storage_geo_index.landsat_index]'
@@ -1168,7 +1168,8 @@ LIMIT 1"""
             clause_start = 'AND'
 
         if data_filters is not None:
-            query_builder = data_filters.get(query_builder)
+            b_start = clause_start != 'AND'
+            query_builder = data_filters.get(query_builder, b_start)
             # if sql_filters and len(sql_filters) > 0:
             #     # because
             #     query_builder += ' {0} {1}'.format(clause_start, sql_filters[0])
