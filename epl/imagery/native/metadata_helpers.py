@@ -21,7 +21,7 @@ class _QueryParam:
         if self.value is None:
             return sql_message
 
-        sql_message += "WHERE " if b_start else " AND "
+        sql_message += "WHERE " if b_start or len(sql_message) == 0 else " AND "
         if self.value is not None:
             operand = "=" if self.equals else "!="
             if isinstance(self.value, str):
@@ -79,7 +79,7 @@ class _RangeQueryParam(_QueryParam):
         if self.value is not None:
             sql_message = super().get(sql_message)
         else:
-            sql_message += "WHERE " if b_start else " AND "
+            sql_message += "WHERE " if b_start or len(sql_message) == 0 else " AND "
             sql_message = self._get_range(sql_message)
 
         return sql_message
