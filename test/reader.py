@@ -10,12 +10,38 @@ from shapely.geometry import shape
 from shapely.geometry import box
 
 from datetime import date
-from epl.imagery.native.reader import MetadataService, Landsat, SpacecraftID, Metadata, BandMap, Band, WRSGeometries, \
-    DataType
-from epl.imagery.native.metadata_helpers import _QueryParam, _RangeQueryParam, LandsatQueryFilters
+from epl.imagery.native.reader import MetadataService, Landsat, Metadata, BandMap, Band, WRSGeometries, DataType
+from epl.imagery.native.metadata_helpers import _QueryParam, _RangeQueryParam, LandsatQueryFilters, SpacecraftID
 
 
 class TestMetaDataSQL(unittest.TestCase):
+    def test_polygon_boundary(self):
+        d_start = date(2017, 3, 12)  # 2017-03-12
+        d_end = date(2017, 3, 19)  # 2017-03-20, epl api is inclusive
+
+        r = requests.get("https://raw.githubusercontent.com/johan/world.geo.json/master/countries/USA/NM/Taos.geo.json")
+        taos_geom = r.json()
+        taos_shape = shapely.geometry.shape(taos_geom['features'][0]['geometry'])
+        metadata_service = MetadataService()
+
+        landsat_filters = LandsatQueryFilters()
+        landsat_filters.collection_number.set_value("PRE")
+        # sql_filters = ['collection_number="PRE"']
+        metadata_rows = metadata_service.search(
+            SpacecraftID.LANDSAT_8,
+            start_date=d_start,
+            end_date=d_end,
+            polygon_boundary_wkb=taos_shape.wkb,
+            limit=10, data_filters=landsat_filters)
+
+        # mounted directory in docker container
+        metadata_set = []
+
+        for row in metadata_rows:
+            metadata_set.append(row)
+
+        self.assertEqual(len(metadata_set), 2)
+
     def test_where_start(self):
         # sql_filters = ['scene_id="LC80270312016188LGN00"']
         landsat_filters = LandsatQueryFilters()
@@ -239,10 +265,10 @@ class TestMetadata(unittest.TestCase):
                'gs://gcp-public-data-landsat/LC08/PRE/033/035/LC80330352017072LGN00')
         metadata = Metadata(row)
         self.assertIsNotNone(metadata)
-        geom_obj = metadata.get_wrs_polygon()
-        self.assertIsNotNone(geom_obj)
+        geom_wkb = metadata.get_wrs_polygon()
+        self.assertIsNotNone(geom_wkb)
         bounding_polygon = box(*metadata.bounds)
-        wrs_polygon = shape(geom_obj)
+        wrs_polygon = shapely.wkb.loads(geom_wkb)
         self.assertTrue(bounding_polygon.contains(wrs_polygon))
 
         # polygon = loads(wkt)
@@ -397,27 +423,55 @@ class TestWRSGeometries(unittest.TestCase):
 
     def test_geometry(self):
         for test_case in self.test_cases:
-            geom_obj = self.wrs_geometries.get_wrs_geometry(test_case[8], test_case[9], timeout=60)
+            geom_wkb = self.wrs_geometries.get_wrs_geometry(test_case[8], test_case[9], timeout=60)
             geom_expected_area = test_case[0]
 
-            self.assertIsNotNone(geom_obj)
-            s = shape(geom_obj)
+            self.assertIsNotNone(geom_wkb)
+            s = shapely.wkb.loads(geom_wkb)
             self.assertAlmostEqual(geom_expected_area, s.area, 5)
 
-    # def test_bounds_search(self):
-    #     for idx, test_case in enumerate(self.test_cases):
-    #         geom_obj = self.wrs_geometries.get_wrs_geometry(test_case[8], test_case[9], timeout=60)
-    #         original_shape = shape(geom_obj)
-    #         result = self.wrs_geometries.get_path_row(original_shape.bounds)
-    #         path_pair = result.pop()
-    #         while path_pair is not None:
-    #             geom_obj = self.wrs_geometries.get_wrs_geometry(path_pair[0], path_pair[1])
-    #             s = shape(geom_obj)
-    #             b_intersect = s.envelope.intersects(original_shape.envelope)
-    #             print("Test case {0}\n original bounds: {1}\nnon-intersecting bounds{2}\n".format(idx, original_shape.bounds, s.bounds))
-    #             self.assertTrue(b_intersect, "Test case {0}\n original bounds: {1}\nnon-intersecting bounds{2}\n"
-    #                             .format(idx, original_shape.bounds, s.bounds))
-    #         break
+    def test_belgium(self):
+        r = requests.get("https://raw.githubusercontent.com/johan/world.geo.json/master/countries/BEL.geo.json")
+
+        area_geom = r.json()
+        area_shape = shapely.geometry.shape(area_geom['features'][0]['geometry'])
+
+        bounds_set = None
+        while bounds_set is None:
+            bounds_set = self.wrs_geometries.get_path_row((2.513573, 49.529484, 6.156658, 51.475024))
+
+        for path_row in bounds_set:
+            geom_wkb = self.wrs_geometries.get_wrs_geometry(path_row[0], path_row[1], timeout=60)
+            s = shapely.wkb.loads(geom_wkb)
+            b_intersect = s.envelope.intersects(area_shape.envelope)
+            self.assertTrue(b_intersect)
+
+        # filehandler = open("/.epl/wrs_geom.obj", "wb")
+        # import pickle
+        # pickle.dump(self.wrs_geometries, filehandler)
+        # filehandler.close()
+
+    def test_bounds_search(self):
+        for idx, test_case in enumerate(self.test_cases):
+            geom_wkb = self.wrs_geometries.get_wrs_geometry(test_case[8], test_case[9], timeout=60)
+            original_shape = shapely.wkb.loads(geom_wkb)
+            result = self.wrs_geometries.get_path_row(original_shape.bounds)
+            path_pair = result.pop()
+            while path_pair is not None:
+                geom_wkb = self.wrs_geometries.get_wrs_geometry(path_pair[0], path_pair[1])
+                s = shapely.wkb.loads(geom_wkb)
+                b_intersect = s.envelope.intersects(original_shape.envelope)
+                if not b_intersect:
+                    print("Test case {0}\n original bounds: {1}\nnon-intersecting bounds{2}\n".format(idx,
+                                                                                                      original_shape.bounds,
+                                                                                                      s.bounds))
+
+                self.assertTrue(b_intersect, "Test case {0}\n original bounds: {1}\nnon-intersecting bounds{2}\n"
+                                .format(idx, original_shape.bounds, s.bounds))
+                if result:
+                    path_pair = result.pop()
+                else:
+                    break
 
 
 class TestLandsat(unittest.TestCase):
@@ -615,8 +669,6 @@ class TestLandsat(unittest.TestCase):
 
         # TODO needs shape test
 
-
-
     def test_mosaic_cutline(self):
         # GDAL helper functions for generating VRT
         landsat = Landsat(self.metadata_set)
@@ -711,6 +763,7 @@ class TestLandsat(unittest.TestCase):
         landsat = Landsat(self.metadata_set)
         band_numbers = [Band.RED, Band.BLUE]
         scaleParams = [[0.0, 40000.0], [0.0, 40000.0]]
+
         nda = landsat.fetch_imagery_array(band_numbers, scaleParams, polygon_boundary_wkb=self.taos_shape.wkb, spatial_resolution_m=120)
         self.assertIsNotNone(nda)
         self.assertEqual((2, 902, 648), nda.shape)

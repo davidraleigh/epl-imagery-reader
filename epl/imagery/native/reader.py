@@ -1,7 +1,5 @@
 import os
 import errno
-import threading
-
 import tempfile
 import py_compile
 
@@ -19,6 +17,8 @@ import copy
 import glob
 import re
 import numpy as np
+
+from pyqtree import Index
 
 from typing import Generator
 
@@ -1022,6 +1022,7 @@ class MetadataService(metaclass=__Singleton):
 
     def __init__(self):
         self.m_client = bigquery.Client()
+        self.m_wrs_geometry = WRSGeometries()
         self.m_timeout_ms = 10000
 
         # these values were define on July 16, 2017, buffered by half a degree
@@ -1117,19 +1118,23 @@ LIMIT 1"""
             self,
             satellite_id=None,
             bounding_box=None,
+            polygon_boundary_wkb=None,
             start_date: datetime=None,
             end_date: datetime=None,
             sort_by=None,
             limit=10,
             data_filters: MetadataFilters=None,
             base_mount_path='/imagery') -> Generator[Metadata, None, None]:
-        # # Perform a synchronous query.
+        # TODO ,update to use bigquery asynchronous query.
         query_builder = 'SELECT * FROM [bigquery-public-data:cloud_storage_geo_index.landsat_index]'
 
         clause_start = 'WHERE'
         if satellite_id and satellite_id is not SpacecraftID.UNKNOWN_SPACECRAFT:
             query_builder += ' {0} spacecraft_id="{1}"'.format(clause_start, satellite_id.name)
             clause_start = 'AND'
+
+        if polygon_boundary_wkb:
+            bounding_box = shapely.wkb.loads(polygon_boundary_wkb).bounds
 
         if bounding_box:
             minx = bounding_box[0]
@@ -1212,11 +1217,31 @@ return bIntersecting;"""
         query.timeout_ms = self.m_timeout_ms
         query.run()
 
-        return (Metadata(row, base_mount_path) for row in query.rows)
-        # metadata_rows = []
-        # for row in query.rows:
-        #     metadata_rows.append(Metadata(row, base_mount_path))
-        # return metadata_rows
+        # return (Metadata(row, base_mount_path) for row in query.rows)
+        polygon_differenced = None
+        if polygon_boundary_wkb is not None:
+            polygon_differenced = shapely.wkb.loads(polygon_boundary_wkb)
+        else:
+            polygon_differenced = shapely
+
+
+        for row in query.rows:
+            metadata = Metadata(row, base_mount_path)
+
+            if polygon_differenced is None:
+                yield metadata
+                continue
+
+            wrs_wkb = self.m_wrs_geometry.get_wrs_geometry(wrs_path=metadata.wrs_path, wrs_row=metadata.wrs_row)
+            wrs_shape = shapely.wkb.loads(wrs_wkb)
+            if wrs_shape.intersects(polygon_differenced):
+                wrs_poly_intersection = wrs_shape.intersection(polygon_differenced)
+                # buffer by tolerance
+                wrs_poly_intersection = wrs_poly_intersection.buffer(0.00000008)
+                polygon_differenced = polygon_differenced.difference(wrs_poly_intersection)
+                yield metadata
+            else:
+                continue
 
 
 class Storage(metaclass=__Singleton):
@@ -1335,19 +1360,18 @@ class Storage(metaclass=__Singleton):
 class WRSGeometries(metaclass=__Singleton):
 
     """
-Notes on WRS-2 Landsat 8's Operational Land Imager (OLI) and/or Thermal Infrared Sensor (TIRS) sensors acquired nearly 10,000 scenes from just after its February 11, 2013 launch through April 10, 2013, during when the satellite was moving into the operational WRS-2 orbit. The earliest images are TIRS data only.  While these data meet the quality standards and have the same geometric precision as data acquired on and after April 10, 2013, the geographic extents of each scene will differ. Many of the scenes are processed to full terrain correction, with a pixel size of 30 meters. There may be some differences in the spatial resolution of the early TIRS images due to telescope temperature changes.
+Notes on WRS-2 Landsat 8's Operational Land Imager (OLI) and/or Thermal Infrared Sensor (TIRS) sensors
+acquired nearly 10,000 scenes from just after its February 11, 2013 launch through April 10, 2013, during
+ when the satellite was moving into the operational WRS-2 orbit. The earliest images are TIRS data only.
+ While these data meet the quality standards and have the same geometric precision as data acquired on and
+ after April 10, 2013, the geographic extents of each scene will differ. Many of the scenes are processed to
+ full terrain correction, with a pixel size of 30 meters. There may be some differences in the spatial resolution
+ of the early TIRS images due to telescope temperature changes.
     """
     def __init__(self):
         self.__wrs2_map = {}
-        # self.__spatial_index = Index(bbox=(-180, -90, 180, 90))
+        self.__spatial_index = Index(bbox=(-180, -90, 180, 90))
 
-        # do some async query to check if the danger_zone needs updating
-        self.__read_thread = threading.Thread(target=self.__read_shapefiles, args=())
-        self.__read_thread.daemon = True  # Daemonize thread
-        self.__read_thread.start()
-
-    def __read_shapefiles(self):
-        # self.__wrs1 = shapefile.Reader("/.epl/metadata/wrs/wrs1_asc_desc/wrs1_asc_desc.shp")
         wrs2 = shapefile.Reader("/.epl/metadata/wrs/wrs2_asc_desc/wrs2_asc_desc.shp")
         wrs_path_idx = None
         wrs_row_idx = None
@@ -1367,18 +1391,27 @@ Notes on WRS-2 Landsat 8's Operational Land Imager (OLI) and/or Thermal Infrared
                 self.__wrs2_map[path_num] = {}
 
             s = wrs2.shape(idx)
-            self.__wrs2_map[path_num][row_num] = s.__geo_interface__
-            # self.__spatial_index.insert((path_num, row_num), s.bbox)
+            self.__wrs2_map[path_num][row_num] = shapely.geometry.shape(s.__geo_interface__).wkb
+            if s.__geo_interface__["type"] == "MultiPolygon":
+                multipart = shapely.geometry.shape(s.__geo_interface__)
+                for geom in multipart:
+                    self.__spatial_index.insert((path_num, row_num), geom.bounds)
+            else:
+                self.__spatial_index.insert((path_num, row_num), s.bbox)
 
-    # def get_path_row(self, bounds) -> set:
-    #     return self.__spatial_index.intersect(bounds)
+        # do some async query to check if the danger_zone needs updating
+        # self.__read_thread = threading.Thread(target=self.__read_shapefiles, args=())
+        # self.__read_thread.daemon = True  # Daemonize thread
+        # self.__read_thread.start()
+
+    # def __read_shapefiles(self):
+        # self.__wrs1 = shapefile.Reader("/.epl/metadata/wrs/wrs1_asc_desc/wrs1_asc_desc.shp")
+
+    def get_path_row(self, bounds, timeout=10) -> set:
+        return self.__spatial_index.intersect(bounds)
 
     # TODO return wkb
     def get_wrs_geometry(self, wrs_path, wrs_row, timeout=10):
-        self.__read_thread.join(timeout=timeout)
-        if self.__read_thread.is_alive():
-            return None
-
         return self.__wrs2_map[wrs_path][wrs_row]
 
 
