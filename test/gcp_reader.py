@@ -34,7 +34,7 @@ class TestGCPMetadataSQL(unittest.TestCase):
             data_filters=landsat_filters)
         rows = list(rows)
         first_item = rows[0]
-        self.assertEqual(len(rows), 10)
+        self.assertEqual(len(rows), 2)
 
         rows = metadata_service.search(
             satellite_id=SpacecraftID.UNKNOWN_SPACECRAFT,
@@ -45,7 +45,7 @@ class TestGCPMetadataSQL(unittest.TestCase):
 
         rows = list(rows)
         other_item = rows[0]
-        self.assertEqual(len(rows), 10)
+        self.assertEqual(len(rows), 2)
 
         self.assertEqual(first_item.scene_id, other_item.scene_id)
 
