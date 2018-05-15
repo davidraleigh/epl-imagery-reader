@@ -1221,9 +1221,8 @@ return bIntersecting;"""
         polygon_differenced = None
         if polygon_boundary_wkb is not None:
             polygon_differenced = shapely.wkb.loads(polygon_boundary_wkb)
-        else:
-            polygon_differenced = shapely
-
+        elif bounding_box is not None:
+            polygon_differenced = shapely.geometry.box(*bounding_box).envelope
 
         for row in query.rows:
             metadata = Metadata(row, base_mount_path)

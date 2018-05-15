@@ -549,8 +549,17 @@ class TestLandsat(unittest.TestCase):
                                             limit=10,
                                             data_filters=landsat_filter)
         rows = list(rows)
-        self.assertEqual(len(rows), 1)
+        self.assertEqual(len(rows), 0)
 
+        d_end = date(2016, 8, 28)
+        rows = self.metadata_service.search(SpacecraftID.LANDSAT_8,
+                                            start_date=d_start,
+                                            end_date=d_end,
+                                            bounding_box=utah_box,
+                                            limit=10,
+                                            data_filters=landsat_filter)
+        rows = list(rows)
+        self.assertEqual(len(rows), 4)
         #     metadata_row = ['LC80390332016208LGN00', '', 'LANDSAT_8', 'OLI_TIRS', '2016-07-26',
         # '2016-07-26T18:14:46.9465460Z', 'PRE', 'N/A', 'L1T', 39, 33, 1.69,
         # 39.96962, 37.81744, -115.27267, -112.56732, 1070517542,
@@ -565,51 +574,7 @@ class TestLandsat(unittest.TestCase):
         scale_params = [[0.0, 65535], [0.0, 65535], [0.0, 65535]]
         nda = landsat.fetch_imagery_array(band_numbers, scale_params)
 
-        self.assertEqual(nda.shape, (3861, 3786, 3))
-
-
-        # src_ds = gdal.Open(input_file)
-        # if src_ds is None:
-        #     print
-        #     'Unable to open %s' % input_file
-        #     sys.exit(1)
-        #
-        # try:
-        #     srcband = src_ds.GetRasterBand(band_num)
-        # except RuntimeError, e:
-        #     print
-        #     'No band %i found' % band_num
-        #     print
-        #     e
-        #     sys.exit(1)
-        #
-        # print
-        # "[ NO DATA VALUE ] = ", srcband.GetNoDataValue()
-        # print
-        # "[ MIN ] = ", srcband.GetMinimum()
-        # print
-        # "[ MAX ] = ", srcband.GetMaximum()
-        # print
-        # "[ SCALE ] = ", srcband.GetScale()
-        # print
-        # "[ UNIT TYPE ] = ", srcband.GetUnitType()
-        # ctable = srcband.GetColorTable()
-        #
-        # if ctable is None:
-        #     print
-        #     'No ColorTable found'
-        #     sys.exit(1)
-        #
-        # print
-        # "[ COLOR TABLE COUNT ] = ", ctable.GetCount()
-        # for i in range(0, ctable.GetCount()):
-        #     entry = ctable.GetColorEntry(i)
-        #     if not entry:
-        #         continue
-        #     print
-        #     "[ COLOR ENTRY RGB ] = ", ctable.GetColorEntryAsRGB(i, entry)
-
-    # @unittest.skip("failing???")
+        self.assertEqual(nda.shape, (3876, 3806, 3))
 
     def test_band_enum(self):
         self.assertTrue(True)
