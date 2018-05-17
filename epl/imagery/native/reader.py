@@ -1210,6 +1210,8 @@ return bIntersecting;"""
 
         if sort_by:
             query_builder += ' SORT BY {}'.format(sort_by)
+        else:
+            query_builder += ' ORDER BY sensing_time DESC'
 
         query_string = '{} LIMIT {}'.format(query_builder, limit)
 
@@ -1234,10 +1236,10 @@ return bIntersecting;"""
             wrs_wkb = self.m_wrs_geometry.get_wrs_geometry(wrs_path=metadata.wrs_path, wrs_row=metadata.wrs_row)
             wrs_shape = shapely.wkb.loads(wrs_wkb)
             if wrs_shape.intersects(polygon_differenced):
-                wrs_poly_intersection = wrs_shape.intersection(polygon_differenced)
-                # buffer by tolerance
-                wrs_poly_intersection = wrs_poly_intersection.buffer(0.00000008)
-                polygon_differenced = polygon_differenced.difference(wrs_poly_intersection)
+                # wrs_poly_intersection = wrs_shape.intersection(polygon_differenced)
+                # # buffer by tolerance
+                # wrs_poly_intersection = wrs_poly_intersection.buffer(0.00000008)
+                # polygon_differenced = polygon_differenced.difference(wrs_poly_intersection)
                 yield metadata
             else:
                 continue

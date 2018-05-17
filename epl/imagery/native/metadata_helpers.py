@@ -1,5 +1,7 @@
 import copy
 
+from datetime import date
+from datetime import datetime
 from enum import IntEnum
 
 
@@ -10,6 +12,11 @@ class _QueryParam:
         self.equals = True
 
     def set_value(self, value):
+        if value is date:
+            value = datetime.combine(value, datetime.min.time())
+        if value is datetime:
+            value = value.isoformat()
+
         self.value = value
         self.equals = True
 
@@ -45,7 +52,7 @@ class _RangeQueryParam(_QueryParam):
         self.start = start
         self.start_inclusive = start_inclusive
 
-    def set_range_end(self, end: float or int, end_inclusive=False):
+    def set_range_end(self, end, end_inclusive=False):
         self.value = None
         self.end = end
         self.end_inclusive = end_inclusive
@@ -63,12 +70,12 @@ class _RangeQueryParam(_QueryParam):
     def _get_range(self, sql_message=""):
         if self.start is not None:
             operand = ">=" if self.start_inclusive else ">"
-            sql_message += "{0} {1} {2}".format(self.param_name, operand, self.start)
+            sql_message += "{0}{1}{2}".format(self.param_name, operand, self.start)
             if self.end is not None:
                 sql_message = "{0} AND ".format(sql_message)
         if self.end is not None:
             operand = "<=" if self.end_inclusive else "<"
-            sql_message += "{0} {1} {2}".format(self.param_name, operand, self.end)
+            sql_message += "{0}{1}{2}".format(self.param_name, operand, self.end)
 
         return sql_message
 
@@ -85,7 +92,52 @@ class _RangeQueryParam(_QueryParam):
         return sql_message
 
 
+class _DateQueryParam(_RangeQueryParam):
+
+    @staticmethod
+    def _get_date_string(value: date or datetime):
+        if type(value) is date:
+            value = datetime.combine(value, datetime.min.time())
+        elif type(value) is not datetime:
+            raise ValueError
+
+        return '"{}"'.format(value.isoformat())
+
+    def set_range_start(self, start: date or datetime, start_inclusive=True):
+        super().set_range_start(start, start_inclusive)
+        self.start = _DateQueryParam._get_date_string(start)
+
+    def set_range_end(self, end: date or datetime, end_inclusive=False):
+        super().set_range_end(end, end_inclusive)
+        self.end = _DateQueryParam._get_date_string(end)
+
+    def set_value(self, value: date or datetime):
+        if type(value) is date:
+            self.set_range_start(datetime.combine(value, datetime.min.time()), True)
+            self.set_range_end(datetime.combine(value, datetime.max.time()), True)
+        elif type(value) is not datetime:
+            raise ValueError
+        else:
+            super().set_value(value)
+            self.value = _DateQueryParam._get_date_string(value)
+
+    def set_not_value(self, not_value: date or datetime):
+        if type(not_value) is date:
+            self.set_range_start(datetime.combine(not_value, datetime.max.time()), False)
+            self.set_range_end(datetime.combine(not_value, datetime.min.time()), False)
+        elif type(not_value) is not datetime:
+            raise ValueError
+        else:
+            super().set_not_value(not_value)
+            self.value = _DateQueryParam._get_date_string(not_value)
+
+
 class MetadataFilters:
+    def __init__(self):
+        self.cloud_cover = _RangeQueryParam("cloud_cover")
+        self.acquired = None
+        # self.geometry_wkb = None
+
     def get(self, sql_message="", b_start=False):
         sorted_keys = sorted(self.__dict__)
         sql_len = len(sql_message)
@@ -94,13 +146,12 @@ class MetadataFilters:
             if sql_len < len(sql_message):
                 b_start = False
 
-        # for attr, value in self.__dict__.items():
-        #     sql_message = value.get(sql_message)
         return sql_message
 
 
 class LandsatQueryFilters(MetadataFilters):
     def __init__(self):
+        super().__init__()
         self.scene_id = _QueryParam("scene_id")
         self.product_id = _QueryParam("product_id")
         self.spacecraft_id = _QueryParam("spacecraft_id")
@@ -110,9 +161,11 @@ class LandsatQueryFilters(MetadataFilters):
         self.data_type = _QueryParam("data_type")
         self.base_url = _QueryParam("base_url")
 
+        self.acquired = _DateQueryParam("sensing_time")
+
         self.wrs_path = _RangeQueryParam("wrs_path")
         self.wrs_row = _RangeQueryParam("wrs_row")
-        self.cloud_cover = _RangeQueryParam("cloud_cover")
+
         # north_lat = _RangeQueryParam("north_lat")
         # south_lat = _RangeQueryParam("south_lat")
         # west_lon = _RangeQueryParam("west_lon")
