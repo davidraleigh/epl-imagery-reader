@@ -1,8 +1,10 @@
 import copy
 
+
 from datetime import date
 from datetime import datetime
 from enum import IntEnum
+from typing import TypeVar
 
 
 class _QueryParam:
@@ -93,9 +95,10 @@ class _RangeQueryParam(_QueryParam):
 
 
 class _DateQueryParam(_RangeQueryParam):
+    D = TypeVar('D', date, datetime)
 
     @staticmethod
-    def _get_date_string(value: date or datetime):
+    def _get_date_string(value: D):
         if type(value) is date:
             value = datetime.combine(value, datetime.min.time())
         elif type(value) is not datetime:
@@ -103,15 +106,15 @@ class _DateQueryParam(_RangeQueryParam):
 
         return '"{}"'.format(value.isoformat())
 
-    def set_range_start(self, start: date or datetime, start_inclusive=True):
+    def set_range_start(self, start: D, start_inclusive=True):
         super().set_range_start(start, start_inclusive)
         self.start = _DateQueryParam._get_date_string(start)
 
-    def set_range_end(self, end: date or datetime, end_inclusive=False):
+    def set_range_end(self, end: D, end_inclusive=False):
         super().set_range_end(end, end_inclusive)
         self.end = _DateQueryParam._get_date_string(end)
 
-    def set_value(self, value: date or datetime):
+    def set_value(self, value: D):
         if type(value) is date:
             self.set_range_start(datetime.combine(value, datetime.min.time()), True)
             self.set_range_end(datetime.combine(value, datetime.max.time()), True)
@@ -121,7 +124,7 @@ class _DateQueryParam(_RangeQueryParam):
             super().set_value(value)
             self.value = _DateQueryParam._get_date_string(value)
 
-    def set_not_value(self, not_value: date or datetime):
+    def set_not_value(self, not_value: D):
         if type(not_value) is date:
             self.set_range_start(datetime.combine(not_value, datetime.max.time()), False)
             self.set_range_end(datetime.combine(not_value, datetime.min.time()), False)
@@ -165,6 +168,9 @@ class LandsatQueryFilters(MetadataFilters):
 
         self.wrs_path = _RangeQueryParam("wrs_path")
         self.wrs_row = _RangeQueryParam("wrs_row")
+
+        # self.polygon_wkbs = []
+        # self.envelopes = []
 
         # north_lat = _RangeQueryParam("north_lat")
         # south_lat = _RangeQueryParam("south_lat")
