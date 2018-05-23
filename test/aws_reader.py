@@ -9,7 +9,7 @@ from lxml import etree
 from osgeo import gdal
 from shapely.wkt import loads
 
-from epl.imagery import PLATFORM_PROVIDER
+from epl.imagery.native import PLATFORM_PROVIDER
 from epl.imagery.native.reader import MetadataService, SpacecraftID, Metadata, FunctionDetails, Landsat, DataType
 from epl.imagery.native.metadata_helpers import LandsatQueryFilters
 from test.tools.test_helpers import xml_compare
