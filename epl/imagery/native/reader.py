@@ -21,7 +21,7 @@ import numpy as np
 from pyqtree import Index
 
 from typing import Generator
-
+from operator import itemgetter
 from datetime import date
 from datetime import datetime
 from osgeo import osr, ogr, gdal
@@ -30,11 +30,13 @@ from lxml import etree
 from enum import Enum
 from subprocess import call
 
+from typing import List, Tuple
+from peewee import Field
 # Imports the Google Cloud client library
 from google.cloud import bigquery, storage
 
 from epl.imagery.native import PLATFORM_PROVIDER
-from epl.imagery.native.metadata_helpers import SpacecraftID, Band, BandMap, MetadataFilters
+from epl.imagery.native.metadata_helpers import SpacecraftID, Band, BandMap, MetadataFilters, LandsatQueryFilters
 
 
 class __Singleton(type):
@@ -172,6 +174,7 @@ class Metadata:
     __storage_client = storage.Client()
     metadata_reg = re.compile(r'/imagery/c1/L8/([\d]{3,3})/([\d]{3,3})/L(C|T)08_([a-zA-Z0-9]+)_[\d]+_([\d]{4,4})([\d]{2,2})([\d]{2,2})_[\d]+_[a-zA-Z0-9]+_(RT|T1|T2)')
     datetime_reg = re.compile(r'([\w\-:]+)(\.[\d]{0,6})[\d]*([A-Z]{1})')
+
     """
     LXSS_LLLL_PPPRRR_YYYYMMDD_yyyymmdd_CC_TX_BN.TIF where:
      L           = Landsat
@@ -395,7 +398,7 @@ LLNppprrrOOYYDDDMM_AA.TIF  where:
             return json.loads(json_str)
 
     def get_wrs_polygon(self):
-        return self.__wrs_geometries.get_wrs_geometry(self.wrs_path, self.wrs_row, timeout=60)
+        return self.__wrs_geometries.get_wrs_geometry(self.wrs_path, self.wrs_row)
 
     # TODO, probably remove this?
     def get_intersect_wkt(self, other_bounds):
@@ -1078,6 +1081,105 @@ LIMIT 1"""
     #     return path
 
     @staticmethod
+    def _dateline_intersection(coord_pair1, coord_pair2):
+        result = None
+        lon_diff = coord_pair1[0] - coord_pair2[0]
+        if lon_diff > 180:
+            pos_lon = 360 + coord_pair2[0]
+            pos_diff = pos_lon - coord_pair1[0]
+            ratio = (pos_lon - 180) / pos_diff
+            lat_intersect = coord_pair1[1] + (coord_pair2[1] - coord_pair1[1]) * ratio
+            result = [(180, lat_intersect), (-180, lat_intersect)]
+        elif lon_diff < -180:
+            result = MetadataService._dateline_intersection(coord_pair2, coord_pair1)
+            result.reverse()
+
+        return result
+
+    @staticmethod
+    def split_by_dateline(poly: shapely.geometry.Polygon):
+        if not isinstance(poly, shapely.geometry.Polygon):
+            raise ValueError
+
+        # if it is ccw then it's arranged correctly
+        if poly.exterior.is_ccw:
+            return [poly]
+
+        xmin = poly.bounds[0]
+        xmax = poly.bounds[2]
+        coords_positive = []
+        coords_negative = []
+
+        # if the bounds are negative and positive rearrange, otherwise don't
+        if xmin < 0 < xmax:
+            coords = [p for p in poly.exterior.coords]
+
+            for index, coord_pair in enumerate(coords):
+
+                next_coord = None
+                if index == len(coords) - 1:
+                    next_coord = coords[0]
+                else:
+                    next_coord = coords[index + 1]
+
+                # TODO so, if a geometry starts in the negative longitude region and eventually comes into the positive space, this will break.
+                if coord_pair[0] > 0:
+                    coords_positive.append(coord_pair)
+                    intersection_coords = MetadataService._dateline_intersection(coord_pair, next_coord)
+                    if intersection_coords:
+                        coords_positive.append(intersection_coords[0])
+                        coords_negative.append(intersection_coords[1])
+                else:
+                    coords_negative.append(coord_pair)
+                    intersection_coords = MetadataService._dateline_intersection(coord_pair, next_coord)
+                    if intersection_coords:
+                        coords_negative.append(intersection_coords[0])
+                        coords_positive.append(intersection_coords[1])
+
+            return [shapely.geometry.Polygon(coords_positive), shapely.geometry.Polygon(coords_negative)]
+
+        return [poly]
+
+    @staticmethod
+    def split_all_by_dateline(polygon_wkbs: List[bytes]):
+        """
+        With a list of polygons encoding in wkb, return a list of shapely polygons that are split by the dateline if
+        necessary. All inputs and output are assumed to be in Geographic Coordinates (wgs-84 or other lon,lat system)
+        :param polygon_wkbs:
+        :return: list of polygons split by dateline if necessary
+        """
+        results = []
+
+        for polygon_wkb in polygon_wkbs:
+            geom = shapely.wkb.loads(polygon_wkb)
+            if geom.type == "MultiPolygon":
+                for p in geom.geoms:
+                    results.extend(MetadataService.split_by_dateline(p))
+            elif geom.type == "Polygon":
+                results.extend(MetadataService.split_by_dateline(geom))
+            else:
+                raise ValueError
+
+        return results
+
+    def get_wrs(self, polygon_wkbs: List[bytes]):
+        polygons = MetadataService.split_all_by_dateline(polygon_wkbs)
+
+        intersecting_wrs = []
+        for poly in polygons:
+            wrs_set = self.m_wrs_geometry.get_path_row(poly.bounds)
+            for wrs_pair in wrs_set:
+                wrs_geometry = shapely.wkb.loads(self.m_wrs_geometry.get_wrs_geometry(wrs_row=wrs_pair[1], wrs_path=wrs_pair[0]))
+                if wrs_geometry.intersects(poly):
+                    # calculate area overlap and save in tuple
+                    intersecting_area = wrs_geometry.intersection(poly).area
+                    intersecting_wrs.append((intersecting_area, *wrs_pair))
+
+        return sorted(intersecting_wrs, key=itemgetter(0), reverse=True)
+
+
+
+    @staticmethod
     def search_aws(mount_base_path,
                    wrs_path,
                    wrs_row,
@@ -1117,114 +1219,42 @@ LIMIT 1"""
     def search(
             self,
             satellite_id=None,
-            bounding_box=None,
-            polygon_boundary_wkb=None,
-            start_date: datetime=None,
-            end_date: datetime=None,
-            sort_by=None,
+            polygon_wkbs: List[bytes]=None,
+            sort_by: Field=None,
             limit=10,
             data_filters: MetadataFilters=None,
             base_mount_path='/imagery') -> Generator[Metadata, None, None]:
-        # TODO ,update to use bigquery asynchronous query.
-        query_builder = 'SELECT * FROM [bigquery-public-data:cloud_storage_geo_index.landsat_index]'
 
-        clause_start = 'WHERE'
+        if not data_filters:
+            data_filters = LandsatQueryFilters()
+
         if satellite_id and satellite_id is not SpacecraftID.UNKNOWN_SPACECRAFT:
-            query_builder += ' {0} spacecraft_id="{1}"'.format(clause_start, satellite_id.name)
-            clause_start = 'AND'
+            data_filters.spacecraft_id.set_value(satellite_id.name)
 
-        if polygon_boundary_wkb:
-            bounding_box = shapely.wkb.loads(polygon_boundary_wkb).bounds
-
-        if bounding_box:
-            minx = bounding_box[0]
-            miny = bounding_box[1]
-            maxx = bounding_box[2]
-            maxy = bounding_box[3]
-
-            # dateline danger zone
-            # TODO, this needs to be refined. might be catching too many cases.
-            if minx > maxx \
-                    or maxx > self.m_danger_west_lon \
-                    or minx > self.m_danger_west_lon \
-                    or maxx < self.m_danger_east_lon \
-                    or minx < self.m_danger_east_lon:
-                print("danger zone. you're probably in trouble")
-            else:
-                query_builder += ' {2} (({0} <= west_lon AND {1} >= west_lon) OR ' \
-                                 '({0} >= west_lon AND east_lon >= {0}))'.format(minx, maxx, clause_start)
-                query_builder += ' AND ((south_lat <= {0} AND north_lat >= {0}) OR ' \
-                                 '(south_lat > {0} AND {1} >= south_lat))'.format(miny, maxy)
-                clause_start = 'AND'
-
-        if start_date:
-            # changes to avoid SQL errors for exclusive vs inclusive date range searches. If there is no time included
-            # the sql result for a date range of one
-            # TODO, it would be nice if type date wasn't accepted. oh well
-            if type(start_date) is date:
-                start_date = datetime.combine(start_date, datetime.min.time())
-            query_builder += ' {0} sensing_time>="{1}"'.format(clause_start, start_date.isoformat())
-            clause_start = 'AND'
-        if end_date:
-            if type(end_date) is date:
-                # TODO, should this be datetime.combine(end_date, datetime.min.time())
-                end_date = datetime.combine(end_date, datetime.max.time())
-            query_builder += ' {0} sensing_time<="{1}"'.format(clause_start, end_date.isoformat())
-            clause_start = 'AND'
-
-        if data_filters is not None:
-            b_start = clause_start != 'AND'
-            query_builder = data_filters.get(query_builder, b_start)
-            # if sql_filters and len(sql_filters) > 0:
-            #     # because
-            #     query_builder += ' {0} {1}'.format(clause_start, sql_filters[0])
-            #     for idx in range(1, len(sql_filters)):
-            #         query_builder += ' AND {}'.format(sql_filters[idx])
-
-
+        if polygon_wkbs:
+            bounding_box = shapely.wkb.loads(polygon_wkbs).bounds
+            data_filters.bounds.set_bounds(*bounding_box)
 
         # TODO sort by area
-        """
-lifted from esri-geometry-api
-if (isEmpty() || other.isEmpty())
-    return false;
+        query_string = data_filters.get_sql(limit=limit, sort_by_field=sort_by)
 
-if (other.xmin > xmin)
-    xmin = other.xmin;
-
-if (other.xmax < xmax)
-    xmax = other.xmax;
-
-if (other.ymin > ymin)
-    ymin = other.ymin;
-
-if (other.ymax < ymax)
-    ymax = other.ymax;
-
-boolean bIntersecting = xmin <= xmax && ymin <= ymax;
-
-if (!bIntersecting)
-    setEmpty();
-
-return bIntersecting;"""
-
-        if sort_by:
-            query_builder += ' SORT BY {}'.format(sort_by)
-        else:
-            query_builder += ' ORDER BY sensing_time DESC'
-
-        query_string = '{} LIMIT {}'.format(query_builder, limit)
-
+        # TODO update to use bigquery asynchronous query.
         query = self.m_client.run_sync_query(query_string)
         query.timeout_ms = self.m_timeout_ms
         query.run()
 
         # return (Metadata(row, base_mount_path) for row in query.rows)
         polygon_differenced = None
-        if polygon_boundary_wkb is not None:
-            polygon_differenced = shapely.wkb.loads(polygon_boundary_wkb)
-        elif bounding_box is not None:
-            polygon_differenced = shapely.geometry.box(*bounding_box).envelope
+        
+        if polygon_wkbs is not None:
+            polygon_differenced = shapely.geometry.Polygon()
+            for polygon_wkb in polygon_wkbs:
+                polygon = shapely.wkb.loads(polygon_wkb)
+                polygon_differenced = polygon_differenced.union(polygon)
+        elif data_filters.bounds.bounds:
+            polygon_differenced = shapely.geometry.Polygon()
+            for bounding_box in data_filters.bounds.bounds:
+                polygon_differenced = polygon_differenced.union(shapely.geometry.box(*bounding_box).envelope)
 
         for row in query.rows:
             metadata = Metadata(row, base_mount_path)
@@ -1241,8 +1271,6 @@ return bIntersecting;"""
                 # wrs_poly_intersection = wrs_poly_intersection.buffer(0.00000008)
                 # polygon_differenced = polygon_differenced.difference(wrs_poly_intersection)
                 yield metadata
-            else:
-                continue
 
 
 class Storage(metaclass=__Singleton):
@@ -1408,11 +1436,10 @@ acquired nearly 10,000 scenes from just after its February 11, 2013 launch throu
     # def __read_shapefiles(self):
         # self.__wrs1 = shapefile.Reader("/.epl/metadata/wrs/wrs1_asc_desc/wrs1_asc_desc.shp")
 
-    def get_path_row(self, bounds, timeout=10) -> set:
+    def get_path_row(self, bounds) -> set:
         return self.__spatial_index.intersect(bounds)
 
-    # TODO return wkb
-    def get_wrs_geometry(self, wrs_path, wrs_row, timeout=10):
+    def get_wrs_geometry(self, wrs_path, wrs_row):
         return self.__wrs2_map[wrs_path][wrs_row]
 
 

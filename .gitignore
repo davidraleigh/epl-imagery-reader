@@ -8,3 +8,4 @@ epl_imagery.egg-info
 venv
 *.pyc
 *.egg-info
+.pytest_cache

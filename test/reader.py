@@ -8,13 +8,29 @@ import numpy as np
 
 from shapely.geometry import shape
 from shapely.geometry import box
+from shapely.wkt import loads
+from google.cloud import bigquery
 
 from datetime import date
 from epl.imagery.native.reader import MetadataService, Landsat, Metadata, BandMap, Band, WRSGeometries, DataType
-from epl.imagery.native.metadata_helpers import _QueryParam, _DateQueryParam, _RangeQueryParam, LandsatQueryFilters, SpacecraftID
+from epl.imagery.native.metadata_helpers import _QueryParam, _DateQueryParam, _RangeQueryParam, LandsatQueryFilters, SpacecraftID, LandsatModel
 
 
 class TestMetaDataSQL(unittest.TestCase):
+    def test_peewee_1(self):
+        a = LandsatQueryFilters()
+        a.scene_id.set_value("LC80270312016188LGN00")
+        sql_stuff = a.get_sql()
+
+        client = bigquery.Client()
+        query = client.run_sync_query(sql_stuff)
+        query.timeout_ms = 1000
+        query.run()
+
+        for row in query.rows:
+            metadata = Metadata(row)
+            self.assertEqual(metadata.scene_id, "LC80270312016188LGN00")
+
     def test_polygon_boundary(self):
         d_start = date(2017, 3, 12)  # 2017-03-12
         d_end = date(2017, 3, 19)  # 2017-03-20, epl api is inclusive
@@ -26,12 +42,10 @@ class TestMetaDataSQL(unittest.TestCase):
 
         landsat_filters = LandsatQueryFilters()
         landsat_filters.collection_number.set_value("PRE")
-        landsat_filters.acquired.set_range_start(d_start, True)
-        landsat_filters.acquired.set_range_end(d_end, True)
-        # sql_filters = ['collection_number="PRE"']
+        landsat_filters.acquired.set_range(d_start, True, d_end, True)
         metadata_rows = metadata_service.search(
             SpacecraftID.LANDSAT_8,
-            polygon_boundary_wkb=taos_shape.wkb,
+            polygon_wkbs=taos_shape.wkb,
             limit=10,
             data_filters=landsat_filters)
 
@@ -75,7 +89,7 @@ class TestMetaDataSQL(unittest.TestCase):
         metadata_service = MetadataService()
         d = date(2016, 6, 24)
         landsat_filters = LandsatQueryFilters()
-        landsat_filters.acquired.set_range_start(d, True)
+        landsat_filters.acquired.set_range(d, True)
         landsat_filters.wrs_path.set_value(125)
         landsat_filters.wrs_row.set_value(49)
         rows = metadata_service.search(SpacecraftID.LANDSAT_8, data_filters=landsat_filters)
@@ -96,7 +110,7 @@ class TestMetaDataSQL(unittest.TestCase):
         metadata_service = MetadataService()
         d = date(2016, 6, 24)
         landsat_filter = LandsatQueryFilters()
-        landsat_filter.acquired.set_range_end(d, True)
+        landsat_filter.acquired.set_range(end=d, end_inclusive=True)
         rows = metadata_service.search(SpacecraftID.LANDSAT_7, data_filters=landsat_filter)
         rows = list(rows)
         self.assertEqual(len(rows), 10)
@@ -126,8 +140,7 @@ class TestMetaDataSQL(unittest.TestCase):
         d_start = date(2015, 6, 24)
         d_end = date(2016, 6, 24)
         landsat_filter = LandsatQueryFilters()
-        landsat_filter.acquired.set_range_start(d_start, True)
-        landsat_filter.acquired.set_range_end(d_end, True)
+        landsat_filter.acquired.set_range(d_start, True, d_end, True)
         rows = metadata_service.search(SpacecraftID.LANDSAT_8, data_filters=landsat_filter)
         rows = list(rows)
         self.assertEqual(len(rows), 10)
@@ -143,11 +156,10 @@ class TestMetaDataSQL(unittest.TestCase):
         d_end = date(2016, 6, 24)
         bounding_box = (-115.927734375, 34.52466147177172, -78.31054687499999, 44.84029065139799)
         landsat_filter = LandsatQueryFilters()
-        landsat_filter.acquired.set_range_start(d_start, True)
-        landsat_filter.acquired.set_range_end(d_end, True)
+        landsat_filter.acquired.set_range(d_start, True, d_end, True)
+        landsat_filter.bounds.set_bounds(*bounding_box)
         metadata_rows = metadata_service.search(SpacecraftID.LANDSAT_8,
-                                                data_filters=landsat_filter,
-                                                bounding_box=bounding_box)
+                                                data_filters=landsat_filter)
 
         metadata_rows = list(metadata_rows)
 
@@ -174,11 +186,10 @@ class TestMetaDataSQL(unittest.TestCase):
         d_start = date(2015, 6, 24)
         d_end = date(2016, 6, 24)
         bounding_box = (-115.927734375, 34.52466147177172, -78.31054687499999, 44.84029065139799)
-        landsat_filters.acquired.set_range_end(d_end, True)
-        landsat_filters.acquired.set_range_start(d_start, True)
+        landsat_filters.acquired.set_range(d_start, True, d_end, True)
+        landsat_filters.bounds.set_bounds(*bounding_box)
         rows = metadata_service.search(
             SpacecraftID.LANDSAT_8,
-            bounding_box=bounding_box,
             data_filters=landsat_filters)
 
         rows = list(rows)
@@ -213,107 +224,103 @@ class TestMetaDataSQL(unittest.TestCase):
         # PRE is a collection type that specifies certain QA standards
         landsat_filter = LandsatQueryFilters()
         landsat_filter.collection_number.set_value("PRE")
-        landsat_filter.acquired.set_range_start(d_start, True)
-        landsat_filter.acquired.set_range_end(d_end, True)
+        landsat_filter.acquired.set_range(d_start, True, d_end, True)
+        landsat_filter.bounds.set_bounds(*boulder_shape.bounds)
 
         # search the satellite metadata for images of Taos withing the given date range
         metadata_service = MetadataService()
         rows = metadata_service.search(
             SpacecraftID.LANDSAT_8,
-            bounding_box=boulder_shape.bounds,
             limit=10,
             data_filters=landsat_filter)
 
         self.assertTrue(2, len(list(rows)))
 
+    def test_split_1(self):
+        wkt = "MULTIPOLYGON (((40 40, 20 45, 45 30, 40 40)), ((-172 53, 175 53, 175 48, -172 48, -172 53)), ((20 35, 10 30, 10 10, 30 5, 45 20, 20 35), (30 20, 20 15, 20 25, 30 20)))"
+        islands_shape = loads(wkt)
+
+        with self.assertRaises(ValueError):
+            MetadataService.split_by_dateline(islands_shape)
+
+    def test_split_2(self):
+        wkt = "MULTIPOLYGON (((40 40, 20 45, 45 30, 40 40)), ((20 35, 10 30, 10 10, 30 5, 45 20, 20 35), (30 20, 20 15, 20 25, 30 20)))"
+        islands_shape = loads(wkt)
+
+        for geom in islands_shape.geoms:
+            self.assertIsNotNone(MetadataService.split_by_dateline(geom))
+
+    def test_split_3(self):
+        wkt = "MULTIPOLYGON (((40 40, 20 45, 45 30, 40 40)), ((-172 53, 175 53, 175 48, -172 48, -172 53)), ((20 35, 10 30, 10 10, 30 5, 45 20, 20 35), (30 20, 20 15, 20 25, 30 20)))"
+        islands_shape = loads(wkt)
+
+        result = MetadataService._dateline_intersection((172, 53), (-172, 53))
+        self.assertIsNotNone(result)
+        self.assertEqual((180, 53), result[0])
+        self.assertEqual((-180, 53), result[1])
+        result = MetadataService._dateline_intersection((-172, 53), (172, 53))
+        self.assertIsNotNone(result)
+        self.assertEqual((180, 53), result[1])
+        self.assertEqual((-180, 53), result[0])
+
+        result = MetadataService._dateline_intersection((-172, 55), (172, 53))
+        self.assertIsNotNone(result)
+        self.assertEqual((180, 54), result[1])
+        self.assertEqual((-180, 54), result[0])
+
+        result = MetadataService._dateline_intersection((172, 53), (-172, -53))
+        self.assertIsNotNone(result)
+        self.assertEqual((180, 0), result[0])
+        self.assertEqual((-180, 0), result[1])
+
+        result = MetadataService._dateline_intersection((172, 53), (172, -53))
+        self.assertIsNone(result)
+
+        result = MetadataService._dateline_intersection((-172, 53), (-172, -53))
+        self.assertIsNone(result)
+
+        for geom in islands_shape.geoms:
+            # self.assertFalse(geom.exterior.is_ccw)
+            clean_poly = MetadataService.split_by_dateline(geom)
+            self.assertIsNotNone(clean_poly)
+            if clean_poly:
+                for geom_result in clean_poly:
+                    self.assertTrue(geom_result.exterior.is_ccw)
+
+        results = MetadataService.split_all_by_dateline([islands_shape.wkb])
+        for geom_result in results:
+            self.assertIsNotNone(geom_result)
+            self.assertTrue(geom_result.exterior.is_ccw)
+
+    def test_split_wrs(self):
+        wkt = "POLYGON((-172 53, 175 53, 175 48, -172 48, -172 53))"
+        islands_shape = loads(wkt)
+        metadata_service = MetadataService()
+        data = metadata_service.get_wrs([islands_shape.wkb])
+        self.assertIsNotNone(data)
+        self.assertGreater(len(data), 0)
+        prev_area = 10000
+        for wrs_info in data:
+            self.assertGreaterEqual(prev_area, wrs_info[0])
+            prev_area = wrs_info[0]
+
+    def test_alaskan_aleutians(self):
+        # wkt = "MULTIPOLYGON (((40 40, 20 45, 45 30, 40 40)), ((-172 53, 175 53, 175 48, -172 48, -172 53)), ((20 35, 45 20, 30 5, 10 10, 10 30, 20 35), (30 20, 20 25, 20 15, 30 20)))"
+        wkt = "POLYGON((-172 53, 175 53, 175 48, -172 48, -172 53))"
+        islands_shape = loads(wkt)
+        self.assertFalse(islands_shape.exterior.is_ccw)
+
+        metadata_service = MetadataService()
+        rows = metadata_service.search(
+            SpacecraftID.LANDSAT_8,
+            polygon_wkbs=islands_shape.wkb,
+            limit=10)
+
+        stuff = list(rows)
+        self.assertEqual(10, len(stuff))
+
 
 class TestMetadata(unittest.TestCase):
-    def test_query_param(self):
-        class TestingParams:
-            test_param = _RangeQueryParam("test_param")
-            test_date = _DateQueryParam("test_date")
-
-        a = TestingParams()
-        a.test_param.set_value(2.1)
-        self.assertEqual(" WHERE test_param=2.1", a.test_param.get())
-
-        a.test_param.set_value("waffles")
-        self.assertEqual(' WHERE test_param="waffles"', a.test_param.get())
-
-        a.test_param.set_range_start(1, True)
-        self.assertEqual(" WHERE test_param>=1", a.test_param.get())
-
-        a.test_param.set_range_start(1, False)
-        self.assertEqual(" WHERE test_param>1", a.test_param.get())
-
-        a.test_param.set_value(1)
-        self.assertEqual(" WHERE test_param=1", a.test_param.get())
-
-        a.test_param.set_range_start(1, True)
-        self.assertEqual(" WHERE test_param>=1", a.test_param.get())
-
-        a.test_param.set_range_end(20, False)
-        self.assertEqual(" WHERE test_param>=1 AND test_param<20", a.test_param.get())
-
-        a.test_param.set_value(1)
-        self.assertEqual(" WHERE test_param=1", a.test_param.get())
-
-        start = date(2017, 8, 4)
-        a.test_date.set_range_start(start, True)
-        self.assertEqual(' WHERE test_date>="2017-08-04T00:00:00"', a.test_date.get())
-
-        a.test_date.set_not_value(start)
-        self.assertEqual(' WHERE test_date>"2017-08-04T23:59:59.999999" AND test_date<"2017-08-04T00:00:00"', a.test_date.get())
-
-        a.test_date.set_value(start)
-        self.assertEqual(' WHERE test_date>="2017-08-04T00:00:00" AND test_date<="2017-08-04T23:59:59.999999"', a.test_date.get())
-
-    def test_query_param_2(self):
-        class TestingParams:
-            test_param = _RangeQueryParam("test_param")
-            test_param_2 = _QueryParam("test_param_2")
-
-        a = TestingParams()
-        a.test_param.set_value(2.1)
-        self.assertEqual(" WHERE test_param=2.1", a.test_param.get())
-
-        a.test_param.set_value("waffles")
-        self.assertEqual(' WHERE test_param="waffles"', a.test_param.get())
-
-        a.test_param.set_range_start(1, True)
-        self.assertEqual(" WHERE test_param >= 1", a.test_param.get())
-
-        a.test_param.set_range_start(1, False)
-        self.assertEqual(" WHERE test_param > 1", a.test_param.get())
-
-        a.test_param.set_value(1)
-        self.assertEqual(" WHERE test_param=1", a.test_param.get())
-
-        a.test_param.set_range_start(1, True)
-        self.assertEqual(" WHERE test_param >= 1", a.test_param.get())
-
-        a.test_param.set_range_end(20, False)
-        self.assertEqual(" WHERE test_param >= 1 AND test_param < 20", a.test_param.get())
-
-        a.test_param.set_value(1)
-        self.assertEqual(" WHERE test_param=1", a.test_param.get())
-
-        self.assertEqual("", a.test_param_2.get())
-
-        a.test_param_2.set_value(1)
-        self.assertEqual(" WHERE test_param_2=1", a.test_param_2.get())
-
-    def test_query_param_landsat(self):
-        a = LandsatQueryFilters()
-        a.scene_id.set_value("LC80330352017072LGN00")
-        a.cloud_cover.set_range_start(20, True)
-        a.cloud_cover.set_range_end(80, False)
-        a.collection_category.set_value("PRE")
-        a.wrs_path.set_value(9)
-
-        result = a.get()
-        self.assertEqual(' WHERE cloud_cover >= 20 AND cloud_cover < 80 AND collection_category="PRE" AND scene_id="LC80330352017072LGN00" AND wrs_path=9', result)
-
     def test_bounds(self):
         row = ('LC80330352017072LGN00', '', 'LANDSAT_8', 'OLI_TIRS', '2017-03-13', '2017-03-13T17:38:14.0196140Z',
                'PRE', 'N/A', 'L1T', 33, 35, 1.2, 37.10422, 34.96178, -106.85883, -104.24596, 1067621299,
@@ -478,7 +485,7 @@ class TestWRSGeometries(unittest.TestCase):
 
     def test_geometry(self):
         for test_case in self.test_cases:
-            geom_wkb = self.wrs_geometries.get_wrs_geometry(test_case[8], test_case[9], timeout=60)
+            geom_wkb = self.wrs_geometries.get_wrs_geometry(test_case[8], test_case[9])
             geom_expected_area = test_case[0]
 
             self.assertIsNotNone(geom_wkb)
@@ -496,7 +503,7 @@ class TestWRSGeometries(unittest.TestCase):
             bounds_set = self.wrs_geometries.get_path_row((2.513573, 49.529484, 6.156658, 51.475024))
 
         for path_row in bounds_set:
-            geom_wkb = self.wrs_geometries.get_wrs_geometry(path_row[0], path_row[1], timeout=60)
+            geom_wkb = self.wrs_geometries.get_wrs_geometry(path_row[0], path_row[1])
             s = shapely.wkb.loads(geom_wkb)
             b_intersect = s.envelope.intersects(area_shape.envelope)
             self.assertTrue(b_intersect)
@@ -508,7 +515,7 @@ class TestWRSGeometries(unittest.TestCase):
 
     def test_bounds_search(self):
         for idx, test_case in enumerate(self.test_cases):
-            geom_wkb = self.wrs_geometries.get_wrs_geometry(test_case[8], test_case[9], timeout=60)
+            geom_wkb = self.wrs_geometries.get_wrs_geometry(test_case[8], test_case[9])
             original_shape = shapely.wkb.loads(geom_wkb)
             result = self.wrs_geometries.get_path_row(original_shape.bounds)
             path_pair = result.pop()
@@ -545,12 +552,10 @@ class TestLandsat(unittest.TestCase):
 
         landsat_filters = LandsatQueryFilters()
         landsat_filters.collection_number.set_value("PRE")
-        # sql_filters = ['collection_number="PRE"']
-        landsat_filters.acquired.set_range_start(d_start, True)
-        landsat_filters.acquired.set_range_end(d_end, True)
+        landsat_filters.acquired.set_range(d_start, True, d_end, True)
+        landsat_filters.bounds.set_bounds(*self.taos_shape.bounds)
         metadata_rows = self.metadata_service.search(
             SpacecraftID.LANDSAT_8,
-            bounding_box=self.taos_shape.bounds,
             limit=10,
             data_filters=landsat_filters)
 
@@ -571,10 +576,9 @@ class TestLandsat(unittest.TestCase):
         # sql_filters = ['collection_number!="PRE"']
         landsat_filter = LandsatQueryFilters()
         landsat_filter.collection_number.set_not_value("PRE")
-        landsat_filter.acquired.set_range_start(d_start, True)
-        landsat_filter.acquired.set_range_end(d_end, True)
+        landsat_filter.acquired.set_range(d_start, True, d_end, True)
+        landsat_filter.bounds.set_bounds(*bounding_box)
         rows = self.metadata_service.search(SpacecraftID.LANDSAT_8,
-                                            bounding_box=bounding_box,
                                             limit=1,
                                             data_filters=landsat_filter)
 
@@ -595,11 +599,10 @@ class TestLandsat(unittest.TestCase):
 
         landsat_filter = LandsatQueryFilters()
         landsat_filter.collection_number.set_value("PRE")
-        landsat_filter.cloud_cover.set_range_end(5, True)
-        landsat_filter.acquired.set_range_start(d_start, True)
-        landsat_filter.acquired.set_range_end(d_end, True)
+        landsat_filter.cloud_cover.set_range(end=5, end_inclusive=True) #landsat_filter.cloud_cover.set_range_end(5, True)
+        landsat_filter.acquired.set_range(d_start, True, d_end, True)
+        landsat_filter.bounds.set_bounds(*utah_box)
         rows = self.metadata_service.search(SpacecraftID.LANDSAT_8,
-                                            bounding_box=utah_box,
                                             limit=10,
                                             data_filters=landsat_filter)
         rows = list(rows)
@@ -608,10 +611,10 @@ class TestLandsat(unittest.TestCase):
         d_end = date(2016, 8, 28)
         landsat_filter = LandsatQueryFilters()
         landsat_filter.collection_number.set_value("PRE")
-        landsat_filter.cloud_cover.set_range_end(5, False)
-        landsat_filter.acquired.set_range_end(d_end, True)
+        landsat_filter.cloud_cover.set_range(end=5, end_inclusive=False) #landsat_filter.cloud_cover.set_range_end(5, False)
+        landsat_filter.acquired.set_range(end=d_end, end_inclusive=True) #landsat_filter.acquired.set_range_end(d_end, True)
+        landsat_filter.bounds.set_bounds(*utah_box)
         rows = self.metadata_service.search(SpacecraftID.LANDSAT_8,
-                                            bounding_box=utah_box,
                                             limit=10,
                                             data_filters=landsat_filter)
         rows = list(rows)
@@ -630,7 +633,7 @@ class TestLandsat(unittest.TestCase):
         scale_params = [[0.0, 65535], [0.0, 65535], [0.0, 65535]]
         nda = landsat.fetch_imagery_array(band_numbers, scale_params)
 
-        self.assertEqual(nda.shape, (3981, 3911, 3))
+        self.assertEqual(nda.shape, (3876, 3806, 3))
 
     def test_band_enum(self):
         self.assertTrue(True)
@@ -638,8 +641,7 @@ class TestLandsat(unittest.TestCase):
         d_end = date(2016, 7, 28)
         landsat_filter = LandsatQueryFilters()
         landsat_filter.scene_id.set_value("LC80390332016208LGN00")
-        landsat_filter.acquired.set_range_start(d_start, True)
-        landsat_filter.acquired.set_range_end(d_end, True)
+        landsat_filter.acquired.set_range(d_start, True, d_end, True)
         rows = self.metadata_service.search(SpacecraftID.LANDSAT_8,
                                             limit=1,
                                             data_filters=landsat_filter)

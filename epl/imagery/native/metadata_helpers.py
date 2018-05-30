@@ -1,18 +1,17 @@
 import copy
 import re
 
-from datetime import date
-from datetime import datetime
+from datetime import date, datetime, time
 from enum import IntEnum
 from typing import TypeVar
-from peewee import Model, DoubleField, CharField, DateTimeField, IntegerField, Database, ModelSelect, CompoundSelectQuery
+from peewee import Model, Field, FloatField, CharField, DateTimeField, IntegerField, Database, ModelSelect, CompoundSelectQuery
 
-sql_reg = re.compile(r'SELECT[\s\S]+FROM[\s\S]+(WHERE[\s\S]+)\Z')
+sql_reg = re.compile(r'SELECT[\s\S]+FROM[\s\S]+(AS[\s\S]+)\Z')
 
 
 class _QueryParam:
-    def __init__(self, param_name: str):
-        self.param_name = param_name
+    def __init__(self, field: Field):
+        self.field = field
         self.values = []
         self.not_values = []
 
@@ -22,10 +21,10 @@ class _QueryParam:
         if value is datetime:
             value = value.isoformat()
 
-        operand = '='
-        if not b_equals:
-            operand = '!='
-        self.values.append((value, operand))
+        if b_equals:
+            self.values.append(value)
+        else:
+            self.not_values.append(value)
 
     def set_value(self, value):
         self._set_value(value, True)
@@ -33,41 +32,23 @@ class _QueryParam:
     def set_not_value(self, not_value):
         self._set_value(not_value, False)
 
-    def _get_sql(self, parameter_name, operand, value):
-        value = '"{}"'.format(value) if isinstance(value, str) else '{}'.format(value)
-        return '({0}{1}{2})'.format(parameter_name, operand, value)
-
-    def get(self, sql_message="", b_start=False):
-        if not self.values and not self.not_values:
-            return sql_message
-
-        prepend_sql = " WHERE (" if b_start or len(sql_message) == 0 else " AND ("
-        for value, operand in self.values:
-            sql_message += '{0}{1}'.format(prepend_sql, self._get_sql(self.param_name, operand, value))
-            prepend_sql = " OR "
-
-        sql_message += ")"
-        return sql_message
-
     def append_select(self, p_select: ModelSelect):
         if not self.values and not self.not_values:
             return p_select
 
         if self.values:
-            p_select = p_select.where(getattr(LandsatModel, self.param_name) << self.values)
+            p_select = p_select.where(self.field << self.values)
 
         if self.not_values:
-            p_select = p_select.where(~(getattr(LandsatModel, self.param_name) << self.not_values))
-
+            p_select = p_select.where(~(self.field << self.not_values))
 
         return p_select
-        # self.query_filter.model_select = self.query_filter.model_select.where(getattr(LandsatModel, self.param_name) == value)
 
 
 class _RangeQueryParam(_QueryParam):
     """for now can't handle multiple ranges. set range will clear out a previously designated range"""
-    def __init__(self, param_name: str):
-        super().__init__(param_name)
+    def __init__(self, field: Field):
+        super().__init__(field)
         self.start = None
         self.end = None
         self.start_inclusive = True
@@ -85,108 +66,119 @@ class _RangeQueryParam(_QueryParam):
         p_select = super().append_select(p_select)
         if self.start:
             if self.start_inclusive:
-                p_select = p_select.where(getattr(LandsatModel, self.param_name) >= self.start)
+                p_select = p_select.where(self.field >= self.start)
             else:
-                p_select = p_select.where(getattr(LandsatModel, self.param_name) > self.start)
+                p_select = p_select.where(self.field > self.start)
         if self.end:
             if self.end_inclusive:
-                p_select = p_select.where(getattr(LandsatModel, self.param_name) <= self.end)
+                p_select = p_select.where(self.field <= self.end)
             else:
-                p_select = p_select.where(getattr(LandsatModel, self.param_name) < self.end)
+                p_select = p_select.where(self.field < self.end)
 
         return p_select
-
-    def _get_range(self, sql_message=""):
-        for start, start_incl, end, end_incl in self.ranges:
-            if start:
-                operand = ">=" if start_incl else ">"
-                message = self._get_sql(self.param_name, operand, start)
-                sql_message += "{0}{1}{2}".format(self.param_name, operand, self.start)
-            if self.end is not None:
-                sql_message = "{0} AND ".format(sql_message)
-        if self.end is not None:
-            operand = "<=" if self.end_inclusive else "<"
-            sql_message += "{0}{1}{2}".format(self.param_name, operand, self.end)
-
-        return sql_message
-
-    def get(self, sql_message="", b_start=False):
-        if not self.values and not self.not_values and not self.ranges:
-            return sql_message
-
-        if self.values is not None:
-            sql_message = super().get(sql_message)
-        else:
-            sql_message += " WHERE " if b_start or len(sql_message) == 0 else " AND "
-            sql_message = self._get_range(sql_message)
-
-        return sql_message
 
 
 class _DateQueryParam(_RangeQueryParam):
     D = TypeVar('D', date, datetime)
 
     @staticmethod
-    def _get_date_string(value: D):
-        if type(value) is date:
-            value = datetime.combine(value, datetime.min.time())
+    def _get_date_string(value: D, time_part: time=None):
+        if not value:
+            return None
+        if type(value) is date and time_part:
+            value = datetime.combine(value, time_part)
         elif type(value) is not datetime:
             raise ValueError
 
-        return '"{}"'.format(value.isoformat())
+        return '{}'.format(value.isoformat())
 
-    def set_range_start(self, start: D, start_inclusive=True):
-        super().set_range_start(start, start_inclusive)
-        self.start = _DateQueryParam._get_date_string(start)
-
-    def set_range_end(self, end: D, end_inclusive=False):
-        super().set_range_end(end, end_inclusive)
-        self.end = _DateQueryParam._get_date_string(end)
+    def set_range(self, start: D=None, start_inclusive=True, end: D=None, end_inclusive=True):
+        super().set_range(_DateQueryParam._get_date_string(start, datetime.min.time()), start_inclusive, _DateQueryParam._get_date_string(end, datetime.max.time()), end_inclusive)
 
     def set_value(self, value: D):
         if type(value) is date:
-            self.set_range_start(datetime.combine(value, datetime.min.time()), True)
-            self.set_range_end(datetime.combine(value, datetime.max.time()), True)
-        elif type(value) is not datetime:
-            raise ValueError
+            self.set_range(datetime.combine(value, datetime.min.time()), True, datetime.combine(value, datetime.max.time()), True)
+        elif type(value) is datetime:
+            # TODO is this string conversion a bigquery landsat thing?
+            super().set_value(_DateQueryParam._get_date_string(value))
         else:
-            super().set_value(value)
-            self.values = _DateQueryParam._get_date_string(value)
+            raise ValueError
 
     def set_not_value(self, not_value: D):
         if type(not_value) is date:
-            self.set_range_start(datetime.combine(not_value, datetime.max.time()), False)
-            self.set_range_end(datetime.combine(not_value, datetime.min.time()), False)
-        elif type(not_value) is not datetime:
-            raise ValueError
+            self.set_range(datetime.combine(not_value, datetime.max.time()), False, datetime.combine(not_value, datetime.min.time()), False)
+        elif type(not_value) is datetime:
+            super().set_not_value(_DateQueryParam._get_date_string(not_value))
         else:
-            super().set_not_value(not_value)
-            self.not_values = _DateQueryParam._get_date_string(not_value)
+            raise ValueError
 
 
-class MetadataFilters:
-    def __init__(self):
-        self.model_select = None
-        self.cloud_cover = _RangeQueryParam("cloud_cover")
-        self.acquired = None
-        # self.geometry_wkb = None
+class _BoundQueryParam():
+    """        north_lat = _RangeQueryParam("north_lat")
+        south_lat = _RangeQueryParam("south_lat")
+        west_lon = _RangeQueryParam("west_lon")
+        east_lon = _RangeQueryParam("east_lon")"""
+    def __init__(self, north_field: Field, south_field: Field, west_field: Field, east_field: Field):
+        self.north_field = north_field
+        self.south_field = south_field
+        self.west_field = west_field
+        self.east_field = east_field
+        self.bounds = []
 
-    def get(self, sql_message="", b_start=False):
-        sorted_keys = sorted(self.__dict__)
-        sql_len = len(sql_message)
-        for key in sorted_keys:
-            if key == "model_select":
-                continue
-            sql_message = self.__dict__[key].get(sql_message, b_start)
-            if sql_len < len(sql_message):
-                b_start = False
+    def set_bounds(self, west: float=None, south: float=None, east: float=None, north: float=None):
+        if not west:
+            west = -180
+        if not east:
+            east = 180
+        if not south:
+            south = -90
+        if not north:
+            north = 90
 
-        return sql_message
+        if east > west:
+            self.bounds.append((west, south, east, north))
+        else:
+            # TODO split the bounds into to sets on either side of the dateline
+            raise ValueError
+
+    def append_select(self, p_select: ModelSelect):
+        if not self.bounds:
+            return p_select
+
+        expression = None
+        for bounds in self.bounds:
+            minx = bounds[0]
+            miny = bounds[1]
+            maxx = bounds[2]
+            maxy = bounds[3]
+
+            a = (minx <= self.west_field).bin_and((maxx >= self.west_field))
+            b = (minx >= self.west_field).bin_and((self.east_field >= minx))
+            ab = a.bin_or(b)
+            c = (self.south_field <= miny).bin_and((self.north_field >= miny))
+            d = (self.south_field > miny).bin_and((maxy >= self.south_field))
+            cd = c.bin_or(d)
+            abcd = ab.bin_and(cd)
+            expression_part = abcd
+
+            if not expression:
+                expression = expression_part
+            else:
+                expression.bin_or(expression_part)
+
+        return p_select.where(expression)
 
 
 class MetadataModel(Model):
-    cloud_cover = DoubleField()
+    cloud_cover = FloatField()
     acquired = DateTimeField()
+    north_lat = FloatField()
+    south_lat = FloatField()
+    west_lon = FloatField()
+    east_lon = FloatField()
+
+    class Meta:
+        database = Database("[bigquery-public-data:cloud_storage_geo_index.landsat_index]")
 
 
 class LandsatModel(MetadataModel):
@@ -206,57 +198,89 @@ class LandsatModel(MetadataModel):
 
     total_size = IntegerField()
 
-    class Meta:
-        database = Database("[bigquery-public-data:cloud_storage_geo_index.landsat_index]")
+
+class MetadataFilters:
+    def __init__(self):
+        self.model = MetadataModel
+        self.cloud_cover = _RangeQueryParam(MetadataModel.cloud_cover)
+        self.acquired = _DateQueryParam(MetadataModel.acquired)
+        self.bounds = _BoundQueryParam(MetadataModel.north_lat, MetadataModel.south_lat, MetadataModel.west_lon, MetadataModel.east_lon)
+        self.spacecraft_id = _QueryParam(LandsatModel.spacecraft_id)
+        # self.geometry_wkb = None
+
+    @staticmethod
+    def param_sequence(params):
+        for i, param in enumerate(params):
+            if isinstance(param, str):
+                param = '"{}"'.format(param)
+            params[i] = param
+        return params
+
+    def get_select(self):
+        sorted_keys = sorted(self.__dict__)
+        model_select = self.model.select()
+        for key in sorted_keys:
+            if key == "model":
+                continue
+
+            model_select = self.__dict__[key].append_select(model_select)
+
+        return model_select
+
+    def get_sql(self, limit=10, sort_by_field: Field=None):
+
+        select_statement = self.get_select()
+        if sort_by_field:
+            select_statement = select_statement.order_by(sort_by_field)
+        else:
+            select_statement = select_statement.order_by(self.acquired.field.desc())
+
+        sql, params = select_statement.sql()
+
+        sql = re.sub('\"t1\"\.\"([\w]+)\"', r't1.\1', sql)
+        sql = sql.replace('"t1"', 't1')
+        # fix params so that strings have quote symbol
+        params = MetadataFilters.param_sequence(params)
+        sql = sql.replace('?', '{}')
+        sql = sql.format(*params)
+
+        regex_results = sql_reg.search(sql)
+        sql_formatted = 'SELECT * FROM [bigquery-public-data:cloud_storage_geo_index.landsat_index] {}'.format(regex_results.group(1))
+        # sql_formatted = sql_formatted.replace('"t1".', '')
+        return "{} LIMIT {}".format(sql_formatted, limit)
 
 
 class LandsatQueryFilters(MetadataFilters):
 
     def __init__(self):
         super().__init__()
-        self.model_select = LandsatModel.select()
-        self.scene_id = _QueryParam("scene_id") #, self)
-        self.product_id = _QueryParam("product_id") #, self)
-        self.spacecraft_id = _QueryParam("spacecraft_id") #, self)
-        self.sensor_id = _QueryParam("sensor_id") #, self)
-        self.collection_number = _QueryParam("collection_number") #, self)
-        self.collection_category = _QueryParam("collection_category") #, self)
-        self.data_type = _QueryParam("data_type") #, self)
-        self.base_url = _QueryParam("base_url") #, self)
+        self.model = LandsatModel
 
-        self.acquired = _DateQueryParam("sensing_time") #, self)
+        self.cloud_cover = _RangeQueryParam(LandsatModel.cloud_cover)
+        self.acquired = _DateQueryParam(LandsatModel.acquired)
 
-        self.wrs_path = _RangeQueryParam("wrs_path") #, self)
-        self.wrs_row = _RangeQueryParam("wrs_row") #, self)
+        self.bounds = _BoundQueryParam(LandsatModel.north_lat, LandsatModel.south_lat, LandsatModel.west_lon,
+                                       LandsatModel.east_lon)
+
+        self.acquired = _DateQueryParam(LandsatModel.sensing_time)
+        self.spacecraft_id = _QueryParam(LandsatModel.spacecraft_id)
+
+        self.scene_id = _QueryParam(LandsatModel.scene_id)
+        self.product_id = _QueryParam(LandsatModel.product_id)
+        self.sensor_id = _QueryParam(LandsatModel.sensor_id)
+        self.collection_number = _QueryParam(LandsatModel.collection_number)
+        self.collection_category = _QueryParam(LandsatModel.collection_category)
+        self.data_type = _QueryParam(LandsatModel.data_type)
+        self.base_url = _QueryParam(LandsatModel.base_url)
+
+        self.wrs_path = _RangeQueryParam(LandsatModel.wrs_path)
+        self.wrs_row = _RangeQueryParam(LandsatModel.wrs_row)
 
         # self.polygon_wkbs = []
         # self.envelopes = []
 
-        # north_lat = _RangeQueryParam("north_lat")
-        # south_lat = _RangeQueryParam("south_lat")
-        # west_lon = _RangeQueryParam("west_lon")
-        # east_lon = _RangeQueryParam("east_lon")
-        self.total_size = _RangeQueryParam("total_size") #, self)
+        self.total_size = _RangeQueryParam(LandsatModel.total_size)
 
-    def get_sql(self):
-        sql, params = self.model_select.sql()
-
-        # fix params so that strings have quote symbol
-        params = self.param_sequence(params)
-        sql = sql.replace('?', '{}')
-        sql = sql.format(*params)
-
-        regex_results = sql_reg.search(sql)
-        sql_formatted = 'SELECT * FROM [bigquery-public-data:cloud_storage_geo_index.landsat_index] {}'.format(regex_results.group(1))
-        sql_formatted = sql_formatted.replace('"t1".', '')
-        return sql_formatted
-
-    def param_sequence(self, params):
-        for i, param in enumerate(params):
-            if isinstance(param, str):
-                param = '"{}"'.format(param)
-            params[i] = param
-        return params
 
 
 
