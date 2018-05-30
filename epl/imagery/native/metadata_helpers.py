@@ -4,7 +4,7 @@ import re
 from datetime import date, datetime, time
 from enum import IntEnum
 from typing import TypeVar
-from peewee import Model, Field, FloatField, CharField, DateTimeField, IntegerField, Database, ModelSelect, CompoundSelectQuery
+from peewee import Model, Field, FloatField, CharField, DateTimeField, IntegerField, Database, ModelSelect
 
 sql_reg = re.compile(r'SELECT[\s\S]+FROM[\s\S]+(AS[\s\S]+)\Z')
 

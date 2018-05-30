@@ -1231,9 +1231,19 @@ LIMIT 1"""
         if satellite_id and satellite_id is not SpacecraftID.UNKNOWN_SPACECRAFT:
             data_filters.spacecraft_id.set_value(satellite_id.name)
 
+        # return (Metadata(row, base_mount_path) for row in query.rows)
+        search_area_polygon = None
         if polygon_wkbs:
-            bounding_box = shapely.wkb.loads(polygon_wkbs).bounds
-            data_filters.bounds.set_bounds(*bounding_box)
+            search_area_polygon = shapely.geometry.Polygon()
+            for polygon_wkb in polygon_wkbs:
+                temp_polygon = shapely.wkb.loads(polygon_wkb)
+                bounding_box = temp_polygon.bounds
+                data_filters.bounds.set_bounds(*bounding_box)
+                search_area_polygon = search_area_polygon.union(temp_polygon)
+        elif not polygon_wkbs and data_filters.bounds.bounds:
+            search_area_polygon = shapely.geometry.Polygon()
+            for bounding_box in data_filters.bounds.bounds:
+                search_area_polygon = search_area_polygon.union(shapely.geometry.box(*bounding_box).envelope)
 
         # TODO sort by area
         query_string = data_filters.get_sql(limit=limit, sort_by_field=sort_by)
@@ -1243,33 +1253,20 @@ LIMIT 1"""
         query.timeout_ms = self.m_timeout_ms
         query.run()
 
-        # return (Metadata(row, base_mount_path) for row in query.rows)
-        polygon_differenced = None
-        
-        if polygon_wkbs is not None:
-            polygon_differenced = shapely.geometry.Polygon()
-            for polygon_wkb in polygon_wkbs:
-                polygon = shapely.wkb.loads(polygon_wkb)
-                polygon_differenced = polygon_differenced.union(polygon)
-        elif data_filters.bounds.bounds:
-            polygon_differenced = shapely.geometry.Polygon()
-            for bounding_box in data_filters.bounds.bounds:
-                polygon_differenced = polygon_differenced.union(shapely.geometry.box(*bounding_box).envelope)
-
         for row in query.rows:
             metadata = Metadata(row, base_mount_path)
 
-            if polygon_differenced is None:
+            if search_area_polygon is None:
                 yield metadata
                 continue
 
             wrs_wkb = self.m_wrs_geometry.get_wrs_geometry(wrs_path=metadata.wrs_path, wrs_row=metadata.wrs_row)
             wrs_shape = shapely.wkb.loads(wrs_wkb)
-            if wrs_shape.intersects(polygon_differenced):
+            if wrs_shape.intersects(search_area_polygon):
                 # wrs_poly_intersection = wrs_shape.intersection(polygon_differenced)
                 # # buffer by tolerance
                 # wrs_poly_intersection = wrs_poly_intersection.buffer(0.00000008)
-                # polygon_differenced = polygon_differenced.difference(wrs_poly_intersection)
+                # search_area_polygon = search_area_polygon.difference(wrs_poly_intersection)
                 yield metadata
 
 

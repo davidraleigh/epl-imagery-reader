@@ -45,7 +45,7 @@ class TestMetaDataSQL(unittest.TestCase):
         landsat_filters.acquired.set_range(d_start, True, d_end, True)
         metadata_rows = metadata_service.search(
             SpacecraftID.LANDSAT_8,
-            polygon_wkbs=taos_shape.wkb,
+            polygon_wkbs=[taos_shape.wkb],
             limit=10,
             data_filters=landsat_filters)
 
@@ -313,7 +313,7 @@ class TestMetaDataSQL(unittest.TestCase):
         metadata_service = MetadataService()
         rows = metadata_service.search(
             SpacecraftID.LANDSAT_8,
-            polygon_wkbs=islands_shape.wkb,
+            polygon_wkbs=[islands_shape.wkb],
             limit=10)
 
         stuff = list(rows)
