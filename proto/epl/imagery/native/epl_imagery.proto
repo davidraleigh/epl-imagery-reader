@@ -1,0 +1,297 @@
+/*
+Copyright 2017 Echo Park Labs
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
+For additional information, contact:
+
+email: info@echoparklabs.io
+*/
+
+syntax = "proto3";
+
+option java_multiple_files = true;
+option java_package = "com.epl.grpc.imagery";
+option java_outer_classname = "EPLImagery";
+option objc_class_prefix = "RTG";
+
+package epl.grpc.imagery;
+import "google/protobuf/timestamp.proto";
+
+/*
+ gRPC Interfaces for working with imagery operators
+*/
+service ImageryOperators {
+    // Execute a single geometry operation
+    rpc MetadataSearch(MetadataRequest) returns (stream MetadataResult) {}
+
+    // TODO maybe this should be separated into different rpcs for each result type
+    rpc ImagerySearchNArray(ImageryRequest) returns (NDArrayResult) {}
+
+    rpc ImageryCompleteFile(ImageryFileRequest) returns (BigFileResult) {}
+//    rpc StreamOperations(stream OperatorRequest) returns (stream OperatorResult) {}
+}
+
+enum GDALDataType {
+    UNKNOWN_GDAL = 0;
+
+    BYTE = 1;
+
+    UINT16 = 2;
+    INT16 = 3;
+
+    UINT32 = 4;
+    INT32 = 5;
+
+    FLOAT32 = 6;
+    FLOAT64 = 7;
+//    CFLOAT32 = 7;
+//    CFLOAT64 = 8;
+}
+
+enum ImageryFileType {
+    UNKNOWN = 0;
+    PNG = 1;
+    JPEG = 2;
+    GEOTIFF = 3;
+}
+
+enum Band {
+    // Crazy Values so that the Band.<ENUM>.value isn't used for anything
+    UNKNOWN_BAND = 0;
+    ULTRA_BLUE = 1001;
+    BLUE = 1002;
+    GREEN = 1003;
+    RED = 1004;
+    NIR = 1005;
+    SWIR1 = 1006;
+    THERMAL = 1007;
+    SWIR2 = 1008;
+    PANCHROMATIC = 1009;
+    CIRRUS = 1010;
+    TIRS1 = 1011;
+    TIRS2 = 1012;
+    INFRARED2 = 1013;
+    INFRARED1 = 1014;
+    ALPHA = 1015;
+}
+
+enum SpacecraftID {
+    UNKNOWN_SPACECRAFT = 0;
+    LANDSAT_1_MSS = 1;
+    LANDSAT_2_MSS = 2;
+    LANDSAT_3_MSS = 4;
+    LANDSAT_123_MSS = 7;
+    LANDSAT_4_MSS = 8;
+    LANDSAT_5_MSS = 16;
+    LANDSAT_45_MSS = 24;
+    LANDSAT_4 = 32;
+    LANDSAT_5 = 64;
+    LANDSAT_45 = 96;
+    LANDSAT_7 = 128;
+    LANDSAT_8 = 256;
+    ALL = 512;
+}
+
+message ImageryFileRequest {
+    ImageryRequest imagery_request = 1;
+    ImageryFileType file_type = 2;
+    uint64 max_file_size = 3;
+}
+
+// TODO reorder to match fetch_imagery_array
+message ImageryRequest {
+    repeated MetadataResult metadata = 1;
+    repeated BandDefinition band_definitions = 2;
+
+    // TODO rename extent to bounding_box
+    repeated float envelope_boundary = 4;
+    ServiceSpatialReference boundary_cs = 5;
+    bytes polygon_boundary_wkb = 6;
+
+    GDALDataType output_type = 7;
+    float spatial_resolution_m = 8;
+}
+
+message BandDefinition {
+    int32 band_number = 1;
+    Band band_type = 2;
+    BandFunctionDetails band_function = 3;
+    repeated float scale_params = 4;
+}
+
+message BandFunctionDetails {
+    string name = 1;
+    repeated BandDefinition band_definitions = 2;
+    GDALDataType data_type = 3;
+    string code = 4;
+    map<string, string> arguments = 5;
+    GDALDataType transfer_type = 6;
+}
+
+message MetadataRequest {
+    SpacecraftID satellite_id = 1;
+//    ServiceEnvelope2D bounding_box = 2;
+    repeated float bounding_box = 2;
+
+    google.protobuf.Timestamp start_date = 3;
+    google.protobuf.Timestamp end_date = 4;
+
+    string sort_by= 5;
+    int32 limit = 6;
+
+    repeated QueryParams data_filters = 7;
+    // 1-4 values
+    // 1st value is the maximum cloud cover
+    // 2nd is minimum cloud cover
+    // 3rd value is the maximum land cloud cover
+    // 4tg is minimum land cloud cover
+    repeated float cloud_cover = 8;
+}
+
+enum QueryFilterType {
+    UknownDB = 0;
+    LandsatBigQuery = 1;
+    Sentinel2BigQuery = 2;
+}
+
+message QueryFilter {
+    QueryFilterType query_filter_type = 1;
+    map<string, QueryParams> query_filter_map = 2;
+}
+
+message QueryParams {
+    string param_name = 1;
+    string parent_param_name = 2;
+    repeated string values = 3;
+    repeated string excluded_values = 4;
+
+    string start = 5;
+    bool start_inclusive = 6;
+    string end = 7;
+    bool end_inclusive = 8;
+
+    repeated double bounds = 9;
+}
+
+message BigFileResult {
+    bytes data = 1;
+    ImageryFileType file_type = 2;
+    uint64 file_size = 3;
+}
+
+// TODO maybe this should be separated into different messages for each result type
+message NDArrayResult {
+    repeated float data_float = 1;
+    repeated int32 data_int32 = 2;
+    // bytes goes into uint32 and is compressed by google's proto definitions
+    repeated uint32 data_uint32 = 3;
+    repeated double data_double = 5;
+//    repeated bytes data_buffer = 6;
+
+    GDALDataType dtype = 8;
+
+    repeated int32 shape = 9;
+//    repeated int32 strides = 10;
+}
+
+// TODO rename to Metadata
+message MetadataResult {
+
+    //  # STRING	REQUIRED   Unique identifier for a particular Landsat image downlinked to
+    // a particular ground station.
+    string scene_id = 1;
+
+    string product_id = 2; //  # STRING	NULLABLE Unique identifier for a particular scene processed by the USGS at
+    // # a particular time, or null for pre-collection data.
+    SpacecraftID spacecraft_id = 3;  //# SpacecraftID REQUIRED The spacecraft that acquired this
+    //# scene: one of 'LANDSAT_4' through 'LANDSAT_8'.
+    string sensor_id = 4; //  # STRING	NULLABLE The type of spacecraft sensor that acquired this scene: 'TM' fo
+    //# the Thematic Mapper, 'ETM' for the Enhanced Thematic Mapper+, or 'OLI/TIRS' for the Operational Land Imager
+    //# and Thermal Infrared Sensor.
+
+    string date_acquired = 5; //  # STRING	NULLABLE The date on which this scene was acquired (UTC).
+    string sensing_time = 6; //  # STRING	NULLABLE The approximate time at which this scene was acquired (UTC).
+    string collection_number = 7; //  # STRING	NULLABLE The Landsat collection that this image belongs to, e.g.
+    //# '01' for Collection 1 or 'PRE' for pre-collection data.
+    string collection_category = 8; //  # STRING	NULLABLE Indicates the processing level of the image: 'RT' for
+    // real-time, 'T1' for Tier 1, 'T2' for Tier 2, and 'N/A' for pre-collection data. RT images will be replaced
+    // with Tier 1 or Tier 2 images as they become available.
+    string data_type = 9; //  # STRING	NULLABLE The type of processed image, e.g. 'L1T' for Level 1
+    // terrain-corrected images.
+    int32 wrs_path = 10; //  # INTEGER	NULLABLE The path number of this scene's location in the Worldwide
+    // Reference System (WRS).
+    int32 wrs_row = 11; //  # INTEGER	NULLABLE The row number of this scene's location in the Worldwide
+    // Reference System (WRS).
+    float cloud_cover = 12; //  # FLOAT	NULLABLE Estimated percentage of this scene affected by cloud cover.
+    float north_lat = 13; //  # FLOAT	NULLABLE The northern latitude of the bounding box of this scene.
+    float south_lat = 14; //  # FLOAT	NULLABLE The southern latitude of the bounding box of this scene.
+    float west_lon = 15; //  # FLOAT	NULLABLE The western longitude of the bounding box of this scene.
+    float east_lon = 16; //  # FLOAT	NULLABLE The eastern longitude of the bounding box of this scene.
+    int32 total_size = 17; //  # INTEGER	NULLABLE The total size of this scene in bytes.
+    string base_url = 18; //  # STRING	NULLABLE The base URL for this scene in Cloud Storage.
+
+    // TODO, test some AWS data that is sensed on one date and then processed at another
+    int32 doy = 19;
+
+    int32 utm_epsg_code = 20;
+
+    //    ServiceEnvelope2D bounds = 21;
+    //  (minx, miny, maxx, maxy)
+    repeated float bounds = 21;
+    repeated bytes wrs_polygon_wkb = 22;
+    string full_mount_path = 23;
+}
+
+
+/*
+  Type of geometry encoding
+*/
+enum GeometryEncodingType {
+    unknown = 0;
+    wkb = 1; // well-known binary
+    wkt = 2; // well-known text
+    geojson = 3; // geojson
+    esrishape = 4; // esri shape binary
+}
+
+message ServiceGeometry {
+    // id is usually associated with position in file format or database
+    repeated int64 geometry_id = 1;
+
+    // TODO review esri encoding typename (this is for the esri shape binary format)
+    // type can be 'wkt', 'wkb', 'geojson', or 'esri'
+    GeometryEncodingType geometry_encoding_type = 2;
+
+    // the geometry encoded as base64 (wkb or esri) or as a string (wkt or geojson)
+    repeated string geometry_string = 3;
+    repeated bytes geometry_binary = 4;
+
+    ServiceSpatialReference spatial_reference = 5;
+}
+
+message ServiceSpatialReference {
+    string proj4 = 4;
+    // String that is a wkt, wkid, esri_wkt, or a proj4 string
+    string esri_wkt = 5;
+
+    // type is either 'wkid', 'esri_wkt'
+    int32 wkid = 6;
+}
+
+message ServiceEnvelope2D {
+    double xmin = 1;
+    double ymin = 2;
+    double xmax = 3;
+    double ymax = 4;
+}
