@@ -26,7 +26,9 @@ option java_outer_classname = "EPLImagery";
 option objc_class_prefix = "RTG";
 
 package epl.grpc.imagery;
+
 import "google/protobuf/timestamp.proto";
+import "epl/grpc/geometry/geometry_operators.proto";
 
 /*
  gRPC Interfaces for working with imagery operators
@@ -116,7 +118,7 @@ message ImageryRequest {
 
     // TODO rename extent to bounding_box
     repeated float envelope_boundary = 4;
-    ServiceSpatialReference boundary_cs = 5;
+    epl.grpc.geometry.SpatialReferenceData boundary_cs = 5;
     bytes polygon_boundary_wkb = 6;
 
     GDALDataType output_type = 7;
@@ -181,7 +183,9 @@ message QueryParams {
     string end = 7;
     bool end_inclusive = 8;
 
-    repeated double bounds = 9;
+    repeated epl.grpc.geometry.EnvelopeData bounds = 9;
+    epl.grpc.geometry.GeometryBagData geometry_bag = 10;
+    epl.grpc.geometry.OperatorRequest operator_request = 11;
 }
 
 message BigFileResult {
@@ -254,44 +258,44 @@ message MetadataResult {
 }
 
 
-/*
-  Type of geometry encoding
-*/
-enum GeometryEncodingType {
-    unknown = 0;
-    wkb = 1; // well-known binary
-    wkt = 2; // well-known text
-    geojson = 3; // geojson
-    esrishape = 4; // esri shape binary
-}
-
-message ServiceGeometry {
-    // id is usually associated with position in file format or database
-    repeated int64 geometry_id = 1;
-
-    // TODO review esri encoding typename (this is for the esri shape binary format)
-    // type can be 'wkt', 'wkb', 'geojson', or 'esri'
-    GeometryEncodingType geometry_encoding_type = 2;
-
-    // the geometry encoded as base64 (wkb or esri) or as a string (wkt or geojson)
-    repeated string geometry_string = 3;
-    repeated bytes geometry_binary = 4;
-
-    ServiceSpatialReference spatial_reference = 5;
-}
-
-message ServiceSpatialReference {
-    string proj4 = 4;
-    // String that is a wkt, wkid, esri_wkt, or a proj4 string
-    string esri_wkt = 5;
-
-    // type is either 'wkid', 'esri_wkt'
-    int32 wkid = 6;
-}
-
-message ServiceEnvelope2D {
-    double xmin = 1;
-    double ymin = 2;
-    double xmax = 3;
-    double ymax = 4;
-}
+///*
+//  Type of geometry encoding
+//*/
+//enum GeometryEncodingType {
+//    unknown = 0;
+//    wkb = 1; // well-known binary
+//    wkt = 2; // well-known text
+//    geojson = 3; // geojson
+//    esrishape = 4; // esri shape binary
+//}
+//
+//message ServiceGeometry {
+//    // id is usually associated with position in file format or database
+//    repeated int64 geometry_id = 1;
+//
+//    // TODO review esri encoding typename (this is for the esri shape binary format)
+//    // type can be 'wkt', 'wkb', 'geojson', or 'esri'
+//    GeometryEncodingType geometry_encoding_type = 2;
+//
+//    // the geometry encoded as base64 (wkb or esri) or as a string (wkt or geojson)
+//    repeated string geometry_string = 3;
+//    repeated bytes geometry_binary = 4;
+//
+//    ServiceSpatialReference spatial_reference = 5;
+//}
+//
+//message ServiceSpatialReference {
+//    string proj4 = 4;
+//    // String that is a wkt, wkid, esri_wkt, or a proj4 string
+//    string esri_wkt = 5;
+//
+//    // type is either 'wkid', 'esri_wkt'
+//    int32 wkid = 6;
+//}
+//
+//message ServiceEnvelope2D {
+//    double xmin = 1;
+//    double ymin = 2;
+//    double xmax = 3;
+//    double ymax = 4;
+//}

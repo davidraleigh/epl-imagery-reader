@@ -5,7 +5,8 @@ from datetime import date, datetime, time
 from enum import IntEnum
 from typing import TypeVar, List
 from peewee import Model, Field, FloatField, CharField, DateTimeField, IntegerField, Database, ModelSelect, DoubleField
-from epl.imagery.native.epl_imagery_pb2 import QueryParams, QueryFilter
+from epl.grpc.imagery.epl_imagery_pb2 import QueryParams, QueryFilter
+from epl.grpc.geometry.geometry_operators_pb2 import GeometryBagData
 
 sql_reg = re.compile(r'SELECT[\s\S]+FROM[\s\S]+(AS[\s\S]+)\Z')
 
@@ -150,7 +151,8 @@ class _BoundQueryParam:
 
         self.b_initialized = True
         if east > west:
-            self.query_params.bounds.extend([west, south, east, north])
+            # envelope_data = EnvelopeData(xmin=west, ymin=south, xmax=east, ymax=north)
+            self.query_params.bounds.add(xmin=west, ymin=south, xmax=east, ymax=north)
         else:
             # TODO split the bounds into to sets on either side of the dateline
             raise ValueError
@@ -165,25 +167,25 @@ class _BoundQueryParam:
             return p_select
 
         expression = None
-        bounds = self.query_params.bounds
-        minx = bounds[0]
-        miny = bounds[1]
-        maxx = bounds[2]
-        maxy = bounds[3]
+        for bounds in self.query_params.bounds:
+            xmin = bounds.xmin
+            ymin = bounds.ymin
+            xmax = bounds.xmax
+            ymax = bounds.ymax
 
-        a = (minx <= self.west_field).bin_and((maxx >= self.west_field))
-        b = (minx >= self.west_field).bin_and((self.east_field >= minx))
-        ab = a.bin_or(b)
-        c = (self.south_field <= miny).bin_and((self.north_field >= miny))
-        d = (self.south_field > miny).bin_and((maxy >= self.south_field))
-        cd = c.bin_or(d)
-        abcd = ab.bin_and(cd)
-        expression_part = abcd
+            a = (xmin <= self.west_field).bin_and((xmax >= self.west_field))
+            b = (xmin >= self.west_field).bin_and((self.east_field >= xmin))
+            ab = a.bin_or(b)
+            c = (self.south_field <= ymin).bin_and((self.north_field >= ymin))
+            d = (self.south_field > ymin).bin_and((ymax >= self.south_field))
+            cd = c.bin_or(d)
+            abcd = ab.bin_and(cd)
+            expression_part = abcd
 
-        if not expression:
-            expression = expression_part
-        else:
-            expression.bin_or(expression_part)
+            if not expression:
+                expression = expression_part
+            else:
+                expression.bin_or(expression_part)
 
         return p_select.where(expression)
 
@@ -239,10 +241,11 @@ class MetadataFilters:
         sorted_keys = sorted(self.__dict__)
         model_select = self.model.select()
         for key in sorted_keys:
-            if key == "model":
+            item = self.__dict__[key]
+            if not isinstance(item, _QueryParam) and not isinstance(item, _BoundQueryParam):
                 continue
 
-            model_select = self.__dict__[key].append_select(model_select)
+            model_select = item.append_select(model_select)
 
         return model_select
 
@@ -272,10 +275,15 @@ class MetadataFilters:
         query_filter = QueryFilter()
 
         for key in sorted(self.__dict__):
-            if key == "model":
+            item = self.__dict__[key]
+            if not isinstance(item, _QueryParam) and not isinstance(item, _BoundQueryParam) and not isinstance(item, GeometryBagData):
                 continue
 
-            query_params = self.__dict__[key].get_query_params()
+            if isinstance(item, GeometryBagData) and (item.geometry_binaries or item.geometry_strings):
+                query_params = QueryParams(geometry_bag=item)
+            else:
+                query_params = item.get_query_params()
+
             if query_params:
                 query_filter.query_filter_map[key].CopyFrom(query_params)
 
@@ -307,10 +315,12 @@ class LandsatQueryFilters(MetadataFilters):
         self.wrs_path = _QueryParam(LandsatModel.wrs_path)
         self.wrs_row = _QueryParam(LandsatModel.wrs_row)
 
+        self.geometry_bag = GeometryBagData()
         # self.polygon_wkbs = []
         # self.envelopes = []
 
         self.total_size = _QueryParam(LandsatModel.total_size)
+
         if query_filter:
             for key in query_filter.query_filter_map:
                 query_param = query_filter.query_filter_map[key]
@@ -320,9 +330,11 @@ class LandsatQueryFilters(MetadataFilters):
                                                           LandsatModel.west_lon,
                                                           LandsatModel.east_lon,
                                                           query_params=query_param)
-                else:
+                elif key != "geometry_bag":
                     self.__dict__[key] = _QueryParam(field=LandsatModel.__dict__[query_param.param_name].field,
                                                      query_params=query_param)
+                else:
+                    self.geometry_bag = query_param
 
 
 

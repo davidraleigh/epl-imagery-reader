@@ -1,7 +1,12 @@
 import unittest
+from shapely.geometry import box
+from shapely.wkt import loads as loads_wkt
+from shapely.wkb import loads as loads_wkb
+from shapely.geometry import shape
+from shapely.geometry import box
 from datetime import date
 
-from epl.imagery.native.metadata_helpers import LandsatQueryFilters, MetadataFilters, LandsatModel
+from epl.native.imagery.metadata_helpers import LandsatQueryFilters, MetadataFilters, LandsatModel
 
 
 expected_prefix = 'SELECT * FROM [bigquery-public-data:cloud_storage_geo_index.landsat_index] AS t1 WHERE '
@@ -157,3 +162,25 @@ class TestMetadata(unittest.TestCase):
         #
         self.maxDiff = None
         self.assertMultiLineEqual(expected, expected_2)
+
+    def test_wkb_added(self):
+        bounding_box = (-115.927734375, 34.52466147177172, -78.31054687499999, 44.84029065139799)
+        polygon = box(*bounding_box).envelope
+        d_start = date(2017, 3, 12)  # 2017-03-12
+        landsat_filters = LandsatQueryFilters()
+        landsat_filters.collection_number.set_value("PRE")
+        landsat_filters.acquired.set_not_value(d_start)
+        landsat_filters.geometry_bag.geometry_binaries.append(polygon.wkb)
+
+        expected = landsat_filters.get_sql()
+
+        query_filter = landsat_filters.get_query_filter()
+
+        landsat_filters_2 = LandsatQueryFilters(query_filter=query_filter)
+        expected_2 = landsat_filters_2.get_sql()
+        #
+        self.maxDiff = None
+        self.assertMultiLineEqual(expected, expected_2)
+
+        self.assertMultiLineEqual(polygon.wkt, loads_wkb(landsat_filters_2.geometry_bag.geometry_bag.geometry_binaries[0]).wkt)
+

@@ -10,11 +10,9 @@ from lxml import etree
 from osgeo import gdal
 from shapely.wkt import loads
 
-from epl.imagery.native import PLATFORM_PROVIDER
-from epl.imagery.native.reader import MetadataService, Landsat, \
-    Storage, SpacecraftID, BandMap, Band, \
-    RasterMetadata, DataType, FunctionDetails
-from epl.imagery.native.metadata_helpers import LandsatQueryFilters
+from epl.native.imagery import PLATFORM_PROVIDER
+from epl.native.imagery.reader import MetadataService, Landsat, Storage, RasterMetadata, DataType, FunctionDetails
+from epl.native.imagery.metadata_helpers import LandsatQueryFilters, SpacecraftID, BandMap, Band
 from test.tools.test_helpers import xml_compare
 
 

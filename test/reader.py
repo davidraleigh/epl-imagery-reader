@@ -12,8 +12,8 @@ from shapely.wkt import loads
 from google.cloud import bigquery
 
 from datetime import date
-from epl.imagery.native.reader import MetadataService, Landsat, Metadata, BandMap, Band, WRSGeometries, DataType
-from epl.imagery.native.metadata_helpers import _QueryParam, LandsatQueryFilters, SpacecraftID, LandsatModel
+from epl.native.imagery.reader import MetadataService, Landsat, Metadata, WRSGeometries, DataType
+from epl.native.imagery.metadata_helpers import LandsatQueryFilters, SpacecraftID, BandMap, Band
 
 
 class TestMetaDataSQL(unittest.TestCase):

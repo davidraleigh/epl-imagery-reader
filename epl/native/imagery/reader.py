@@ -35,8 +35,8 @@ from peewee import Field
 # Imports the Google Cloud client library
 from google.cloud import bigquery, storage
 
-from epl.imagery.native import PLATFORM_PROVIDER
-from epl.imagery.native.metadata_helpers import SpacecraftID, Band, BandMap, MetadataFilters, LandsatQueryFilters
+from epl.native.imagery import PLATFORM_PROVIDER
+from epl.native.imagery.metadata_helpers import SpacecraftID, Band, BandMap, MetadataFilters, LandsatQueryFilters
 
 
 class __Singleton(type):
@@ -1242,8 +1242,13 @@ LIMIT 1"""
                 search_area_polygon = search_area_polygon.union(temp_polygon)
         elif not polygon_wkbs and data_filters.bounds.b_initialized:
             search_area_polygon = shapely.geometry.Polygon()
-            bounding_box = data_filters.bounds.query_params.bounds
-            search_area_polygon = search_area_polygon.union(shapely.geometry.box(*bounding_box).envelope)
+            for bounding_box in data_filters.bounds.query_params.bounds:
+                search_area_polygon = search_area_polygon.union(
+                    shapely.geometry.box(
+                        bounding_box.xmin,
+                        bounding_box.ymin,
+                        bounding_box.xmax,
+                        bounding_box.ymax).envelope)
 
         # TODO sort by area
         query_string = data_filters.get_sql(limit=limit, sort_by_field=sort_by)
