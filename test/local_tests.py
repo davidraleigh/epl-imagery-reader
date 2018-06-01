@@ -1,7 +1,7 @@
 import unittest
 from datetime import date
 
-from epl.imagery.native.metadata_helpers import _RangeQueryParam, _DateQueryParam, _QueryParam, LandsatQueryFilters, MetadataFilters, LandsatModel
+from epl.imagery.native.metadata_helpers import LandsatQueryFilters, MetadataFilters, LandsatModel
 
 
 expected_prefix = 'SELECT * FROM [bigquery-public-data:cloud_storage_geo_index.landsat_index] AS t1 WHERE '
@@ -45,15 +45,17 @@ class TestMetadata(unittest.TestCase):
     def test_query_param_landsat(self):
         a = LandsatQueryFilters()
         a.scene_id.set_value("LC80330352017072LGN00")
-        a.cloud_cover.set_range(None, None, 2, False)
+        a.cloud_cover.set_range(end=2, end_inclusive=False)
         a.collection_number.set_value("PRE")
         a.wrs_path.set_value(33)
 
         result = a.get_sql(sort_by_field=a.acquired.field)
-        self.assertEqual('SELECT * FROM [bigquery-public-data:cloud_storage_geo_index.landsat_index] AS t1 WHERE ((((t1.cloud_cover < 2.0) AND (t1.collection_number IN ("PRE"))) AND (t1.scene_id IN ("LC80330352017072LGN00"))) AND (t1.wrs_path IN (33))) ORDER BY t1.sensing_time LIMIT 10', result)
+        expected = "{}{}".format(expected_prefix, '((((t1.cloud_cover < 2.0) AND (t1.collection_number IN ("PRE"))) AND (t1.scene_id IN ("LC80330352017072LGN00"))) AND (t1.wrs_path IN (33))) ORDER BY t1.sensing_time LIMIT 10')
+        self.assertEqual(expected, result)
 
         result = a.get_sql()
-        self.assertEqual('SELECT * FROM [bigquery-public-data:cloud_storage_geo_index.landsat_index] AS t1 WHERE ((((t1.cloud_cover < 2.0) AND (t1.collection_number IN ("PRE"))) AND (t1.scene_id IN ("LC80330352017072LGN00"))) AND (t1.wrs_path IN (33))) ORDER BY t1.sensing_time DESC LIMIT 10',result)
+        expected = "{}{}".format(expected_prefix, '((((t1.cloud_cover < 2.0) AND (t1.collection_number IN ("PRE"))) AND (t1.scene_id IN ("LC80330352017072LGN00"))) AND (t1.wrs_path IN (33))) ORDER BY t1.sensing_time DESC LIMIT 10')
+        self.assertEqual(expected, result)
 
     def test_dates(self):
         d_start = date(2017, 3, 12)  # 2017-03-12
@@ -112,3 +114,46 @@ class TestMetadata(unittest.TestCase):
         expected = "{}{}".format(expected_prefix, '((((t1.sensing_time >= "2017-06-24T00:00:00") AND (t1.sensing_time <= "2017-09-24T23:59:59.999999")) AND ((((t1.west_lon >= -115.927734375) & (t1.west_lon <= -78.31054687499999)) | ((t1.west_lon <= -115.927734375) & (t1.east_lon >= -115.927734375))) & (((t1.south_lat <= 34.52466147177172) & (t1.north_lat >= 34.52466147177172)) | ((t1.south_lat > 34.52466147177172) & (t1.south_lat <= 44.84029065139799))))) AND NOT (t1.collection_number IN ("PRE"))) ORDER BY t1.sensing_time DESC LIMIT 10')
         self.maxDiff = None
         self.assertMultiLineEqual(expected, result)
+
+    def test_query_filter_from_grpc(self):
+        d_start = date(2017, 3, 12)  # 2017-03-12
+        landsat_filters = LandsatQueryFilters()
+        landsat_filters.collection_number.set_value("PRE")
+        landsat_filters.acquired.set_not_value(d_start)
+        expected = landsat_filters.get_sql()
+
+        query_filter = landsat_filters.get_query_filter()
+
+        landsat_filters_2 = LandsatQueryFilters(query_filter=query_filter)
+        expected_2 = landsat_filters_2.get_sql()
+        #
+        self.assertMultiLineEqual(expected, expected_2)
+
+        d_start = date(2017, 6, 24)
+        d_end = date(2017, 9, 24)
+        landsat_filters.acquired.set_range(start=d_start, end=d_end)
+        expected = landsat_filters.get_sql()
+
+        query_filter = landsat_filters.get_query_filter()
+
+        landsat_filters_2 = LandsatQueryFilters(query_filter=query_filter)
+        expected_2 = landsat_filters_2.get_sql()
+        #
+        self.assertMultiLineEqual(expected, expected_2)
+
+    def test_grpc_bounds(self):
+        bounding_box = (-115.927734375, 34.52466147177172, -78.31054687499999, 44.84029065139799)
+        d_start = date(2017, 3, 12)  # 2017-03-12
+        landsat_filters = LandsatQueryFilters()
+        landsat_filters.collection_number.set_value("PRE")
+        landsat_filters.acquired.set_not_value(d_start)
+        landsat_filters.bounds.set_bounds(*bounding_box)
+        expected = landsat_filters.get_sql()
+
+        query_filter = landsat_filters.get_query_filter()
+
+        landsat_filters_2 = LandsatQueryFilters(query_filter=query_filter)
+        expected_2 = landsat_filters_2.get_sql()
+        #
+        self.maxDiff = None
+        self.assertMultiLineEqual(expected, expected_2)

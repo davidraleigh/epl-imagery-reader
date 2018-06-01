@@ -1240,10 +1240,10 @@ LIMIT 1"""
                 bounding_box = temp_polygon.bounds
                 data_filters.bounds.set_bounds(*bounding_box)
                 search_area_polygon = search_area_polygon.union(temp_polygon)
-        elif not polygon_wkbs and data_filters.bounds.bounds:
+        elif not polygon_wkbs and data_filters.bounds.b_initialized:
             search_area_polygon = shapely.geometry.Polygon()
-            for bounding_box in data_filters.bounds.bounds:
-                search_area_polygon = search_area_polygon.union(shapely.geometry.box(*bounding_box).envelope)
+            bounding_box = data_filters.bounds.query_params.bounds
+            search_area_polygon = search_area_polygon.union(shapely.geometry.box(*bounding_box).envelope)
 
         # TODO sort by area
         query_string = data_filters.get_sql(limit=limit, sort_by_field=sort_by)
