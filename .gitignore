@@ -9,3 +9,11 @@ venv
 *.pyc
 *.egg-info
 .pytest_cache
+
+Colorado_Virginia_Belgium.ipynb
+epl/__pycache__/
+epl/grpc/geometry/geometry_operators_pb2.py
+epl/grpc/imagery/epl_imagery_pb2.py
+epl_grpc/
+epl_native/
+temp.py

@@ -279,8 +279,9 @@ class MetadataFilters:
             if not isinstance(item, _QueryParam) and not isinstance(item, _BoundQueryParam) and not isinstance(item, GeometryBagData):
                 continue
 
-            if isinstance(item, GeometryBagData) and (item.geometry_binaries or item.geometry_strings):
-                query_params = QueryParams(geometry_bag=item)
+            if isinstance(item, GeometryBagData):
+                if item.geometry_binaries or item.geometry_strings:
+                    query_params = QueryParams(geometry_bag=item)
             else:
                 query_params = item.get_query_params()
 
