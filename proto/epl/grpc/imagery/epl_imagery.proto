@@ -152,7 +152,7 @@ message MetadataRequest {
     string sort_by= 5;
     int32 limit = 6;
 
-    repeated QueryParams data_filters = 7;
+    QueryFilter data_filters = 7;
     // 1-4 values
     // 1st value is the maximum cloud cover
     // 2nd is minimum cloud cover
