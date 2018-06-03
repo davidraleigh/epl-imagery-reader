@@ -17,3 +17,10 @@ epl/grpc/imagery/epl_imagery_pb2.py
 epl_grpc/
 epl_native/
 temp.py
+epl/grpc/__pycache__/
+epl/grpc/geometry/__pycache__/
+epl/grpc/geometry/geometry_operators_pb2_grpc.py
+epl/grpc/imagery/__pycache__/
+epl/grpc/imagery/epl_imagery_pb2_grpc.py
+epl/native/__pycache__/
+epl/native/imagery/__pycache__/

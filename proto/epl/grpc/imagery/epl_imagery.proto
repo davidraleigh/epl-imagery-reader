@@ -144,10 +144,10 @@ message BandFunctionDetails {
 message MetadataRequest {
     SpacecraftID satellite_id = 1;
 //    ServiceEnvelope2D bounding_box = 2;
-    repeated float bounding_box = 2;
+//    repeated float bounding_box = 2;
 
-    google.protobuf.Timestamp start_date = 3;
-    google.protobuf.Timestamp end_date = 4;
+//    google.protobuf.Timestamp start_date = 3;
+//    google.protobuf.Timestamp end_date = 4;
 
     string sort_by= 5;
     int32 limit = 6;
@@ -158,7 +158,7 @@ message MetadataRequest {
     // 2nd is minimum cloud cover
     // 3rd value is the maximum land cloud cover
     // 4tg is minimum land cloud cover
-    repeated float cloud_cover = 8;
+//    repeated float cloud_cover = 8;
 }
 
 enum QueryFilterType {
