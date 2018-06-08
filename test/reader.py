@@ -15,6 +15,7 @@ from datetime import date
 from epl.native.imagery.reader import MetadataService, Landsat, Metadata, WRSGeometries, DataType
 from epl.native.imagery.metadata_helpers import LandsatQueryFilters, SpacecraftID, BandMap, Band
 from epl.grpc.geometry.geometry_operators_pb2 import GeometryBagData
+from epl.grpc.imagery import epl_imagery_pb2
 
 
 class TestMetaDataSQL(unittest.TestCase):
@@ -93,6 +94,7 @@ class TestMetaDataSQL(unittest.TestCase):
         landsat_filters.acquired.set_range(d, True)
         landsat_filters.wrs_path.set_value(125)
         landsat_filters.wrs_row.set_value(49)
+        landsat_filters.acquired.sort_by(epl_imagery_pb2.DESCENDING)
         rows = metadata_service.search(SpacecraftID.LANDSAT_8, data_filters=landsat_filters)
         rows = list(rows)
         self.assertEqual(len(rows), 10)
@@ -637,6 +639,7 @@ class TestLandsat(unittest.TestCase):
         landsat_filter.collection_number.set_value("PRE")
         landsat_filter.cloud_cover.set_range(end=5, end_inclusive=False) #landsat_filter.cloud_cover.set_range_end(5, False)
         landsat_filter.acquired.set_range(end=d_end, end_inclusive=True) #landsat_filter.acquired.set_range_end(d_end, True)
+        landsat_filter.acquired.sort_by(epl_imagery_pb2.DESCENDING)
         landsat_filter.bounds.set_bounds(*utah_box)
         rows = self.metadata_service.search(SpacecraftID.LANDSAT_8,
                                             limit=10,
