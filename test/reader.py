@@ -14,6 +14,7 @@ from google.cloud import bigquery
 from datetime import date
 from epl.native.imagery.reader import MetadataService, Landsat, Metadata, WRSGeometries, DataType
 from epl.native.imagery.metadata_helpers import LandsatQueryFilters, SpacecraftID, BandMap, Band
+from epl.grpc.geometry.geometry_operators_pb2 import GeometryBagData
 
 
 class TestMetaDataSQL(unittest.TestCase):
@@ -318,6 +319,29 @@ class TestMetaDataSQL(unittest.TestCase):
 
         stuff = list(rows)
         self.assertEqual(10, len(stuff))
+
+    def test_belgium(self):
+        r = requests.get("https://raw.githubusercontent.com/johan/world.geo.json/master/countries/BEL.geo.json")
+
+        area_geom = r.json()
+        area_shape = shapely.geometry.shape(area_geom['features'][0]['geometry'])
+
+        d_start = date(2017, 1, 1)  # 2017-03-12
+        d_end = date(2017, 5, 19)  # epl api is inclusive
+
+        belgium_filter = LandsatQueryFilters()
+
+        # PRE is a collection type that specifies certain QA standards
+        belgium_filter.collection_number.set_value("PRE")
+        belgium_filter.cloud_cover.set_range(end=15, end_inclusive=False)
+        belgium_filter.acquired.set_range(start=d_start, end=d_end)
+        belgium_filter.bounds.set_bounds(*area_shape.bounds)
+        # search the satellite metadata for images of Belgium withing the given date range
+        metadata_service = MetadataService()
+        rows = metadata_service.search(
+            SpacecraftID.LANDSAT_8,
+            limit=20,
+            data_filters=belgium_filter)
 
 
 class TestMetadata(unittest.TestCase):

@@ -1172,12 +1172,11 @@ LIMIT 1"""
                 wrs_geometry = shapely.wkb.loads(self.m_wrs_geometry.get_wrs_geometry(wrs_row=wrs_pair[1], wrs_path=wrs_pair[0]))
                 if wrs_geometry.intersects(poly):
                     # calculate area overlap and save in tuple
+                    # TODO this is not geodetic, so there will be errors as latitudes move from zero
                     intersecting_area = wrs_geometry.intersection(poly).area
                     intersecting_wrs.append((intersecting_area, *wrs_pair))
 
         return sorted(intersecting_wrs, key=itemgetter(0), reverse=True)
-
-
 
     @staticmethod
     def search_aws(mount_base_path,
@@ -1216,14 +1215,12 @@ LIMIT 1"""
             metadata_rows.append(Metadata(row, mount_base_path))
         return metadata_rows
 
-    def search(
-            self,
-            satellite_id=None,
-            polygon_wkbs: List[bytes]=None,
-            sort_by: Field=None,
-            limit=10,
-            data_filters: MetadataFilters=None,
-            base_mount_path='/imagery') -> Generator[Metadata, None, None]:
+    def search(self,
+               satellite_id=None,
+               polygon_wkbs: List[bytes]=None,
+               limit=10,
+               data_filters: MetadataFilters=None,
+               base_mount_path='/imagery') -> Generator[Metadata, None, None]:
 
         if not data_filters:
             data_filters = LandsatQueryFilters()
@@ -1251,7 +1248,7 @@ LIMIT 1"""
                         bounding_box.ymax).envelope)
 
         # TODO sort by area
-        query_string = data_filters.get_sql(limit=limit, sort_by_field=sort_by)
+        query_string = data_filters.get_sql(limit=limit)
 
         # TODO update to use bigquery asynchronous query.
         query = self.m_client.run_sync_query(query_string)

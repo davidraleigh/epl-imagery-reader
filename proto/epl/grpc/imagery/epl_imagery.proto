@@ -27,7 +27,7 @@ option objc_class_prefix = "RTG";
 
 package epl.grpc.imagery;
 
-import "google/protobuf/timestamp.proto";
+//import "google/protobuf/timestamp.proto";
 import "epl/grpc/geometry/geometry_operators.proto";
 
 /*
@@ -143,22 +143,11 @@ message BandFunctionDetails {
 
 message MetadataRequest {
     SpacecraftID satellite_id = 1;
-//    ServiceEnvelope2D bounding_box = 2;
-//    repeated float bounding_box = 2;
-
-//    google.protobuf.Timestamp start_date = 3;
-//    google.protobuf.Timestamp end_date = 4;
-
+    // TODO shift numbers
     string sort_by= 5;
     int32 limit = 6;
 
     QueryFilter data_filters = 7;
-    // 1-4 values
-    // 1st value is the maximum cloud cover
-    // 2nd is minimum cloud cover
-    // 3rd value is the maximum land cloud cover
-    // 4tg is minimum land cloud cover
-//    repeated float cloud_cover = 8;
 }
 
 enum QueryFilterType {
@@ -170,6 +159,12 @@ enum QueryFilterType {
 message QueryFilter {
     QueryFilterType query_filter_type = 1;
     map<string, QueryParams> query_filter_map = 2;
+}
+
+enum SortDirection {
+    NOT_SORTED = 0;
+    DESCENDING = 1;
+    ASCENDING = 2;
 }
 
 message QueryParams {
@@ -186,6 +181,9 @@ message QueryParams {
     repeated epl.grpc.geometry.EnvelopeData bounds = 9;
     epl.grpc.geometry.GeometryBagData geometry_bag = 10;
     epl.grpc.geometry.OperatorRequest operator_request = 11;
+
+    SortDirection sort_direction = 12;
+
 }
 
 message BigFileResult {
@@ -210,6 +208,7 @@ message NDArrayResult {
 }
 
 // TODO rename to Metadata
+// TODO this is a Landsat Metadata Result. Maybe there should be a separate one?
 message MetadataResult {
 
     //  # STRING	REQUIRED   Unique identifier for a particular Landsat image downlinked to
@@ -256,46 +255,3 @@ message MetadataResult {
     repeated bytes wrs_polygon_wkb = 22;
     string full_mount_path = 23;
 }
-
-
-///*
-//  Type of geometry encoding
-//*/
-//enum GeometryEncodingType {
-//    unknown = 0;
-//    wkb = 1; // well-known binary
-//    wkt = 2; // well-known text
-//    geojson = 3; // geojson
-//    esrishape = 4; // esri shape binary
-//}
-//
-//message ServiceGeometry {
-//    // id is usually associated with position in file format or database
-//    repeated int64 geometry_id = 1;
-//
-//    // TODO review esri encoding typename (this is for the esri shape binary format)
-//    // type can be 'wkt', 'wkb', 'geojson', or 'esri'
-//    GeometryEncodingType geometry_encoding_type = 2;
-//
-//    // the geometry encoded as base64 (wkb or esri) or as a string (wkt or geojson)
-//    repeated string geometry_string = 3;
-//    repeated bytes geometry_binary = 4;
-//
-//    ServiceSpatialReference spatial_reference = 5;
-//}
-//
-//message ServiceSpatialReference {
-//    string proj4 = 4;
-//    // String that is a wkt, wkid, esri_wkt, or a proj4 string
-//    string esri_wkt = 5;
-//
-//    // type is either 'wkid', 'esri_wkt'
-//    int32 wkid = 6;
-//}
-//
-//message ServiceEnvelope2D {
-//    double xmin = 1;
-//    double ymin = 2;
-//    double xmax = 3;
-//    double ymax = 4;
-//}

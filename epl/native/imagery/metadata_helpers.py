@@ -5,31 +5,20 @@ from datetime import date, datetime, time
 from enum import IntEnum
 from typing import TypeVar, List
 from peewee import Model, Field, FloatField, CharField, DateTimeField, IntegerField, Database, ModelSelect, DoubleField
-from epl.grpc.imagery.epl_imagery_pb2 import QueryParams, QueryFilter
-from epl.grpc.geometry.geometry_operators_pb2 import GeometryBagData
+from epl.grpc.imagery import epl_imagery_pb2
+from epl.grpc.geometry.geometry_operators_pb2 import GeometryBagData, SpatialReferenceData
 
 sql_reg = re.compile(r'SELECT[\s\S]+FROM[\s\S]+(AS[\s\S]+)\Z')
 
 
-class _QueryParam:
-    """for now can't handle multiple ranges. set range will clear out a previously designated range"""
-    def __init__(self, field: Field, query_params: QueryParams=None):
-        self.field = field
+class _ParamHelpers:
+    def __init__(self, query_params: epl_imagery_pb2.QueryParams=None):
         self.b_initialized = False
-
         if query_params:
             self.query_params = query_params
             self.b_initialized = True
-            return
-
-        self.query_params = QueryParams()
-        self.query_params.param_name = field.name
-        # self.query_params.parent_param_name =
-
-        self.query_params.start = ""
-        self.query_params.end = ""
-        self.query_params.start_inclusive = True
-        self.query_params.end_inclusive = True
+        else:
+            self.query_params = epl_imagery_pb2.QueryParams()
 
     @staticmethod
     def _get_date_string(value, time_part: time=None):
@@ -54,6 +43,40 @@ class _QueryParam:
         else:
             self.query_params.excluded_values.append(str(value))
 
+    def get_query_params(self) -> epl_imagery_pb2.QueryParams:
+        if self.b_initialized:
+            return self.query_params
+        return None
+
+    def sort_by(self, sort_direction: epl_imagery_pb2.SortDirection):
+        """
+        sort the returned results by this field. if you sort by multiple fields your results may not be sorted properly
+        :param sort_direction:
+        :return:
+        """
+        # TODO if you want to sort by multiple parameters, then this class will have to have a pointer to the filter
+        # class that contains it, and upon updating this class there is a call back to the container class to insert
+        # this parameter in a list
+        self.query_params.sort_direction = sort_direction
+        self.b_initialized = True
+
+
+class _QueryParam(_ParamHelpers):
+    """for now can't handle multiple ranges. set range will clear out a previously designated range"""
+    def __init__(self, field: Field, query_params: epl_imagery_pb2.QueryParams=None):
+        super().__init__(query_params=query_params)
+        self.field = field
+        if self.b_initialized:
+            return
+
+        self.query_params.param_name = field.name
+        # self.query_params.parent_param_name =
+
+        self.query_params.start = ""
+        self.query_params.end = ""
+        self.query_params.start_inclusive = True
+        self.query_params.end_inclusive = True
+
     def set_value(self, value):
         if type(value) is date:
             self.set_range(_QueryParam._get_date_string(datetime.combine(value, datetime.min.time())),
@@ -77,11 +100,6 @@ class _QueryParam:
         else:
             self._set_value(not_value, False)
 
-    def get_query_params(self) -> QueryParams:
-        if self.b_initialized:
-            return self.query_params
-        return None
-
     def set_range(self, start="", start_inclusive=True, end="", end_inclusive=True):
         if not start and not end:
             raise ValueError
@@ -98,6 +116,11 @@ class _QueryParam:
             self.query_params.end_inclusive = end_inclusive
 
     def append_select(self, p_select: ModelSelect):
+        if self.query_params.sort_direction == epl_imagery_pb2.ASCENDING:
+            p_select = p_select.order_by(self.field)
+        elif self.query_params.sort_direction == epl_imagery_pb2.DESCENDING:
+            p_select = p_select.order_by(self.field.desc())
+
         if self.query_params.values or self.query_params.excluded_values:
             if self.query_params.values:
                 p_select = p_select.where(self.field << list(self.query_params.values))
@@ -119,27 +142,64 @@ class _QueryParam:
         return p_select
 
 
-class _BoundQueryParam:
+class _PairQueryParam(_ParamHelpers):
+    def __init__(self,
+                 left_field: Field,
+                 right_field: Field,
+                 query_params: epl_imagery_pb2.QueryParams=None):
+        super().__init__(query_params)
+        self.left_field = left_field
+        self.right_field = right_field
+
+    def set_pair(self, left_value, right_value):
+        self.b_initialized = True
+        self._set_value(left_value, b_equals=True)
+        self._set_value(right_value, b_equals=True)
+
+    def append_select(self, p_select: ModelSelect):
+        if not self.b_initialized:
+            return p_select
+
+        expression = None
+        for i in range(0, len(self.query_params.values), 2):
+            left_val = self.query_params.values[i]
+            right_val = self.query_params.values[i + 1]
+            expression_part = (self.left_field == left_val).bin_and(self.right_field == right_val)
+
+            if not expression:
+                expression = expression_part
+            else:
+                expression = (expression | expression_part)
+
+        return p_select.where(expression)
+
+    def sort_by(self, sort_direction: epl_imagery_pb2.SortDirection):
+        raise NotImplementedError
+
+
+class _BoundQueryParam(_ParamHelpers):
     """        north_lat = _QueryParam("north_lat")
         south_lat = _QueryParam("south_lat")
         west_lon = _QueryParam("west_lon")
         east_lon = _QueryParam("east_lon")"""
-    def __init__(self, north_field: Field, south_field: Field, west_field: Field, east_field: Field, query_params: QueryParams=None):
-        self.b_initialized = False
-
+    def __init__(self,
+                 north_field: Field,
+                 south_field: Field,
+                 west_field: Field,
+                 east_field: Field,
+                 query_params: epl_imagery_pb2.QueryParams=None):
+        super().__init__(query_params)
         self.north_field = north_field
         self.south_field = south_field
         self.west_field = west_field
         self.east_field = east_field
 
-        if query_params:
-            self.b_initialized = True
-            self.query_params = query_params
-            return
-
-        self.query_params = QueryParams()
-
-    def set_bounds(self, west: float=None, south: float=None, east: float=None, north: float=None):
+    def set_bounds(self,
+                   west: float=None,
+                   south: float=None,
+                   east: float=None,
+                   north: float=None,
+                   spatial_reference: SpatialReferenceData=None):
         if not west:
             west = -180
         if not east:
@@ -148,19 +208,11 @@ class _BoundQueryParam:
             south = -90
         if not north:
             north = 90
+        if not spatial_reference:
+            spatial_reference = SpatialReferenceData(wkid=4326)
 
         self.b_initialized = True
-        if east > west:
-            # envelope_data = EnvelopeData(xmin=west, ymin=south, xmax=east, ymax=north)
-            self.query_params.bounds.add(xmin=west, ymin=south, xmax=east, ymax=north)
-        else:
-            # TODO split the bounds into to sets on either side of the dateline
-            raise ValueError
-
-    def get_query_params(self) -> QueryParams:
-        if self.b_initialized:
-            return self.query_params
-        return None
+        self.query_params.bounds.add(xmin=west, ymin=south, xmax=east, ymax=north, spatial_reference=spatial_reference)
 
     def append_select(self, p_select: ModelSelect):
         if not self.b_initialized:
@@ -225,8 +277,13 @@ class MetadataFilters:
         self.model = MetadataModel
         self.cloud_cover = _QueryParam(MetadataModel.cloud_cover)
         self.acquired = _QueryParam(MetadataModel.acquired)
-        self.bounds = _BoundQueryParam(MetadataModel.north_lat, MetadataModel.south_lat, MetadataModel.west_lon, MetadataModel.east_lon)
+        self.bounds = _BoundQueryParam(MetadataModel.north_lat,
+                                       MetadataModel.south_lat,
+                                       MetadataModel.west_lon,
+                                       MetadataModel.east_lon)
         self.spacecraft_id = _QueryParam(LandsatModel.spacecraft_id)
+
+        self.sort_by_fields = []
         # self.geometry_wkb = None
 
     @staticmethod
@@ -237,25 +294,24 @@ class MetadataFilters:
             params[i] = param
         return params
 
-    def get_select(self):
+    def get_select(self, model_select: ModelSelect=None):
+        if not model_select:
+            model_select = self.model.select()
+
+        # this is just to ensure that the keys are always returned in same order. makes testing easier
         sorted_keys = sorted(self.__dict__)
-        model_select = self.model.select()
         for key in sorted_keys:
             item = self.__dict__[key]
-            if not isinstance(item, _QueryParam) and not isinstance(item, _BoundQueryParam):
+            if not isinstance(item, _ParamHelpers):
                 continue
 
             model_select = item.append_select(model_select)
 
         return model_select
 
-    def get_sql(self, limit=10, sort_by_field: Field=None):
+    def get_sql(self, limit=10, sort_by_field: Field=None, model_select: ModelSelect=None):
 
-        select_statement = self.get_select()
-        if sort_by_field:
-            select_statement = select_statement.order_by(sort_by_field)
-        else:
-            select_statement = select_statement.order_by(self.acquired.field.desc())
+        select_statement = self.get_select(model_select)
 
         sql, params = select_statement.sql()
 
@@ -272,17 +328,19 @@ class MetadataFilters:
         return "{} LIMIT {}".format(sql_formatted, limit)
 
     def get_query_filter(self):
-        query_filter = QueryFilter()
+        query_filter = epl_imagery_pb2.QueryFilter()
 
         for key in sorted(self.__dict__):
             item = self.__dict__[key]
-            if not isinstance(item, _QueryParam) and not isinstance(item, _BoundQueryParam) and not isinstance(item, GeometryBagData):
+            if not isinstance(item, _ParamHelpers) \
+                    and not isinstance(item, _BoundQueryParam) \
+                    and not isinstance(item, GeometryBagData):
                 continue
 
             query_params = None
             if isinstance(item, GeometryBagData):
                 if item.geometry_binaries or item.geometry_strings:
-                    query_params = QueryParams(geometry_bag=item)
+                    query_params = epl_imagery_pb2.QueryParams(geometry_bag=item)
             else:
                 query_params = item.get_query_params()
 
@@ -294,14 +352,22 @@ class MetadataFilters:
 
 class LandsatQueryFilters(MetadataFilters):
 
-    def __init__(self, query_filter: QueryFilter=None):
+    def __init__(self, query_filter: epl_imagery_pb2.QueryFilter=None):
         super().__init__()
         self.model = LandsatModel
 
         self.cloud_cover = _QueryParam(LandsatModel.cloud_cover)
         self.acquired = _QueryParam(LandsatModel.sensing_time)
 
-        self.bounds = _BoundQueryParam(LandsatModel.north_lat, LandsatModel.south_lat, LandsatModel.west_lon,
+        # These are really only here for sorting. say you want to sort by easter most values or whatever else
+        self.north_lat = _QueryParam(LandsatModel.north_lat)
+        self.south_lat = _QueryParam(LandsatModel.south_lat)
+        self.east_lon = _QueryParam(LandsatModel.east_lon)
+        self.west_lon = _QueryParam(LandsatModel.west_lon)
+
+        self.bounds = _BoundQueryParam(LandsatModel.north_lat,
+                                       LandsatModel.south_lat,
+                                       LandsatModel.west_lon,
                                        LandsatModel.east_lon)
 
         self.spacecraft_id = _QueryParam(LandsatModel.spacecraft_id)
@@ -316,10 +382,9 @@ class LandsatQueryFilters(MetadataFilters):
 
         self.wrs_path = _QueryParam(LandsatModel.wrs_path)
         self.wrs_row = _QueryParam(LandsatModel.wrs_row)
+        self.wrs_path_row = _PairQueryParam(LandsatModel.wrs_path, LandsatModel.wrs_row)
 
         self.geometry_bag = GeometryBagData()
-        # self.polygon_wkbs = []
-        # self.envelopes = []
 
         self.total_size = _QueryParam(LandsatModel.total_size)
 
@@ -332,6 +397,10 @@ class LandsatQueryFilters(MetadataFilters):
                                                           LandsatModel.west_lon,
                                                           LandsatModel.east_lon,
                                                           query_params=query_param)
+                elif key == "wrs_path_row":
+                    self.__dict__[key] = _PairQueryParam(LandsatModel.wrs_path,
+                                                         LandsatModel.wrs_row,
+                                                         query_params=query_param)
                 elif key != "geometry_bag":
                     self.__dict__[key] = _QueryParam(field=LandsatModel.__dict__[query_param.param_name].field,
                                                      query_params=query_param)

@@ -279,4 +279,5 @@ message EnvelopeData {
     double ymin = 2;
     double xmax = 3;
     double ymax = 4;
+    SpatialReferenceData spatial_reference = 5;
 }
