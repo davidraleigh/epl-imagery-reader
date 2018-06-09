@@ -8,7 +8,7 @@ from datetime import date
 
 from epl.grpc.geometry.geometry_operators_pb2 import SpatialReferenceData
 from epl.grpc.imagery import epl_imagery_pb2
-from epl.native.imagery.metadata_helpers import LandsatQueryFilters, MetadataFilters, LandsatModel
+from epl.native.imagery.metadata_helpers import LandsatQueryFilters, MetadataFilters, LandsatModel, SpacecraftID
 
 
 expected_prefix = 'SELECT * FROM [bigquery-public-data:cloud_storage_geo_index.landsat_index] AS t1 WHERE '
@@ -291,4 +291,7 @@ class TestMetadata(unittest.TestCase):
 
     def test_satellite_id(self):
         landsat_filter = LandsatQueryFilters()
-        landsat_filter.spacecraft_id.set_value(satellite_id.name)
+        landsat_filter.spacecraft_id.set_value(SpacecraftID.LANDSAT_4.name)
+        sql_stuff = landsat_filter.get_sql()
+        expected = "{}{}".format(expected_prefix, '(t1.spacecraft_id IN ("LANDSAT_4")) LIMIT 10')
+        self.assertMultiLineEqual(expected, sql_stuff)

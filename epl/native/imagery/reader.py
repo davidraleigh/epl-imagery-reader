@@ -1247,29 +1247,68 @@ LIMIT 1"""
                         bounding_box.xmax,
                         bounding_box.ymax).envelope)
 
-        # TODO sort by area
+        limit_found = 0
         query_string = data_filters.get_sql(limit=limit)
+        b_limit_reached = False
+        while limit_found < limit:
+            # TODO sort by area
 
-        # TODO update to use bigquery asynchronous query.
-        query = self.m_client.run_sync_query(query_string)
-        query.timeout_ms = self.m_timeout_ms
-        query.run()
+            exclude_scene_id = []
+            exclude_product_id = []
 
-        for row in query.rows:
-            metadata = Metadata(row, base_mount_path)
+            # TODO update to use bigquery asynchronous query.
+            query = self.m_client.run_sync_query(query_string)
+            query.timeout_ms = self.m_timeout_ms
+            query.run()
 
-            if search_area_polygon is None:
-                yield metadata
-                continue
+            if len(query.rows) == 0:
+                return
+            elif len(query.rows) < limit:
+                b_limit_reached = True
 
-            wrs_wkb = self.m_wrs_geometry.get_wrs_geometry(wrs_path=metadata.wrs_path, wrs_row=metadata.wrs_row)
-            wrs_shape = shapely.wkb.loads(wrs_wkb)
-            if wrs_shape.intersects(search_area_polygon):
-                # wrs_poly_intersection = wrs_shape.intersection(polygon_differenced)
-                # # buffer by tolerance
-                # wrs_poly_intersection = wrs_poly_intersection.buffer(0.00000008)
-                # search_area_polygon = search_area_polygon.difference(wrs_poly_intersection)
-                yield metadata
+            for row in query.rows:
+                metadata = Metadata(row, base_mount_path)
+
+                if search_area_polygon is None:
+                    exclude_scene_id.append(metadata.scene_id)
+                    exclude_product_id.append(metadata.product_id)
+                    limit_found += 1
+                    yield metadata
+                    continue
+
+                wrs_wkb = self.m_wrs_geometry.get_wrs_geometry(wrs_path=metadata.wrs_path, wrs_row=metadata.wrs_row)
+                wrs_shape = shapely.wkb.loads(wrs_wkb)
+                if wrs_shape.intersects(search_area_polygon):
+                    # wrs_poly_intersection = wrs_shape.intersection(polygon_differenced)
+                    # # buffer by tolerance
+                    # wrs_poly_intersection = wrs_poly_intersection.buffer(0.00000008)
+                    # search_area_polygon = search_area_polygon.difference(wrs_poly_intersection)
+                    exclude_scene_id.append(metadata.scene_id)
+                    exclude_product_id.append(metadata.product_id)
+                    limit_found += 1
+                    yield metadata
+
+                if limit_found >= limit:
+                    break
+
+            if b_limit_reached:
+                break
+
+            if limit_found < limit:
+                for scene_id in exclude_scene_id:
+                    if scene_id:
+                        data_filters.scene_id.set_exclude_value(scene_id)
+                for product_id in exclude_product_id:
+                    if product_id:
+                        data_filters.product_id.set_exclude_value(product_id)
+                query_string = data_filters.get_sql(limit=limit)
+
+
+
+
+
+
+
 
 
 class Storage(metaclass=__Singleton):

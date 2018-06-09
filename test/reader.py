@@ -645,7 +645,7 @@ class TestLandsat(unittest.TestCase):
                                             limit=10,
                                             data_filters=landsat_filter)
         rows = list(rows)
-        self.assertEqual(len(rows), 8)
+        self.assertEqual(len(rows), 10)
         #     metadata_row = ['LC80390332016208LGN00', '', 'LANDSAT_8', 'OLI_TIRS', '2016-07-26',
         # '2016-07-26T18:14:46.9465460Z', 'PRE', 'N/A', 'L1T', 39, 33, 1.69,
         # 39.96962, 37.81744, -115.27267, -112.56732, 1070517542,
