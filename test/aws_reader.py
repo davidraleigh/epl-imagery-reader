@@ -40,7 +40,7 @@ class TestAWSMetadata(unittest.TestCase):
         metadata = rows[0]
         self.assertEqual(metadata.get_aws_file_path(), "/imagery/L8/139/045/LC81390452014295LGN00")
 
-        landsat_filters.collection_number.set_not_value("PRE")
+        landsat_filters.collection_number.set_exclude_value("PRE")
         landsat_filters.acquired.set_range(start=date(2017, 3, 4), end=date(2017, 3, 4))
         rows = metadataservice.search(SpacecraftID.LANDSAT_8,
                                       data_filters=landsat_filters)
@@ -56,7 +56,7 @@ class TestAWSMetadata(unittest.TestCase):
         d_end = date(2017, 9, 24)
         bounding_box = (-115.927734375, 34.52466147177172, -78.31054687499999, 44.84029065139799)
         landsat_filters = LandsatQueryFilters()
-        landsat_filters.collection_number.set_not_value("PRE")
+        landsat_filters.collection_number.set_exclude_value("PRE")
         landsat_filters.acquired.set_range(start=d_start, end=d_end)
         landsat_filters.bounds.set_bounds(*bounding_box)
         rows = metadata_service.search(SpacecraftID.LANDSAT_8,
@@ -184,7 +184,7 @@ class TestAWSPixelFunctions(unittest.TestCase):
         bounding_box = (-115.927734375, 34.52466147177172, -78.31054687499999, 44.84029065139799)
         # sql_filters = ['scene_id="LC80400312016103LGN00"']
         landsat_filters = LandsatQueryFilters()
-        landsat_filters.scene_id.set_not_value("LC80400312016103LGN00")
+        landsat_filters.scene_id.set_exclude_value("LC80400312016103LGN00")
         landsat_filters.acquired.set_range(start=d_start, end=d_end)
         landsat_filters.bounds.set_bounds(*bounding_box)
         rows = metadata_service.search(SpacecraftID.LANDSAT_8,
@@ -202,7 +202,7 @@ class TestAWSPixelFunctions(unittest.TestCase):
         d_end = date(2017, 3, 19)  # 2017-03-20, epl api is inclusive
 
         landsat_filters = LandsatQueryFilters()
-        landsat_filters.collection_number.set_not_value("PRE")
+        landsat_filters.collection_number.set_exclude_value("PRE")
         landsat_filters.acquired.set_range(start=d_start, end=d_end)
         landsat_filters.bounds.set_bounds(*self.taos_shape.bounds)
         rows = self.metadata_service.search(

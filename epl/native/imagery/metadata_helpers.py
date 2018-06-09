@@ -89,14 +89,14 @@ class _QueryParam(_ParamHelpers):
         else:
             self._set_value(value, True)
 
-    def set_not_value(self, not_value):
+    def set_exclude_value(self, not_value):
         if type(not_value) is date:
             self.set_range(_QueryParam._get_date_string(datetime.combine(not_value, datetime.max.time())),
                            False,
                            _QueryParam._get_date_string(datetime.combine(not_value, datetime.min.time())),
                            False)
         elif type(not_value) is datetime:
-            self.set_not_value(_QueryParam._get_date_string(not_value))
+            self.set_exclude_value(_QueryParam._get_date_string(not_value))
         else:
             self._set_value(not_value, False)
 

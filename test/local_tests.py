@@ -27,9 +27,9 @@ class TestMetadata(unittest.TestCase):
 
     def test_not_in_in(self):
         lqf = LandsatQueryFilters()
-        lqf.cloud_cover.set_not_value(44)
-        lqf.cloud_cover.set_not_value(48)
-        lqf.cloud_cover.set_not_value(50)
+        lqf.cloud_cover.set_exclude_value(44)
+        lqf.cloud_cover.set_exclude_value(48)
+        lqf.cloud_cover.set_exclude_value(50)
         lqf.cloud_cover.set_value(64)
         lqf.cloud_cover.set_value(68)
         lqf.cloud_cover.set_value(70)
@@ -43,7 +43,7 @@ class TestMetadata(unittest.TestCase):
 
     def test_or_and(self):
         lqf = LandsatQueryFilters()
-        lqf.cloud_cover.set_not_value(44)
+        lqf.cloud_cover.set_exclude_value(44)
         lqf.cloud_cover.set_range(start=99, end_inclusive=False, end=42)
         sql = lqf.get_sql()
         expected = "{}{}".format(expected_prefix, "((NOT (t1.cloud_cover IN (44.0)) AND (t1.cloud_cover >= 99.0)) AND (t1.cloud_cover < 42.0)) LIMIT 10")
@@ -106,7 +106,7 @@ class TestMetadata(unittest.TestCase):
         d_start = date(2017, 3, 12)  # 2017-03-12
         landsat_filters = LandsatQueryFilters()
         landsat_filters.collection_number.set_value("PRE")
-        landsat_filters.acquired.set_not_value(d_start)
+        landsat_filters.acquired.set_exclude_value(d_start)
         result = landsat_filters.get_sql()
         expected = "{}{}".format(expected_prefix, '(((t1.sensing_time > "2017-03-12T23:59:59.999999") AND (t1.sensing_time < "2017-03-12T00:00:00")) AND (t1.collection_number IN ("PRE"))) LIMIT 10')
         self.maxDiff = None
@@ -118,7 +118,7 @@ class TestMetadata(unittest.TestCase):
         bounding_box = (-115.927734375, 34.52466147177172, -78.31054687499999, 44.84029065139799)
         # sql_filters = ['collection_number!="PRE"']
         landsat_filter = LandsatQueryFilters()
-        landsat_filter.collection_number.set_not_value("PRE")
+        landsat_filter.collection_number.set_exclude_value("PRE")
         landsat_filter.acquired.set_range(d_start, True, d_end, True)
         landsat_filter.bounds.set_bounds(*bounding_box)
         landsat_filter.acquired.sort_by(epl_imagery_pb2.DESCENDING)
@@ -131,7 +131,7 @@ class TestMetadata(unittest.TestCase):
         d_start = date(2017, 3, 12)  # 2017-03-12
         landsat_filters = LandsatQueryFilters()
         landsat_filters.collection_number.set_value("PRE")
-        landsat_filters.acquired.set_not_value(d_start)
+        landsat_filters.acquired.set_exclude_value(d_start)
         expected = landsat_filters.get_sql()
 
         query_filter = landsat_filters.get_query_filter()
@@ -158,7 +158,7 @@ class TestMetadata(unittest.TestCase):
         d_start = date(2017, 3, 12)  # 2017-03-12
         landsat_filters = LandsatQueryFilters()
         landsat_filters.collection_number.set_value("PRE")
-        landsat_filters.acquired.set_not_value(d_start)
+        landsat_filters.acquired.set_exclude_value(d_start)
         landsat_filters.bounds.set_bounds(*bounding_box)
         expected = landsat_filters.get_sql()
 
@@ -176,7 +176,7 @@ class TestMetadata(unittest.TestCase):
         d_start = date(2017, 3, 12)  # 2017-03-12
         landsat_filters = LandsatQueryFilters()
         landsat_filters.collection_number.set_value("PRE")
-        landsat_filters.acquired.set_not_value(d_start)
+        landsat_filters.acquired.set_exclude_value(d_start)
         landsat_filters.geometry_bag.geometry_binaries.append(polygon.wkb)
 
         expected = landsat_filters.get_sql()
@@ -196,7 +196,7 @@ class TestMetadata(unittest.TestCase):
         d_start = date(2017, 3, 12)  # 2017-03-12
         landsat_filters = LandsatQueryFilters()
         landsat_filters.collection_number.set_value("PRE")
-        landsat_filters.acquired.set_not_value(d_start)
+        landsat_filters.acquired.set_exclude_value(d_start)
         landsat_filters.bounds.set_bounds(*bounding_box, spatial_reference=SpatialReferenceData(wkid=4326))
         expected = landsat_filters.get_sql()
 

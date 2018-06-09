@@ -601,7 +601,7 @@ class TestLandsat(unittest.TestCase):
         bounding_box = (-115.927734375, 34.52466147177172, -78.31054687499999, 44.84029065139799)
         # sql_filters = ['collection_number!="PRE"']
         landsat_filter = LandsatQueryFilters()
-        landsat_filter.collection_number.set_not_value("PRE")
+        landsat_filter.collection_number.set_exclude_value("PRE")
         landsat_filter.acquired.set_range(d_start, True, d_end, True)
         landsat_filter.bounds.set_bounds(*bounding_box)
         rows = self.metadata_service.search(SpacecraftID.LANDSAT_8,
