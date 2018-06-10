@@ -131,7 +131,10 @@ message GeometryBagData {
     // the geometry encoded as base64 (wkb or esri) or as a string (wkt or geojson)
     repeated string geometry_strings = 3;
     repeated bytes geometry_binaries = 4;
-
+    repeated string wkts = 6;
+    repeated bytes wkbs = 7;
+    repeated string geojson = 8;
+    repeated bytes esrishapes = 9;
 
     SpatialReferenceData spatial_reference = 5;
 }

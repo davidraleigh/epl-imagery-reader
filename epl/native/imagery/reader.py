@@ -7,7 +7,7 @@ import shapefile
 
 # TODO replace with geometry
 import shapely.wkb
-import shapely.wkt
+# import shapely.wkt
 from shapely.geometry import shape
 # TODO replace with geometry
 
@@ -1181,10 +1181,10 @@ LIMIT 1"""
 
         return sorted(intersecting_wrs, key=itemgetter(0), reverse=True)
 
-    def get_search_area(self, data_filters: MetadataFilters=None,):
+    def get_search_area(self, data_filters: MetadataFilters=None) -> shapely.geometry:
         # TODO project inputs to WGS84 before
         search_area_polygon = None
-        if data_filters.geometry_bag:
+        if data_filters.geometry_bag.geometry_binaries or data_filters.geometry_bag.geometry_strings:
             search_area_polygon = shapely.geometry.Polygon()
 
             # TODO, this right here is an example of why there should be something beyond geometry_binaries and the use of an enum.
@@ -1252,6 +1252,7 @@ LIMIT 1"""
     def search(self,
                satellite_id=None,
                limit=10,
+               polygon_wkbs: List[bytes] = None,
                data_filters: MetadataFilters=None,
                base_mount_path='/imagery') -> Generator[Metadata, None, None]:
 
@@ -1261,10 +1262,10 @@ LIMIT 1"""
         if satellite_id and satellite_id is not SpacecraftID.UNKNOWN_SPACECRAFT:
             data_filters.spacecraft_id.set_value(satellite_id.name)
 
-        # return (Metadata(row, base_mount_path) for row in query.rows)
-        polygon_wkbs = None
-        if data_filters.geometry_bag.geometry_binaries:
-            polygon_wkbs = data_filters.geometry_bag.geometry_binaries
+        # search_area_polygon = self.get_search_area(data_filters=data_filters)
+        # polygon_wkbs = None
+        # if data_filters.geometry_bag.geometry_binaries:
+        #     polygon_wkbs = data_filters.geometry_bag.geometry_binaries
 
         search_area_polygon = None
         if polygon_wkbs:
@@ -1306,7 +1307,7 @@ LIMIT 1"""
             for row in query.rows:
                 metadata = Metadata(row, base_mount_path)
 
-                if search_area_polygon is None:
+                if search_area_polygon is None: # or search_area_polygon.is_empty:
                     exclude_scene_id.append(metadata.scene_id)
                     exclude_product_id.append(metadata.product_id)
                     limit_found += 1

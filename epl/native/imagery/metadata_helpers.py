@@ -286,8 +286,6 @@ class MetadataFilters:
                                        MetadataModel.east_lon)
         self.spacecraft_id = _QueryParam(LandsatModel.spacecraft_id)
 
-        self.geometry_bag = GeometryBagData()
-
     @staticmethod
     def param_sequence(params):
         for i, param in enumerate(params):
@@ -389,6 +387,8 @@ class LandsatQueryFilters(MetadataFilters):
         self.wrs_path_row = _PairQueryParam(LandsatModel.wrs_path, LandsatModel.wrs_row)
 
         self.total_size = _QueryParam(LandsatModel.total_size)
+
+        self.geometry_bag = GeometryBagData()
 
         # TODO if bounds and geometry bag are set that means that geometry bag was set
         if query_filter:
