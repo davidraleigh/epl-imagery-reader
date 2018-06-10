@@ -45,9 +45,10 @@ class TestMetaDataSQL(unittest.TestCase):
         landsat_filters = LandsatQueryFilters()
         landsat_filters.collection_number.set_value("PRE")
         landsat_filters.acquired.set_range(d_start, True, d_end, True)
+        landsat_filters.geometry_bag.geometry_binaries.append(taos_shape.wkb)
+
         metadata_rows = metadata_service.search(
             SpacecraftID.LANDSAT_8,
-            polygon_wkbs=[taos_shape.wkb],
             limit=10,
             data_filters=landsat_filters)
 
@@ -321,12 +322,13 @@ class TestMetaDataSQL(unittest.TestCase):
         wkt = "POLYGON((-172 53, 175 53, 175 48, -172 48, -172 53))"
         islands_shape = loads(wkt)
         self.assertFalse(islands_shape.exterior.is_ccw)
-
+        query_filter = LandsatQueryFilters()
+        query_filter.geometry_bag.geometry_binaries.append(islands_shape.wkb)
         metadata_service = MetadataService()
         rows = metadata_service.search(
             SpacecraftID.LANDSAT_8,
-            polygon_wkbs=[islands_shape.wkb],
-            limit=10)
+            limit=10,
+            data_filters=query_filter)
 
         stuff = list(rows)
         self.assertEqual(10, len(stuff))
@@ -734,6 +736,32 @@ class TestLandsat(unittest.TestCase):
 
         # get a numpy.ndarray from bands for specified imagery
         # 'nir', 'swir1', 'swir2'
+        band_numbers = [Band.NIR, Band.SWIR1, Band.SWIR2]
+        scaleParams = [[0.0, 40000.0], [0.0, 40000.0], [0.0, 40000.0]]
+        nda = landsat.fetch_imagery_array(band_numbers, scaleParams, polygon_boundary_wkb=self.taos_shape.wkb)
+        self.assertIsNotNone(nda)
+        self.assertEqual((1804, 1295, 3), nda.shape)
+
+    def test_polygon_wkb_metadata(self):
+        d_start = date(2017, 3, 12)  # 2017-03-12
+        d_end = date(2017, 3, 19)  # 2017-03-20, epl api is inclusive
+
+        self.metadata_service = MetadataService()
+
+        landsat_filters = LandsatQueryFilters()
+        landsat_filters.collection_number.set_value("PRE")
+        landsat_filters.acquired.set_range(d_start, True, d_end, True)
+        landsat_filters.geometry_bag.geometry_binaries.append(self.taos_shape.wkb)
+        metadata_rows = self.metadata_service.search(
+            SpacecraftID.LANDSAT_8,
+            limit=10,
+            data_filters=landsat_filters)
+
+        metadata_set = []
+        for row in metadata_rows:
+            metadata_set.append(row)
+
+        landsat = Landsat(metadata_set)
         band_numbers = [Band.NIR, Band.SWIR1, Band.SWIR2]
         scaleParams = [[0.0, 40000.0], [0.0, 40000.0], [0.0, 40000.0]]
         nda = landsat.fetch_imagery_array(band_numbers, scaleParams, polygon_boundary_wkb=self.taos_shape.wkb)

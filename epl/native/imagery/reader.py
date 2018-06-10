@@ -7,6 +7,7 @@ import shapefile
 
 # TODO replace with geometry
 import shapely.wkb
+import shapely.wkt
 from shapely.geometry import shape
 # TODO replace with geometry
 
@@ -1041,6 +1042,7 @@ class MetadataService(metaclass=__Singleton):
 
     # TODO this is probably overkill
     def __get_danger_zone(self):
+        # 165.59402
         west_lon_sql = """SELECT west_lon
 FROM [bigquery-public-data:cloud_storage_geo_index.landsat_index] 
 WHERE west_lon = (
@@ -1050,6 +1052,7 @@ WHERE east_lon < 0
 AND west_lon > 0 )
 LIMIT 1"""
 
+        # -165.0661
         east_lon_sql = """SELECT east_lon
 FROM [bigquery-public-data:cloud_storage_geo_index.landsat_index] 
 WHERE east_lon = (
@@ -1178,6 +1181,37 @@ LIMIT 1"""
 
         return sorted(intersecting_wrs, key=itemgetter(0), reverse=True)
 
+    def get_search_area(self, data_filters: MetadataFilters=None,):
+        # TODO project inputs to WGS84 before
+        search_area_polygon = None
+        if data_filters.geometry_bag:
+            search_area_polygon = shapely.geometry.Polygon()
+
+            # TODO, this right here is an example of why there should be something beyond geometry_binaries and the use of an enum.
+            for polygon_wkb in data_filters.geometry_bag.geometry_binaries:
+                temp_polygon = shapely.wkb.loads(polygon_wkb)
+                bounding_box = temp_polygon.bounds
+                data_filters.bounds.set_bounds(*bounding_box)
+                search_area_polygon = search_area_polygon.union(temp_polygon)
+
+            for polygon_wkt in data_filters.geometry_bag.geometry_strings:
+                temp_polygon = shapely.wkt.loads(polygon_wkt)
+                bounding_box = temp_polygon.bounds
+                data_filters.bounds.set_bounds(*bounding_box)
+                search_area_polygon = search_area_polygon.union(temp_polygon)
+
+        elif data_filters.bounds.b_initialized:
+            search_area_polygon = shapely.geometry.Polygon()
+            for bounding_box in data_filters.bounds.query_params.bounds:
+                search_area_polygon = search_area_polygon.union(
+                    shapely.geometry.box(
+                        bounding_box.xmin,
+                        bounding_box.ymin,
+                        bounding_box.xmax,
+                        bounding_box.ymax).envelope)
+
+        return search_area_polygon
+
     @staticmethod
     def search_aws(mount_base_path,
                    wrs_path,
@@ -1217,7 +1251,6 @@ LIMIT 1"""
 
     def search(self,
                satellite_id=None,
-               polygon_wkbs: List[bytes]=None,
                limit=10,
                data_filters: MetadataFilters=None,
                base_mount_path='/imagery') -> Generator[Metadata, None, None]:
@@ -1229,6 +1262,10 @@ LIMIT 1"""
             data_filters.spacecraft_id.set_value(satellite_id.name)
 
         # return (Metadata(row, base_mount_path) for row in query.rows)
+        polygon_wkbs = None
+        if data_filters.geometry_bag.geometry_binaries:
+            polygon_wkbs = data_filters.geometry_bag.geometry_binaries
+
         search_area_polygon = None
         if polygon_wkbs:
             search_area_polygon = shapely.geometry.Polygon()
@@ -1304,7 +1341,12 @@ LIMIT 1"""
                 query_string = data_filters.get_sql(limit=limit)
 
 
+    def search_layer_group(self,
+                           data_filters: MetadataFilters,
+                           satellite_id=None,
+                           group_count=1):
 
+        return None
 
 
 

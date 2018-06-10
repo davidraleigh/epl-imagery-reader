@@ -201,6 +201,8 @@ class _BoundQueryParam(_ParamHelpers):
                    east: float=None,
                    north: float=None,
                    spatial_reference: SpatialReferenceData=None):
+        # TODO throw exception if geometry bag set
+
         if not west:
             west = -180
         if not east:
@@ -284,6 +286,8 @@ class MetadataFilters:
                                        MetadataModel.east_lon)
         self.spacecraft_id = _QueryParam(LandsatModel.spacecraft_id)
 
+        self.geometry_bag = GeometryBagData()
+
     @staticmethod
     def param_sequence(params):
         for i, param in enumerate(params):
@@ -329,6 +333,8 @@ class MetadataFilters:
         query_filter = epl_imagery_pb2.QueryFilter()
 
         for key in sorted(self.__dict__):
+            #  TODO if geometry bag and bounds set then throw exception that both can't be set.
+
             item = self.__dict__[key]
             if not isinstance(item, _ParamHelpers) \
                     and not isinstance(item, _BoundQueryParam) \
@@ -382,10 +388,9 @@ class LandsatQueryFilters(MetadataFilters):
         self.wrs_row = _QueryParam(LandsatModel.wrs_row)
         self.wrs_path_row = _PairQueryParam(LandsatModel.wrs_path, LandsatModel.wrs_row)
 
-        self.geometry_bag = GeometryBagData()
-
         self.total_size = _QueryParam(LandsatModel.total_size)
 
+        # TODO if bounds and geometry bag are set that means that geometry bag was set
         if query_filter:
             for key in query_filter.query_filter_map:
                 query_param = query_filter.query_filter_map[key]
