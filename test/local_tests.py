@@ -295,3 +295,9 @@ class TestMetadata(unittest.TestCase):
         sql_stuff = landsat_filter.get_sql()
         expected = "{}{}".format(expected_prefix, '(t1.spacecraft_id IN ("LANDSAT_4")) LIMIT 10')
         self.assertMultiLineEqual(expected, sql_stuff)
+
+        # don't allow repeat adds
+        landsat_filter.spacecraft_id.set_value(SpacecraftID.LANDSAT_4.name)
+        sql_stuff = landsat_filter.get_sql()
+        self.assertMultiLineEqual(expected, sql_stuff)
+

@@ -1252,7 +1252,6 @@ LIMIT 1"""
     def search(self,
                satellite_id=None,
                limit=10,
-               polygon_wkbs: List[bytes] = None,
                data_filters: MetadataFilters=None,
                base_mount_path='/imagery') -> Generator[Metadata, None, None]:
 
@@ -1262,28 +1261,7 @@ LIMIT 1"""
         if satellite_id and satellite_id is not SpacecraftID.UNKNOWN_SPACECRAFT:
             data_filters.spacecraft_id.set_value(satellite_id.name)
 
-        # search_area_polygon = self.get_search_area(data_filters=data_filters)
-        # polygon_wkbs = None
-        # if data_filters.geometry_bag.geometry_binaries:
-        #     polygon_wkbs = data_filters.geometry_bag.geometry_binaries
-
-        search_area_polygon = None
-        if polygon_wkbs:
-            search_area_polygon = shapely.geometry.Polygon()
-            for polygon_wkb in polygon_wkbs:
-                temp_polygon = shapely.wkb.loads(polygon_wkb)
-                bounding_box = temp_polygon.bounds
-                data_filters.bounds.set_bounds(*bounding_box)
-                search_area_polygon = search_area_polygon.union(temp_polygon)
-        elif not polygon_wkbs and data_filters.bounds.b_initialized:
-            search_area_polygon = shapely.geometry.Polygon()
-            for bounding_box in data_filters.bounds.query_params.bounds:
-                search_area_polygon = search_area_polygon.union(
-                    shapely.geometry.box(
-                        bounding_box.xmin,
-                        bounding_box.ymin,
-                        bounding_box.xmax,
-                        bounding_box.ymax).envelope)
+        search_area_polygon = self.get_search_area(data_filters=data_filters)
 
         limit_found = 0
         query_string = data_filters.get_sql(limit=limit)

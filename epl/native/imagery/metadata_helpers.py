@@ -38,9 +38,9 @@ class _ParamHelpers:
         if value is datetime:
             value = value.isoformat()
 
-        if b_equals:
+        if b_equals and str(value) not in self.query_params.values:
             self.query_params.values.append(str(value))
-        else:
+        elif not b_equals and str(value) not in self.query_params.excluded_values:
             self.query_params.excluded_values.append(str(value))
 
     def get_query_params(self) -> epl_imagery_pb2.QueryParams:
