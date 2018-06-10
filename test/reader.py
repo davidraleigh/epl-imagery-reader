@@ -94,33 +94,42 @@ class TestMetaDataSQL(unittest.TestCase):
         landsat_filters.acquired.set_range(d, True)
         landsat_filters.wrs_path.set_value(125)
         landsat_filters.wrs_row.set_value(49)
-        landsat_filters.acquired.sort_by(epl_imagery_pb2.DESCENDING)
+        landsat_filters.acquired.sort_by(epl_imagery_pb2.ASCENDING)
+        landsat_filters.acquired.set_range(end=d, end_inclusive=True)
         rows = metadata_service.search(SpacecraftID.LANDSAT_8, data_filters=landsat_filters)
         rows = list(rows)
         self.assertEqual(len(rows), 10)
-        d_previous = date.today()
+        d_previous = datetime.datetime.strptime("1945-01-01", '%Y-%m-%d').date()
         for row in rows:
             self.assertEqual(row.spacecraft_id.name, SpacecraftID.LANDSAT_8.name)
             d_actual = datetime.datetime.strptime(row.date_acquired, '%Y-%m-%d').date()
-            self.assertGreaterEqual(d_actual, d)
 
             # test Order by
-            self.assertLessEqual(d_actual, d_previous)
+            self.assertGreaterEqual(d_actual, d_previous)
             d_previous = d_actual
 
     def test_end_date(self):
+        r = requests.get("https://raw.githubusercontent.com/johan/world.geo.json/master/countries/BEL.geo.json")
+
+        area_geom = r.json()
+        area_shape = shapely.geometry.shape(area_geom['features'][0]['geometry'])
         # gs://gcp-public-data-landsat/LC08/PRE/044/034/LC80440342016259LGN00/
         metadata_service = MetadataService()
         d = date(2016, 6, 24)
         landsat_filter = LandsatQueryFilters()
         landsat_filter.acquired.set_range(end=d, end_inclusive=True)
+        landsat_filter.acquired.sort_by(epl_imagery_pb2.DESCENDING)
+        landsat_filter.bounds.set_bounds(*area_shape.bounds)
         rows = metadata_service.search(SpacecraftID.LANDSAT_7, data_filters=landsat_filter)
         rows = list(rows)
         self.assertEqual(len(rows), 10)
+        d_previous = d
         for row in rows:
             self.assertEqual(row.spacecraft_id.name, SpacecraftID.LANDSAT_7.name)
             d_actual = datetime.datetime.strptime(row.date_acquired, '%Y-%m-%d').date()
-            self.assertLessEqual(d_actual, d)
+            self.assertLessEqual(d_actual, d_previous)
+
+            d_previous = d_actual
 
     def test_one_day(self):
         # gs://gcp-public-data-landsat/LC08/PRE/044/034/LC80440342016259LGN00/
