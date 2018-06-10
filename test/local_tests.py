@@ -58,7 +58,7 @@ class TestMetadata(unittest.TestCase):
         a.total_size.sort_by(epl_imagery_pb2.ASCENDING)
         a.wrs_path.set_value(33)
 
-        result = a.get_sql(sort_by_field=a.acquired.field)
+        result = a.get_sql()
         expected = "{}{}".format(expected_prefix, '((((t1.cloud_cover < 2.0) AND (t1.collection_number IN ("PRE"))) AND (t1.scene_id IN ("LC80330352017072LGN00"))) AND (t1.wrs_path IN (33))) ORDER BY t1.total_size LIMIT 10')
         self.maxDiff = None
         self.assertMultiLineEqual(expected, result)
@@ -275,19 +275,19 @@ class TestMetadata(unittest.TestCase):
         expected = "{}{}".format(expected_prefix, 'ORDER BY t1.east_lon LIMIT 10')
         self.assertMultiLineEqual(expected, sql_stuff)
 
-    def test_sort_by_bounds(self):
-        expected_prefix = 'SELECT * FROM [bigquery-public-data:cloud_storage_geo_index.landsat_index] AS t1 '
-        landsat_filters = LandsatQueryFilters()
-        landsat_filters.bounds.sort_by(epl_imagery_pb2.ASCENDING)
-        sql_stuff = landsat_filters.get_sql()
-        self.assertIsNotNone(sql_stuff)
-        self.maxDiff = None
-        expected = "{}{}".format(expected_prefix, 'LIMIT 10')
-        self.assertMultiLineEqual(expected, sql_stuff)
-
-        query_filter = landsat_filters.get_query_filter()
-        new_landy = LandsatQueryFilters(query_filter=query_filter)
-        self.assertEqual(epl_imagery_pb2.ASCENDING, new_landy.bounds.query_params.sort_direction)
+    # def test_sort_by_bounds(self):
+    #     expected_prefix = 'SELECT * FROM [bigquery-public-data:cloud_storage_geo_index.landsat_index] AS t1 '
+    #     landsat_filters = LandsatQueryFilters()
+    #     landsat_filters.bounds.sort_by(epl_imagery_pb2.ASCENDING)
+    #     sql_stuff = landsat_filters.get_sql()
+    #     self.assertIsNotNone(sql_stuff)
+    #     self.maxDiff = None
+    #     expected = "{}{}".format(expected_prefix, 'LIMIT 10')
+    #     self.assertMultiLineEqual(expected, sql_stuff)
+    #
+    #     query_filter = landsat_filters.get_query_filter()
+    #     new_landy = LandsatQueryFilters(query_filter=query_filter)
+    #     self.assertEqual(epl_imagery_pb2.ASCENDING, new_landy.bounds.query_params.sort_direction)
 
     def test_satellite_id(self):
         landsat_filter = LandsatQueryFilters()

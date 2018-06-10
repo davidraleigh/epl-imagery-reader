@@ -48,18 +48,6 @@ class _ParamHelpers:
             return self.query_params
         return None
 
-    def sort_by(self, sort_direction: epl_imagery_pb2.SortDirection):
-        """
-        sort the returned results by this field. if you sort by multiple fields your results may not be sorted properly
-        :param sort_direction:
-        :return:
-        """
-        # TODO if you want to sort by multiple parameters, then this class will have to have a pointer to the filter
-        # class that contains it, and upon updating this class there is a call back to the container class to insert
-        # this parameter in a list
-        self.query_params.sort_direction = sort_direction
-        self.b_initialized = True
-
 
 class _QueryParam(_ParamHelpers):
     """for now can't handle multiple ranges. set range will clear out a previously designated range"""
@@ -101,6 +89,7 @@ class _QueryParam(_ParamHelpers):
             self._set_value(not_value, False)
 
     def set_range(self, start="", start_inclusive=True, end="", end_inclusive=True):
+        # TODO set range should be more than one range
         if not start and not end:
             raise ValueError
 
@@ -140,6 +129,18 @@ class _QueryParam(_ParamHelpers):
                 p_select = p_select.where(self.field < self.query_params.end)
 
         return p_select
+
+    def sort_by(self, sort_direction: epl_imagery_pb2.SortDirection):
+        """
+        sort the returned results by this field. if you sort by multiple fields your results may not be sorted properly
+        :param sort_direction:
+        :return:
+        """
+        # TODO if you want to sort by multiple parameters, then this class will have to have a pointer to the filter
+        # class that contains it, and upon updating this class there is a call back to the container class to insert
+        # this parameter in a list
+        self.query_params.sort_direction = sort_direction
+        self.b_initialized = True
 
 
 class _PairQueryParam(_ParamHelpers):
@@ -283,9 +284,6 @@ class MetadataFilters:
                                        MetadataModel.east_lon)
         self.spacecraft_id = _QueryParam(LandsatModel.spacecraft_id)
 
-        self.sort_by_fields = []
-        # self.geometry_wkb = None
-
     @staticmethod
     def param_sequence(params):
         for i, param in enumerate(params):
@@ -309,7 +307,7 @@ class MetadataFilters:
 
         return model_select
 
-    def get_sql(self, limit=10, sort_by_field: Field=None, model_select: ModelSelect=None):
+    def get_sql(self, limit=10, model_select: ModelSelect=None):
 
         select_statement = self.get_select(model_select)
 
