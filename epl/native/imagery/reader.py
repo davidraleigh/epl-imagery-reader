@@ -7,7 +7,7 @@ import shapefile
 
 # TODO replace with geometry
 import shapely.wkb
-# import shapely.wkt
+import shapely.wkt
 from shapely.geometry import shape
 # TODO replace with geometry
 
@@ -1181,7 +1181,8 @@ LIMIT 1"""
 
         return sorted(intersecting_wrs, key=itemgetter(0), reverse=True)
 
-    def get_search_area(self, data_filters: MetadataFilters=None) -> shapely.geometry:
+    @staticmethod
+    def get_search_area(data_filters: MetadataFilters=None) -> shapely.geometry:
         # TODO project inputs to WGS84 before
         search_area_polygon = None
         if data_filters.geometry_bag.geometry_binaries or data_filters.geometry_bag.geometry_strings:
