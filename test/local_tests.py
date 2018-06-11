@@ -179,7 +179,8 @@ class TestMetadata(unittest.TestCase):
         landsat_filters = LandsatQueryFilters()
         landsat_filters.collection_number.set_value("PRE")
         landsat_filters.acquired.set_exclude_value(d_start)
-        landsat_filters.geometry_bag.geometry_binaries.append(polygon.wkb)
+        landsat_filters.aoi.set_geometry(polygon.wkb)
+        # landsat_filters.geometry_bag.geometry_binaries.append(polygon.wkb)
 
         expected = landsat_filters.get_sql()
 
@@ -191,7 +192,8 @@ class TestMetadata(unittest.TestCase):
         self.maxDiff = None
         self.assertMultiLineEqual(expected, expected_2)
 
-        self.assertMultiLineEqual(polygon.wkt, loads_wkb(landsat_filters_2.geometry_bag.geometry_bag.geometry_binaries[0]).wkt)
+
+        self.assertMultiLineEqual(polygon.wkt, loads_wkb(landsat_filters_2.aoi.query_params.geometry_bag.geometry_binaries[0]).wkt)
 
     def test_bounds_spatial_reference(self):
         bounding_box = (-115.927734375, 34.52466147177172, -78.31054687499999, 44.84029065139799)
@@ -311,5 +313,17 @@ class TestMetadata(unittest.TestCase):
         area_shape = shapely.geometry.shape(area_geom['features'][0]['geometry'])
         landsat_filter = LandsatQueryFilters()
         landsat_filter.aoi.set_bounds(*area_shape.bounds)
+        # with self.assertRaises(ValueError):
+        #     landsat_filter.aoi.set_geometry(area_shape.wkb)
+
+        landsat_filter = LandsatQueryFilters()
+        landsat_filter.aoi.set_geometry(area_shape.wkb)
+        # with self.assertRaises(ValueError):
+        #     landsat_filter.aoi.set_bounds(*area_shape.bounds)
+        self.maxDiff = None
+        stuff = landsat_filter.aoi.get_geometry()
+        self.assertMultiLineEqual(area_shape.wkt, shapely.wkb.loads(stuff[0]).wkt)
+
+
 
 

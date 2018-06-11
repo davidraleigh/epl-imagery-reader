@@ -201,7 +201,11 @@ class _GeometryFilter(_BaseFilter):
                    east: float=None,
                    north: float=None,
                    spatial_reference: SpatialReferenceData=None):
-        # TODO throw exception if geometry bag set
+        # TODO maybe in the future we allow multiple areas of interest to be set for a query?
+        # if self.query_params.geometry_bag.geometry_binaries:
+        #     raise ValueError("geometry aoi already set")
+        # if self.query_params.bounds:
+        #     raise ValueError("bounds aoi already set")
 
         if not west:
             west = -180
@@ -216,6 +220,23 @@ class _GeometryFilter(_BaseFilter):
 
         self.b_initialized = True
         self.query_params.bounds.add(xmin=west, ymin=south, xmax=east, ymax=north, spatial_reference=spatial_reference)
+
+    def set_geometry(self, polygon_wkb: bytes, spatial_reference: SpatialReferenceData=None):
+        # TODO maybe in the future we allow multiple areas of interest to be set for a query?
+        # if self.query_params.geometry_bag.geometry_binaries:
+        #     raise ValueError("geometry aoi already set")
+        # if self.query_params.bounds:
+        #     raise ValueError("bounds aoi already set")
+
+        if not spatial_reference:
+            spatial_reference = SpatialReferenceData(wkid=4326)
+
+        self.b_initialized = True
+        self.query_params.geometry_bag.geometry_binaries.append(polygon_wkb)
+        self.query_params.geometry_bag.spatial_reference.CopyFrom(spatial_reference)
+
+    def get_geometry(self, index: int=0) -> (bytes, SpatialReferenceData):
+        return self.query_params.geometry_bag.geometry_binaries[index], self.query_params.geometry_bag.spatial_reference
 
     def append_select(self, p_select: ModelSelect):
         if not self.b_initialized:
@@ -241,6 +262,9 @@ class _GeometryFilter(_BaseFilter):
                 expression = expression_part
             else:
                 expression.bin_or(expression_part)
+
+        # TODO process append_select for geometries:
+        # for polygon_wkb in self.query_params.geometry_bag.geometry_binaries:
 
         return p_select.where(expression)
 
@@ -339,12 +363,12 @@ class MetadataFilters:
                     and not isinstance(item, GeometryBagData):
                 continue
 
-            query_params = None
-            if isinstance(item, GeometryBagData):
-                if item.geometry_binaries or item.geometry_strings:
-                    query_params = epl_imagery_pb2.QueryParams(geometry_bag=item)
-            else:
-                query_params = item.get_query_params()
+            # query_params = None
+            # if isinstance(item, GeometryBagData):
+            #     if item.geometry_binaries or item.geometry_strings:
+            #         query_params = epl_imagery_pb2.QueryParams(geometry_bag=item)
+            # else:
+            query_params = item.get_query_params()
 
             if query_params:
                 query_filter.query_filter_map[key].CopyFrom(query_params)
@@ -388,7 +412,7 @@ class LandsatQueryFilters(MetadataFilters):
 
         self.total_size = _SingleFieldFilter(LandsatModel.total_size)
 
-        self.geometry_bag = GeometryBagData()
+        # self.geometry_bag = GeometryBagData()
 
         # TODO if bounds and geometry bag are set that means that geometry bag was set
         if query_filter:
@@ -404,11 +428,11 @@ class LandsatQueryFilters(MetadataFilters):
                     self.__dict__[key] = _PairFieldFilter(LandsatModel.wrs_path,
                                                           LandsatModel.wrs_row,
                                                           query_params=query_param)
-                elif key != "geometry_bag":
+                else:
                     self.__dict__[key] = _SingleFieldFilter(field=LandsatModel.__dict__[query_param.param_name].field,
                                                             query_params=query_param)
-                else:
-                    self.geometry_bag = query_param
+                # else:
+                #     self.geometry_bag = query_param
 
 
 

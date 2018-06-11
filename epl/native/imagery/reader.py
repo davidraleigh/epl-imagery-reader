@@ -1188,18 +1188,12 @@ LIMIT 1"""
     def get_search_area(data_filters: MetadataFilters=None) -> shapely.geometry:
         # TODO project inputs to WGS84 before
         search_area_polygon = None
-        if data_filters.geometry_bag.geometry_binaries or data_filters.geometry_bag.geometry_strings:
+        if data_filters.aoi.query_params.geometry_bag.geometry_binaries:
             search_area_polygon = shapely.geometry.Polygon()
 
             # TODO, this right here is an example of why there should be something beyond geometry_binaries and the use of an enum.
-            for polygon_wkb in data_filters.geometry_bag.geometry_binaries:
+            for polygon_wkb in data_filters.aoi.query_params.geometry_bag.geometry_binaries:
                 temp_polygon = shapely.wkb.loads(polygon_wkb)
-                bounding_box = temp_polygon.bounds
-                data_filters.aoi.set_bounds(*bounding_box)
-                search_area_polygon = search_area_polygon.union(temp_polygon)
-
-            for polygon_wkt in data_filters.geometry_bag.geometry_strings:
-                temp_polygon = shapely.wkt.loads(polygon_wkt)
                 bounding_box = temp_polygon.bounds
                 data_filters.aoi.set_bounds(*bounding_box)
                 search_area_polygon = search_area_polygon.union(temp_polygon)
@@ -1323,8 +1317,9 @@ LIMIT 1"""
                            data_filters: LandsatQueryFilters,
                            satellite_id=None):
         polygon_wkbs = []
-        if data_filters.geometry_bag.geometry_binaries:
-            polygon_wkbs = data_filters.geometry_bag.geometry_binaries
+
+        if data_filters.aoi.geometry_bag.geometry_binaries:
+            polygon_wkbs = data_filters.aoi.geometry_bag.geometry_binaries
         elif data_filters.aoi:
             for bounding_box in data_filters.aoi.query_params.bounds:
                 polygon_wkbs.append((shapely.geometry.box(bounding_box.xmin,

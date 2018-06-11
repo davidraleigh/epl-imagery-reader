@@ -45,7 +45,8 @@ class TestMetaDataSQL(unittest.TestCase):
         landsat_filters = LandsatQueryFilters()
         landsat_filters.collection_number.set_value("PRE")
         landsat_filters.acquired.set_range(d_start, True, d_end, True)
-        landsat_filters.geometry_bag.geometry_binaries.append(taos_shape.wkb)
+        landsat_filters.aoi.set_geometry(taos_shape.wkb)
+        # landsat_filters.geometry_bag.geometry_binaries.append(taos_shape.wkb)
 
         metadata_rows = metadata_service.search(
             SpacecraftID.LANDSAT_8,
@@ -323,7 +324,8 @@ class TestMetaDataSQL(unittest.TestCase):
         islands_shape = loads(wkt)
         self.assertFalse(islands_shape.exterior.is_ccw)
         query_filter = LandsatQueryFilters()
-        query_filter.geometry_bag.geometry_binaries.append(islands_shape.wkb)
+        query_filter.aoi.set_geometry(islands_shape.wkb)
+        # query_filter.geometry_bag.geometry_binaries.append(islands_shape.wkb)
         metadata_service = MetadataService()
         rows = metadata_service.search(
             SpacecraftID.LANDSAT_8,
@@ -674,7 +676,7 @@ class TestLandsat(unittest.TestCase):
                                             limit=10,
                                             data_filters=landsat_filter)
         rows = list(rows)
-        self.assertEqual(len(rows), 0)
+        self.assertEqual(0, len(rows))
 
         d_end = date(2016, 8, 28)
         landsat_filter = LandsatQueryFilters()
@@ -782,7 +784,8 @@ class TestLandsat(unittest.TestCase):
         landsat_filters = LandsatQueryFilters()
         landsat_filters.collection_number.set_value("PRE")
         landsat_filters.acquired.set_range(d_start, True, d_end, True)
-        landsat_filters.geometry_bag.geometry_binaries.append(self.taos_shape.wkb)
+        landsat_filters.aoi.set_geometry(self.taos_shape.wkb)
+        # landsat_filters.geometry_bag.geometry_binaries.append(self.taos_shape.wkb)
         metadata_rows = self.metadata_service.search(
             SpacecraftID.LANDSAT_8,
             limit=10,
