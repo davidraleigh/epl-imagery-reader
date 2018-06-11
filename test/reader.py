@@ -120,7 +120,7 @@ class TestMetaDataSQL(unittest.TestCase):
         landsat_filter = LandsatQueryFilters()
         landsat_filter.acquired.set_range(end=d, end_inclusive=True)
         landsat_filter.acquired.sort_by(epl_imagery_pb2.DESCENDING)
-        landsat_filter.bounds.set_bounds(*area_shape.bounds)
+        landsat_filter.aoi.set_bounds(*area_shape.bounds)
         rows = metadata_service.search(SpacecraftID.LANDSAT_7, data_filters=landsat_filter)
         rows = list(rows)
         self.assertEqual(len(rows), 10)
@@ -170,7 +170,7 @@ class TestMetaDataSQL(unittest.TestCase):
         bounding_box = (-115.927734375, 34.52466147177172, -78.31054687499999, 44.84029065139799)
         landsat_filter = LandsatQueryFilters()
         landsat_filter.acquired.set_range(d_start, True, d_end, True)
-        landsat_filter.bounds.set_bounds(*bounding_box)
+        landsat_filter.aoi.set_bounds(*bounding_box)
         metadata_rows = metadata_service.search(SpacecraftID.LANDSAT_8,
                                                 data_filters=landsat_filter)
 
@@ -200,7 +200,7 @@ class TestMetaDataSQL(unittest.TestCase):
         d_end = date(2016, 6, 24)
         bounding_box = (-115.927734375, 34.52466147177172, -78.31054687499999, 44.84029065139799)
         landsat_filters.acquired.set_range(d_start, True, d_end, True)
-        landsat_filters.bounds.set_bounds(*bounding_box)
+        landsat_filters.aoi.set_bounds(*bounding_box)
         rows = metadata_service.search(
             SpacecraftID.LANDSAT_8,
             data_filters=landsat_filters)
@@ -238,7 +238,7 @@ class TestMetaDataSQL(unittest.TestCase):
         landsat_filter = LandsatQueryFilters()
         landsat_filter.collection_number.set_value("PRE")
         landsat_filter.acquired.set_range(d_start, True, d_end, True)
-        landsat_filter.bounds.set_bounds(*boulder_shape.bounds)
+        landsat_filter.aoi.set_bounds(*boulder_shape.bounds)
 
         # search the satellite metadata for images of Taos withing the given date range
         metadata_service = MetadataService()
@@ -309,7 +309,7 @@ class TestMetaDataSQL(unittest.TestCase):
         wkt = "POLYGON((-172 53, 175 53, 175 48, -172 48, -172 53))"
         islands_shape = loads(wkt)
         metadata_service = MetadataService()
-        data = metadata_service.get_wrs([islands_shape.wkb])
+        data = metadata_service.get_wrs([islands_shape.wkb], search_area_unioned=islands_shape)
         self.assertIsNotNone(data)
         self.assertGreater(len(data), 0)
         prev_area = 10000
@@ -348,13 +348,44 @@ class TestMetaDataSQL(unittest.TestCase):
         belgium_filter.collection_number.set_value("PRE")
         belgium_filter.cloud_cover.set_range(end=15, end_inclusive=False)
         belgium_filter.acquired.set_range(start=d_start, end=d_end)
-        belgium_filter.bounds.set_bounds(*area_shape.bounds)
+        belgium_filter.aoi.set_bounds(*area_shape.bounds)
         # search the satellite metadata for images of Belgium withing the given date range
         metadata_service = MetadataService()
         rows = metadata_service.search(
             SpacecraftID.LANDSAT_8,
             limit=20,
             data_filters=belgium_filter)
+
+    # def test_search_group(self):
+    #     import shapely.wkb
+    #     r = requests.get("https://raw.githubusercontent.com/johan/world.geo.json/master/countries/BEL.geo.json")
+    #
+    #     area_geom = r.json()
+    #     area_shape = shapely.geometry.shape(area_geom['features'][0]['geometry'])
+    #
+    #     d_start = date(2017, 1, 1)  # 2017-03-12
+    #     d_end = date(2017, 5, 19)  # epl api is inclusive
+    #
+    #     belgium_filter = LandsatQueryFilters()
+    #
+    #     # PRE is a collection type that specifies certain QA standards
+    #     belgium_filter.collection_number.set_value("PRE")
+    #     belgium_filter.cloud_cover.set_range(end=15, end_inclusive=False)
+    #     belgium_filter.acquired.set_range(start=d_start, end=d_end)
+    #     belgium_filter.aoi.set_bounds(*area_shape.bounds)
+    #     # search the satellite metadata for images of Belgium withing the given date range
+    #     metadata_service = MetadataService()
+    #     metadata_gen = metadata_service.search_layer_group(data_filters=belgium_filter, satellite_id=SpacecraftID.LANDSAT_8)
+    #     max_percent = 100
+    #     for metadata in metadata_gen:
+    #         wrs_polygon = metadata.get_wrs_polygon()
+    #         wrs_shape = shapely.wkb.loads(wrs_polygon)
+    #         percent = wrs_shape.intersection(area_shape).area / area_shape.area
+    #         self.assertLessEqual(percent, max_percent)
+    #         max_percent = percent
+
+
+
 
 
 class TestMetadata(unittest.TestCase):
@@ -590,7 +621,7 @@ class TestLandsat(unittest.TestCase):
         landsat_filters = LandsatQueryFilters()
         landsat_filters.collection_number.set_value("PRE")
         landsat_filters.acquired.set_range(d_start, True, d_end, True)
-        landsat_filters.bounds.set_bounds(*self.taos_shape.bounds)
+        landsat_filters.aoi.set_bounds(*self.taos_shape.bounds)
         metadata_rows = self.metadata_service.search(
             SpacecraftID.LANDSAT_8,
             limit=10,
@@ -614,7 +645,7 @@ class TestLandsat(unittest.TestCase):
         landsat_filter = LandsatQueryFilters()
         landsat_filter.collection_number.set_exclude_value("PRE")
         landsat_filter.acquired.set_range(d_start, True, d_end, True)
-        landsat_filter.bounds.set_bounds(*bounding_box)
+        landsat_filter.aoi.set_bounds(*bounding_box)
         rows = self.metadata_service.search(SpacecraftID.LANDSAT_8,
                                             limit=1,
                                             data_filters=landsat_filter)
@@ -638,7 +669,7 @@ class TestLandsat(unittest.TestCase):
         landsat_filter.collection_number.set_value("PRE")
         landsat_filter.cloud_cover.set_range(end=5, end_inclusive=True) #landsat_filter.cloud_cover.set_range_end(5, True)
         landsat_filter.acquired.set_range(d_start, True, d_end, True)
-        landsat_filter.bounds.set_bounds(*utah_box)
+        landsat_filter.aoi.set_bounds(*utah_box)
         rows = self.metadata_service.search(SpacecraftID.LANDSAT_8,
                                             limit=10,
                                             data_filters=landsat_filter)
@@ -651,7 +682,7 @@ class TestLandsat(unittest.TestCase):
         landsat_filter.cloud_cover.set_range(end=5, end_inclusive=False) #landsat_filter.cloud_cover.set_range_end(5, False)
         landsat_filter.acquired.set_range(end=d_end, end_inclusive=True) #landsat_filter.acquired.set_range_end(d_end, True)
         landsat_filter.acquired.sort_by(epl_imagery_pb2.DESCENDING)
-        landsat_filter.bounds.set_bounds(*utah_box)
+        landsat_filter.aoi.set_bounds(*utah_box)
         rows = self.metadata_service.search(SpacecraftID.LANDSAT_8,
                                             limit=10,
                                             data_filters=landsat_filter)

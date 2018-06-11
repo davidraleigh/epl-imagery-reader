@@ -1165,8 +1165,11 @@ LIMIT 1"""
 
         return results
 
-    def get_wrs(self, polygon_wkbs: List[bytes]):
+    def get_wrs(self, polygon_wkbs: List[bytes], search_area_unioned: shapely.geometry):
         polygons = MetadataService.split_all_by_dateline(polygon_wkbs)
+
+        if not search_area_unioned:
+            raise ValueError
 
         intersecting_wrs = []
         for poly in polygons:
@@ -1176,7 +1179,7 @@ LIMIT 1"""
                 if wrs_geometry.intersects(poly):
                     # calculate area overlap and save in tuple
                     # TODO this is not geodetic, so there will be errors as latitudes move from zero
-                    intersecting_area = wrs_geometry.intersection(poly).area
+                    intersecting_area = wrs_geometry.intersection(search_area_unioned).area
                     intersecting_wrs.append((intersecting_area, *wrs_pair))
 
         return sorted(intersecting_wrs, key=itemgetter(0), reverse=True)
@@ -1192,18 +1195,18 @@ LIMIT 1"""
             for polygon_wkb in data_filters.geometry_bag.geometry_binaries:
                 temp_polygon = shapely.wkb.loads(polygon_wkb)
                 bounding_box = temp_polygon.bounds
-                data_filters.bounds.set_bounds(*bounding_box)
+                data_filters.aoi.set_bounds(*bounding_box)
                 search_area_polygon = search_area_polygon.union(temp_polygon)
 
             for polygon_wkt in data_filters.geometry_bag.geometry_strings:
                 temp_polygon = shapely.wkt.loads(polygon_wkt)
                 bounding_box = temp_polygon.bounds
-                data_filters.bounds.set_bounds(*bounding_box)
+                data_filters.aoi.set_bounds(*bounding_box)
                 search_area_polygon = search_area_polygon.union(temp_polygon)
 
-        elif data_filters.bounds.b_initialized:
+        elif data_filters.aoi.b_initialized:
             search_area_polygon = shapely.geometry.Polygon()
-            for bounding_box in data_filters.bounds.query_params.bounds:
+            for bounding_box in data_filters.aoi.query_params.bounds:
                 search_area_polygon = search_area_polygon.union(
                     shapely.geometry.box(
                         bounding_box.xmin,
@@ -1296,10 +1299,6 @@ LIMIT 1"""
                 wrs_wkb = self.m_wrs_geometry.get_wrs_geometry(wrs_path=metadata.wrs_path, wrs_row=metadata.wrs_row)
                 wrs_shape = shapely.wkb.loads(wrs_wkb)
                 if wrs_shape.intersects(search_area_polygon):
-                    # wrs_poly_intersection = wrs_shape.intersection(polygon_differenced)
-                    # # buffer by tolerance
-                    # wrs_poly_intersection = wrs_poly_intersection.buffer(0.00000008)
-                    # search_area_polygon = search_area_polygon.difference(wrs_poly_intersection)
                     exclude_scene_id.append(metadata.scene_id)
                     exclude_product_id.append(metadata.product_id)
                     limit_found += 1
@@ -1322,25 +1321,48 @@ LIMIT 1"""
 
     def search_layer_group(self,
                            data_filters: LandsatQueryFilters,
-                           satellite_id=None,
-                           group_count=1):
-
+                           satellite_id=None):
         polygon_wkbs = []
         if data_filters.geometry_bag.geometry_binaries:
             polygon_wkbs = data_filters.geometry_bag.geometry_binaries
-        else:
-            for bounding_box in data_filters.bounds.query_params.bounds:
-                polygon_wkbs.append(shapely.geometry.box(bounding_box.xmin,
+        elif data_filters.aoi:
+            for bounding_box in data_filters.aoi.query_params.bounds:
+                polygon_wkbs.append((shapely.geometry.box(bounding_box.xmin,
                                                          bounding_box.ymin,
                                                          bounding_box.xmax,
-                                                         bounding_box.ymax).envelope)
+                                                         bounding_box.ymax).envelope).wkb)
+        else:
+            raise ValueError("must have a search area to create a layer group")
 
-        wrs_pairs = self.get_wrs(polygon_wkbs)
-        for wrs_pair in wrs_pairs:
+        search_area_polygon = self.get_search_area(data_filters=data_filters)
+        # search_area_polygon = shapely.wkb.loads(search_area_polygon_wkbs)
+
+        data_filters_copy = copy.deepcopy(data_filters)
+        wrs_pairs = self.get_wrs(polygon_wkbs, search_area_polygon)
+
+        for index in range(0, len(wrs_pairs)):
+            wrs_pair = wrs_pairs[index]
+            wrs_wkb = self.m_wrs_geometry.get_wrs_geometry(wrs_path=wrs_pair[2], wrs_row=wrs_pair[1])
+            # perpare for next row
+            wrs_shape = shapely.wkb.loads(wrs_wkb)
+            wrs_poly_intersection = wrs_shape.intersection(search_area_polygon)
+
             # TODO get consistent about wrs_pair order
-            data_filters.wrs_path_row.set_pair(wrs_pair[2], wrs_pair[1])
+            data_filters_copy.wrs_path_row.set_pair(wrs_pair[2], wrs_pair[1])
+            for metadata in self.search(satellite_id=satellite_id, limit=1, data_filters=data_filters_copy):
+                yield metadata
+                # buffer by wgs-84 tolerance
+                wrs_poly_intersection = wrs_poly_intersection.buffer(0.00000008)
+                search_area_polygon = search_area_polygon.difference(wrs_poly_intersection)
 
-        metadata_generator = self.search(satellite_id=satellite_id, limit=len(wrs_pairs), data_filters=data_filters)
+            # reset the query_params (or we could do another deep copy, but that seems bad
+            data_filters_copy.wrs_path_row.query_params.values.pop()
+            data_filters_copy.wrs_path_row.query_params.values.pop()
+
+            wrs_pairs = self.get_wrs(polygon_wkbs, search_area_polygon)
+
+
+
         # Since this probably isn't a huge set of data we'll get all data to service and iterate
 
 

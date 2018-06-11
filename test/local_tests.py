@@ -1,4 +1,6 @@
+import requests
 import unittest
+
 from shapely.geometry import box
 from shapely.wkt import loads as loads_wkt
 from shapely.wkb import loads as loads_wkb
@@ -120,7 +122,7 @@ class TestMetadata(unittest.TestCase):
         landsat_filter = LandsatQueryFilters()
         landsat_filter.collection_number.set_exclude_value("PRE")
         landsat_filter.acquired.set_range(d_start, True, d_end, True)
-        landsat_filter.bounds.set_bounds(*bounding_box)
+        landsat_filter.aoi.set_bounds(*bounding_box)
         landsat_filter.acquired.sort_by(epl_imagery_pb2.DESCENDING)
         result = landsat_filter.get_sql()
         expected = "{}{}".format(expected_prefix, '((((t1.sensing_time >= "2017-06-24T00:00:00") AND (t1.sensing_time <= "2017-09-24T23:59:59.999999")) AND ((((t1.west_lon >= -115.927734375) & (t1.west_lon <= -78.31054687499999)) | ((t1.west_lon <= -115.927734375) & (t1.east_lon >= -115.927734375))) & (((t1.south_lat <= 34.52466147177172) & (t1.north_lat >= 34.52466147177172)) | ((t1.south_lat > 34.52466147177172) & (t1.south_lat <= 44.84029065139799))))) AND NOT (t1.collection_number IN ("PRE"))) ORDER BY t1.sensing_time DESC LIMIT 10')
@@ -159,7 +161,7 @@ class TestMetadata(unittest.TestCase):
         landsat_filters = LandsatQueryFilters()
         landsat_filters.collection_number.set_value("PRE")
         landsat_filters.acquired.set_exclude_value(d_start)
-        landsat_filters.bounds.set_bounds(*bounding_box)
+        landsat_filters.aoi.set_bounds(*bounding_box)
         expected = landsat_filters.get_sql()
 
         query_filter = landsat_filters.get_query_filter()
@@ -197,7 +199,7 @@ class TestMetadata(unittest.TestCase):
         landsat_filters = LandsatQueryFilters()
         landsat_filters.collection_number.set_value("PRE")
         landsat_filters.acquired.set_exclude_value(d_start)
-        landsat_filters.bounds.set_bounds(*bounding_box, spatial_reference=SpatialReferenceData(wkid=4326))
+        landsat_filters.aoi.set_bounds(*bounding_box, spatial_reference=SpatialReferenceData(wkid=4326))
         expected = landsat_filters.get_sql()
 
         query_filter = landsat_filters.get_query_filter()
@@ -208,13 +210,13 @@ class TestMetadata(unittest.TestCase):
         self.maxDiff = None
         self.assertMultiLineEqual(expected, expected_2)
 
-        self.assertEqual(4326, landsat_filters_2.bounds.query_params.bounds[0].spatial_reference.wkid)
+        self.assertEqual(4326, landsat_filters_2.aoi.query_params.bounds[0].spatial_reference.wkid)
 
     def test_dateline(self):
         bounding_box = (-115, 34, -118, 44)
         landsat_filters = LandsatQueryFilters()
         landsat_filters.collection_number.set_value("PRE")
-        landsat_filters.bounds.set_bounds(*bounding_box)
+        landsat_filters.aoi.set_bounds(*bounding_box)
         expected = landsat_filters.get_sql()
 
         query_filter = landsat_filters.get_query_filter()
@@ -300,4 +302,14 @@ class TestMetadata(unittest.TestCase):
         landsat_filter.spacecraft_id.set_value(SpacecraftID.LANDSAT_4.name)
         sql_stuff = landsat_filter.get_sql()
         self.assertMultiLineEqual(expected, sql_stuff)
+
+    def test_geometry_vs_bounds(self):
+        import shapely.wkb
+        r = requests.get("https://raw.githubusercontent.com/johan/world.geo.json/master/countries/BEL.geo.json")
+
+        area_geom = r.json()
+        area_shape = shapely.geometry.shape(area_geom['features'][0]['geometry'])
+        landsat_filter = LandsatQueryFilters()
+        landsat_filter.aoi.set_bounds(*area_shape.bounds)
+
 
