@@ -1286,7 +1286,7 @@ LIMIT 1"""
             for row in query.rows:
                 metadata = Metadata(row, base_mount_path)
 
-                if search_area_polygon is None: # or search_area_polygon.is_empty:
+                if search_area_polygon is None or search_area_polygon.is_empty:
                     exclude_scene_id.append(metadata.scene_id)
                     exclude_product_id.append(metadata.product_id)
                     limit_found += 1
@@ -1320,13 +1320,28 @@ LIMIT 1"""
                         data_filters.product_id.set_exclude_value(product_id)
                 query_string = data_filters.get_sql(limit=limit)
 
-
     def search_layer_group(self,
-                           data_filters: MetadataFilters,
+                           data_filters: LandsatQueryFilters,
                            satellite_id=None,
                            group_count=1):
 
-        return None
+        polygon_wkbs = []
+        if data_filters.geometry_bag.geometry_binaries:
+            polygon_wkbs = data_filters.geometry_bag.geometry_binaries
+        else:
+            for bounding_box in data_filters.bounds.query_params.bounds:
+                polygon_wkbs.append(shapely.geometry.box(bounding_box.xmin,
+                                                         bounding_box.ymin,
+                                                         bounding_box.xmax,
+                                                         bounding_box.ymax).envelope)
+
+        wrs_pairs = self.get_wrs(polygon_wkbs)
+        for wrs_pair in wrs_pairs:
+            # TODO get consistent about wrs_pair order
+            data_filters.wrs_path_row.set_pair(wrs_pair[2], wrs_pair[1])
+
+        metadata_generator = self.search(satellite_id=satellite_id, limit=len(wrs_pairs), data_filters=data_filters)
+        # Since this probably isn't a huge set of data we'll get all data to service and iterate
 
 
 
