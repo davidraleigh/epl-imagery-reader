@@ -21,15 +21,15 @@ class _BaseFilter:
             self.query_params = epl_imagery_pb2.QueryParams()
 
     @staticmethod
-    def _get_date_string(value, time_part: time=None):
+    def _prep_data(value, time_part: time=None):
         if not value:
             return ""
         if type(value) is date and time_part:
             value = datetime.combine(value, time_part)
-        elif type(value) is not datetime:
-            raise ValueError
+        if type(value) is datetime:
+            return '{}'.format(value.isoformat())
 
-        return '{}'.format(value.isoformat())
+        return str(value)
 
     def _set_value(self, value, b_equals):
         self.b_initialized = True
@@ -58,51 +58,97 @@ class _SingleFieldFilter(_BaseFilter):
             return
 
         self.query_params.param_name = field.name
-        # self.query_params.parent_param_name =
-
-        self.query_params.start = ""
-        self.query_params.end = ""
-        self.query_params.start_inclusive = True
-        self.query_params.end_inclusive = True
 
     def set_value(self, value):
         if type(value) is date:
-            self.set_range(_SingleFieldFilter._get_date_string(datetime.combine(value, datetime.min.time())),
-                           True,
-                           _SingleFieldFilter._get_date_string(datetime.combine(value, datetime.max.time())),
-                           True)
+            self.set_range(start=_BaseFilter._prep_data(datetime.combine(value, datetime.min.time())),
+                           start_inclusive=True,
+                           end=_BaseFilter._prep_data(datetime.combine(value, datetime.max.time())),
+                           end_inclusive=True)
         elif type(value) is datetime:
             # TODO is this string conversion a bigquery landsat thing?
-            self.set_value(_SingleFieldFilter._get_date_string(value))
+            self.set_value(_SingleFieldFilter._prep_data(value))
         else:
             self._set_value(value, True)
 
-    def set_exclude_value(self, not_value):
-        if type(not_value) is date:
-            self.set_range(_SingleFieldFilter._get_date_string(datetime.combine(not_value, datetime.max.time())),
-                           False,
-                           _SingleFieldFilter._get_date_string(datetime.combine(not_value, datetime.min.time())),
-                           False)
-        elif type(not_value) is datetime:
-            self.set_exclude_value(_SingleFieldFilter._get_date_string(not_value))
+    def set_exclude_value(self, exclude_value):
+        if type(exclude_value) is date:
+            self.set_exclude_range(start=_BaseFilter._prep_data(datetime.combine(exclude_value, datetime.min.time())),
+                                   start_inclusive=True,
+                                   end=_BaseFilter._prep_data(datetime.combine(exclude_value, datetime.max.time())),
+                                   end_inclusive=True)
+        elif type(exclude_value) is datetime:
+            self.set_exclude_value(_SingleFieldFilter._prep_data(exclude_value))
         else:
-            self._set_value(not_value, False)
+            self._set_value(exclude_value, False)
 
     def set_range(self, start="", start_inclusive=True, end="", end_inclusive=True):
-        # TODO set range should be more than one range
         if not start and not end:
             raise ValueError
 
+        if start and end and start > end:
+            raise ValueError("the start of a range must be larger than the end")
+
         self.b_initialized = True
 
-        if isinstance(start, date) or isinstance(start, datetime) or isinstance(end, date) or isinstance(end, datetime):
-            self.set_range(_SingleFieldFilter._get_date_string(start, datetime.min.time()), start_inclusive,
-                           _SingleFieldFilter._get_date_string(end, datetime.max.time()), end_inclusive)
-        else:
-            self.query_params.start = str(start)
-            self.query_params.end = str(end)
-            self.query_params.start_inclusive = start_inclusive
-            self.query_params.end_inclusive = end_inclusive
+        self.query_params.include_ranges.add(start=_BaseFilter._prep_data(start, datetime.min.time()),
+                                             start_inclusive=start_inclusive,
+                                             end=_BaseFilter._prep_data(end, datetime.max.time()),
+                                             end_inclusive=end_inclusive)
+
+    def set_exclude_range(self, start="", start_inclusive=True, end="", end_inclusive=True):
+        if not start and not end:
+            raise ValueError
+
+        if start and end and start > end:
+            raise ValueError("the start of a range must be larger than the end")
+
+        self.b_initialized = True
+
+        self.query_params.exclude_ranges.add(start=_BaseFilter._prep_data(start, datetime.min.time()),
+                                             start_inclusive=start_inclusive,
+                                             end=_BaseFilter._prep_data(end, datetime.max.time()),
+                                             end_inclusive=end_inclusive)
+
+    def _append_ranges(self, ranges, b_exclude):
+        expression = None
+        for include_range in ranges:
+            start = include_range.start
+            end = include_range.end
+            start_inclusive = include_range.start_inclusive
+            end_inclusive = include_range.end_inclusive
+
+            start_expression = None
+            if start and start_inclusive:
+                start_expression = (self.field >= start)
+            elif start:
+                start_expression = (self.field > start)
+
+            end_expression = None
+            if end and end_inclusive:
+                end_expression = (self.field <= end)
+            elif end:
+                end_expression = (self.field < end)
+
+            expression_part = None
+            if start_expression and end_expression:
+                expression_part = (start_expression & end_expression)
+            elif start_expression:
+                expression_part = start_expression
+            elif end_expression:
+                expression_part = end_expression
+
+            if b_exclude:
+                expression_part = ~expression_part
+
+            if not expression:
+                expression = expression_part
+            elif b_exclude:
+                expression = (expression & expression_part)
+            else:
+                expression = (expression | expression_part)
+
+        return expression
 
     def append_select(self, p_select: ModelSelect):
         if self.query_params.sort_direction == epl_imagery_pb2.ASCENDING:
@@ -117,16 +163,10 @@ class _SingleFieldFilter(_BaseFilter):
             if self.query_params.excluded_values:
                 p_select = p_select.where(~(self.field << list(self.query_params.excluded_values)))
 
-        if self.query_params.start:
-            if self.query_params.start_inclusive:
-                p_select = p_select.where(self.field >= self.query_params.start)
-            else:
-                p_select = p_select.where(self.field > self.query_params.start)
-        if self.query_params.end:
-            if self.query_params.end_inclusive:
-                p_select = p_select.where(self.field <= self.query_params.end)
-            else:
-                p_select = p_select.where(self.field < self.query_params.end)
+        if self.query_params.include_ranges:
+            p_select = p_select.where(self._append_ranges(self.query_params.include_ranges, False))
+        if self.query_params.exclude_ranges:
+            p_select = p_select.where(self._append_ranges(self.query_params.exclude_ranges, True))
 
         return p_select
 
@@ -243,6 +283,7 @@ class _GeometryFilter(_BaseFilter):
             return p_select
 
         expression = None
+        # TODO, this needs to be tested with dateline
         for bounds in self.query_params.bounds:
             xmin = bounds.xmin
             ymin = bounds.ymin

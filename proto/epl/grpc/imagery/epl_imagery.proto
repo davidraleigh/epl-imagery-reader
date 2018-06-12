@@ -167,23 +167,27 @@ enum SortDirection {
     ASCENDING = 2;
 }
 
+message RangeInfo {
+    string start = 1;
+    bool start_inclusive = 2;
+    string end = 3;
+    bool end_inclusive = 4;
+}
+
 message QueryParams {
     string param_name = 1;
     string parent_param_name = 2;
     repeated string values = 3;
     repeated string excluded_values = 4;
 
-    string start = 5;
-    bool start_inclusive = 6;
-    string end = 7;
-    bool end_inclusive = 8;
+    repeated RangeInfo include_ranges = 5;
+    repeated RangeInfo exclude_ranges = 6;
 
     repeated epl.grpc.geometry.EnvelopeData bounds = 9;
     epl.grpc.geometry.GeometryBagData geometry_bag = 10;
     epl.grpc.geometry.OperatorRequest operator_request = 11;
 
     SortDirection sort_direction = 12;
-
 }
 
 message BigFileResult {

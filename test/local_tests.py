@@ -37,18 +37,20 @@ class TestMetadata(unittest.TestCase):
         lqf.cloud_cover.set_value(70)
         lqf.east_lon.sort_by(epl_imagery_pb2.DESCENDING)
 
-        lqf.cloud_cover.set_range(start=99, end_inclusive=False, end=42)
+        lqf.cloud_cover.set_range(end=99, end_inclusive=False, start=42)
         sql = lqf.get_sql()
-        expected = "{}{}".format(expected_prefix, "((((t1.cloud_cover IN (64.0, 68.0, 70.0)) AND NOT (t1.cloud_cover IN (44.0, 48.0, 50.0))) AND (t1.cloud_cover >= 99.0)) AND (t1.cloud_cover < 42.0)) ORDER BY t1.east_lon DESC LIMIT 10")
+        expected = "{}{}".format(expected_prefix, "(((t1.cloud_cover IN (64.0, 68.0, 70.0)) AND NOT (t1.cloud_cover IN (44.0, 48.0, 50.0))) AND ((t1.cloud_cover >= 42.0) AND (t1.cloud_cover < 99.0))) ORDER BY t1.east_lon DESC LIMIT 10")
         self.maxDiff = None
         self.assertMultiLineEqual(expected, sql)
 
     def test_or_and(self):
         lqf = LandsatQueryFilters()
         lqf.cloud_cover.set_exclude_value(44)
-        lqf.cloud_cover.set_range(start=99, end_inclusive=False, end=42)
+        lqf.cloud_cover.set_range(end=42, end_inclusive=True)
+        lqf.cloud_cover.set_range(start=46, start_inclusive=True)
+
         sql = lqf.get_sql()
-        expected = "{}{}".format(expected_prefix, "((NOT (t1.cloud_cover IN (44.0)) AND (t1.cloud_cover >= 99.0)) AND (t1.cloud_cover < 42.0)) LIMIT 10")
+        expected = "{}{}".format(expected_prefix, "(NOT (t1.cloud_cover IN (44.0)) AND ((t1.cloud_cover <= 42.0) OR (t1.cloud_cover >= 46.0))) LIMIT 10")
         self.maxDiff = None
         self.assertMultiLineEqual(expected, sql)
 
@@ -82,15 +84,17 @@ class TestMetadata(unittest.TestCase):
         self.maxDiff = None
         self.assertMultiLineEqual(expected, result)
 
+        d_start = date(2017, 3, 24)  # 2017-03-12
         landsat_filters.acquired.set_range(start=d_start, start_inclusive=True)
         result = landsat_filters.get_sql()
-        expected = "{}{}".format(expected_prefix, '((t1.sensing_time >= "2017-03-12T00:00:00") AND (t1.collection_number IN ("PRE"))) LIMIT 10')
+        expected = "{}{}".format(expected_prefix, '((((t1.sensing_time >= "2017-03-12T00:00:00") AND (t1.sensing_time <= "2017-03-19T23:59:59.999999")) OR (t1.sensing_time >= "2017-03-24T00:00:00")) AND (t1.collection_number IN ("PRE"))) LIMIT 10')
         self.maxDiff = None
         self.assertMultiLineEqual(expected, result)
 
+        d_end = date(2017, 3, 9)
         landsat_filters.acquired.set_range(end=d_end, end_inclusive=True)
         result = landsat_filters.get_sql()
-        expected = "{}{}".format(expected_prefix, '((t1.sensing_time <= "2017-03-19T23:59:59.999999") AND (t1.collection_number IN ("PRE"))) LIMIT 10')
+        expected = "{}{}".format(expected_prefix, '(((((t1.sensing_time >= "2017-03-12T00:00:00") AND (t1.sensing_time <= "2017-03-19T23:59:59.999999")) OR (t1.sensing_time >= "2017-03-24T00:00:00")) OR (t1.sensing_time <= "2017-03-09T23:59:59.999999")) AND (t1.collection_number IN ("PRE"))) LIMIT 10')
         self.maxDiff = None
         self.assertMultiLineEqual(expected, result)
 
@@ -105,12 +109,25 @@ class TestMetadata(unittest.TestCase):
         self.assertMultiLineEqual(expected, result)
 
     def test_dates_3(self):
+        # TODO include in metadata tests and check dates (should only be the 10, 11 and 13th - 17th
         d_start = date(2017, 3, 12)  # 2017-03-12
         landsat_filters = LandsatQueryFilters()
         landsat_filters.collection_number.set_value("PRE")
+        landsat_filters.acquired.set_range(start=date(2017, 3, 10), end=date(2017, 3, 17))
         landsat_filters.acquired.set_exclude_value(d_start)
         result = landsat_filters.get_sql()
-        expected = "{}{}".format(expected_prefix, '(((t1.sensing_time > "2017-03-12T23:59:59.999999") AND (t1.sensing_time < "2017-03-12T00:00:00")) AND (t1.collection_number IN ("PRE"))) LIMIT 10')
+        expected = "{}{}".format(expected_prefix, '((((t1.sensing_time >= "2017-03-10T00:00:00") AND (t1.sensing_time <= "2017-03-17T23:59:59.999999")) AND NOT ((t1.sensing_time >= "2017-03-12T00:00:00") AND (t1.sensing_time <= "2017-03-12T23:59:59.999999"))) AND (t1.collection_number IN ("PRE"))) LIMIT 10')
+        self.maxDiff = None
+        self.assertMultiLineEqual(expected, result)
+
+    def test_dates_4(self):
+        # TODO include in metadata tests and check dates (should only be the 10th and the 17th
+        landsat_filters = LandsatQueryFilters()
+        landsat_filters.collection_number.set_value("PRE")
+        landsat_filters.acquired.set_range(start=date(2017, 3, 10), end=date(2017, 3, 17))
+        landsat_filters.acquired.set_exclude_range(start=date(2017, 3, 11), end=date(2017, 3, 16))
+        result = landsat_filters.get_sql()
+        expected = "{}{}".format(expected_prefix, '((((t1.sensing_time >= "2017-03-10T00:00:00") AND (t1.sensing_time <= "2017-03-17T23:59:59.999999")) AND NOT ((t1.sensing_time >= "2017-03-11T00:00:00") AND (t1.sensing_time <= "2017-03-16T23:59:59.999999"))) AND (t1.collection_number IN ("PRE"))) LIMIT 10')
         self.maxDiff = None
         self.assertMultiLineEqual(expected, result)
 
@@ -191,7 +208,6 @@ class TestMetadata(unittest.TestCase):
         #
         self.maxDiff = None
         self.assertMultiLineEqual(expected, expected_2)
-
 
         self.assertMultiLineEqual(polygon.wkt, loads_wkb(landsat_filters_2.aoi.query_params.geometry_bag.geometry_binaries[0]).wkt)
 

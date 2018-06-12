@@ -1313,6 +1313,12 @@ LIMIT 1"""
                         data_filters.product_id.set_exclude_value(product_id)
                 query_string = data_filters.get_sql(limit=limit)
 
+    def _layer_group_by_area(self):
+        return None
+
+    def _layer_group_by_sort(self, data_filters: LandsatQueryFilters, satellite_id=None):
+        return None
+
     def search_layer_group(self,
                            data_filters: LandsatQueryFilters,
                            satellite_id=None):
