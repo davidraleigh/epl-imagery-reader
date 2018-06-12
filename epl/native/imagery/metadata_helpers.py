@@ -12,11 +12,14 @@ sql_reg = re.compile(r'SELECT[\s\S]+FROM[\s\S]+(AS[\s\S]+)\Z')
 
 
 class _BaseFilter:
-    def __init__(self, query_params: epl_imagery_pb2.QueryParams=None):
+    def __init__(self, metadata_filters, query_params: epl_imagery_pb2.QueryParams=None):
         self.b_initialized = False
+        self.metadata_filters = metadata_filters
         if query_params:
             self.query_params = query_params
             self.b_initialized = True
+            if self.query_params.sort_direction != epl_imagery_pb2.NOT_SORTED:
+                self.metadata_filters.sorted_by = self
         else:
             self.query_params = epl_imagery_pb2.QueryParams()
 
@@ -58,6 +61,11 @@ class _BaseFilter:
         :return:
         """
         # TODO if you want to sort by multiple parameters, then this class will have to have a pointer to the filter
+        if self.metadata_filters.sorted_by:
+            self.metadata_filters.sorted_by.query_params.sort_direction = epl_imagery_pb2.NOT_SORTED
+
+        self.metadata_filters.sorted_by = self
+
         # class that contains it, and upon updating this class there is a call back to the container class to insert
         # this parameter in a list
         self.query_params.sort_direction = sort_direction
@@ -66,8 +74,8 @@ class _BaseFilter:
 
 class _SingleFieldFilter(_BaseFilter):
     """for now can't handle multiple ranges. set range will clear out a previously designated range"""
-    def __init__(self, field: Field, query_params: epl_imagery_pb2.QueryParams=None):
-        super().__init__(query_params=query_params)
+    def __init__(self, field: Field, metadata_filters, query_params: epl_imagery_pb2.QueryParams=None):
+        super().__init__(metadata_filters, query_params=query_params)
         self.field = field
         if self.b_initialized:
             return
@@ -190,8 +198,9 @@ class _PairFieldFilter(_BaseFilter):
     def __init__(self,
                  left_field: Field,
                  right_field: Field,
+                 metadata_filters,
                  query_params: epl_imagery_pb2.QueryParams=None):
-        super().__init__(query_params)
+        super().__init__(metadata_filters, query_params)
         self.left_field = left_field
         self.right_field = right_field
 
@@ -231,8 +240,9 @@ class _GeometryFilter(_BaseFilter):
                  south_field: Field,
                  west_field: Field,
                  east_field: Field,
+                 metadata_filters,
                  query_params: epl_imagery_pb2.QueryParams=None):
-        super().__init__(query_params)
+        super().__init__(metadata_filters, query_params)
         self.north_field = north_field
         self.south_field = south_field
         self.west_field = west_field
@@ -345,14 +355,16 @@ class LandsatModel(MetadataModel):
 
 class MetadataFilters:
     def __init__(self):
+        self.sorted_by = None
         self.model = MetadataModel
-        self.cloud_cover = _SingleFieldFilter(MetadataModel.cloud_cover)
-        self.acquired = _SingleFieldFilter(MetadataModel.acquired)
+
+        self.cloud_cover = _SingleFieldFilter(MetadataModel.cloud_cover, self)
+        self.acquired = _SingleFieldFilter(MetadataModel.acquired, self)
         self.aoi = _GeometryFilter(MetadataModel.north_lat,
                                    MetadataModel.south_lat,
                                    MetadataModel.west_lon,
-                                   MetadataModel.east_lon)
-        self.spacecraft_id = _SingleFieldFilter(LandsatModel.spacecraft_id)
+                                   MetadataModel.east_lon, self)
+        self.spacecraft_id = _SingleFieldFilter(LandsatModel.spacecraft_id, self)
 
     @staticmethod
     def param_sequence(params):
@@ -362,7 +374,7 @@ class MetadataFilters:
             params[i] = param
         return params
 
-    def get_select(self, model_select: ModelSelect=None):
+    def get_select(self, model_select: ModelSelect=None) -> ModelSelect:
         if not model_select:
             model_select = self.model.select()
 
@@ -370,14 +382,14 @@ class MetadataFilters:
         sorted_keys = sorted(self.__dict__)
         for key in sorted_keys:
             item = self.__dict__[key]
-            if not isinstance(item, _BaseFilter):
+            if not isinstance(item, _BaseFilter) or key == "sorted_by":
                 continue
 
             model_select = item.append_select(model_select)
 
         return model_select
 
-    def get_sql(self, limit=10, model_select: ModelSelect=None):
+    def get_sql(self, limit=10, model_select: ModelSelect=None) -> str:
 
         select_statement = self.get_select(model_select)
 
@@ -395,7 +407,7 @@ class MetadataFilters:
         # sql_formatted = sql_formatted.replace('"t1".', '')
         return "{} LIMIT {}".format(sql_formatted, limit)
 
-    def get_query_filter(self):
+    def get_query_filter(self) -> epl_imagery_pb2.QueryFilter:
         query_filter = epl_imagery_pb2.QueryFilter()
 
         for key in sorted(self.__dict__):
@@ -426,35 +438,35 @@ class LandsatQueryFilters(MetadataFilters):
         super().__init__()
         self.model = LandsatModel
 
-        self.cloud_cover = _SingleFieldFilter(LandsatModel.cloud_cover)
-        self.acquired = _SingleFieldFilter(LandsatModel.sensing_time)
+        self.cloud_cover = _SingleFieldFilter(LandsatModel.cloud_cover, self)
+        self.acquired = _SingleFieldFilter(LandsatModel.sensing_time, self)
 
         # These are really only here for sorting. say you want to sort by easter most values or whatever else
-        self.north_lat = _SingleFieldFilter(LandsatModel.north_lat)
-        self.south_lat = _SingleFieldFilter(LandsatModel.south_lat)
-        self.east_lon = _SingleFieldFilter(LandsatModel.east_lon)
-        self.west_lon = _SingleFieldFilter(LandsatModel.west_lon)
+        self.north_lat = _SingleFieldFilter(LandsatModel.north_lat, self)
+        self.south_lat = _SingleFieldFilter(LandsatModel.south_lat, self)
+        self.east_lon = _SingleFieldFilter(LandsatModel.east_lon, self)
+        self.west_lon = _SingleFieldFilter(LandsatModel.west_lon, self)
 
         self.aoi = _GeometryFilter(LandsatModel.north_lat,
                                    LandsatModel.south_lat,
                                    LandsatModel.west_lon,
-                                   LandsatModel.east_lon)
+                                   LandsatModel.east_lon, self)
 
-        self.spacecraft_id = _SingleFieldFilter(LandsatModel.spacecraft_id)
+        self.spacecraft_id = _SingleFieldFilter(LandsatModel.spacecraft_id, self)
 
-        self.scene_id = _SingleFieldFilter(LandsatModel.scene_id)
-        self.product_id = _SingleFieldFilter(LandsatModel.product_id)
-        self.sensor_id = _SingleFieldFilter(LandsatModel.sensor_id)
-        self.collection_number = _SingleFieldFilter(LandsatModel.collection_number)
-        self.collection_category = _SingleFieldFilter(LandsatModel.collection_category)
-        self.data_type = _SingleFieldFilter(LandsatModel.data_type)
-        self.base_url = _SingleFieldFilter(LandsatModel.base_url)
+        self.scene_id = _SingleFieldFilter(LandsatModel.scene_id, self)
+        self.product_id = _SingleFieldFilter(LandsatModel.product_id, self)
+        self.sensor_id = _SingleFieldFilter(LandsatModel.sensor_id, self)
+        self.collection_number = _SingleFieldFilter(LandsatModel.collection_number, self)
+        self.collection_category = _SingleFieldFilter(LandsatModel.collection_category, self)
+        self.data_type = _SingleFieldFilter(LandsatModel.data_type, self)
+        self.base_url = _SingleFieldFilter(LandsatModel.base_url, self)
 
-        self.wrs_path = _SingleFieldFilter(LandsatModel.wrs_path)
-        self.wrs_row = _SingleFieldFilter(LandsatModel.wrs_row)
-        self.wrs_path_row = _PairFieldFilter(LandsatModel.wrs_path, LandsatModel.wrs_row)
+        self.wrs_path = _SingleFieldFilter(LandsatModel.wrs_path, self)
+        self.wrs_row = _SingleFieldFilter(LandsatModel.wrs_row, self)
+        self.wrs_path_row = _PairFieldFilter(LandsatModel.wrs_path, LandsatModel.wrs_row, self)
 
-        self.total_size = _SingleFieldFilter(LandsatModel.total_size)
+        self.total_size = _SingleFieldFilter(LandsatModel.total_size, self)
 
         # self.geometry_bag = GeometryBagData()
 
@@ -467,13 +479,16 @@ class LandsatQueryFilters(MetadataFilters):
                                                          LandsatModel.south_lat,
                                                          LandsatModel.west_lon,
                                                          LandsatModel.east_lon,
+                                                         metadata_filters=self,
                                                          query_params=query_param)
                 elif key == "wrs_path_row":
                     self.__dict__[key] = _PairFieldFilter(LandsatModel.wrs_path,
                                                           LandsatModel.wrs_row,
+                                                          metadata_filters=self,
                                                           query_params=query_param)
-                else:
+                elif key != "sorted_by":
                     self.__dict__[key] = _SingleFieldFilter(field=LandsatModel.__dict__[query_param.param_name].field,
+                                                            metadata_filters=self,
                                                             query_params=query_param)
                 # else:
                 #     self.geometry_bag = query_param
