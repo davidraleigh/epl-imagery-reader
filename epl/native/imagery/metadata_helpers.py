@@ -48,6 +48,21 @@ class _BaseFilter:
             return self.query_params
         return None
 
+    def append_select(self, p_select: ModelSelect):
+        raise NotImplementedError
+
+    def sort_by(self, sort_direction: epl_imagery_pb2.SortDirection):
+        """
+        sort the returned results by this field. if you sort by multiple fields your results may not be sorted properly
+        :param sort_direction:
+        :return:
+        """
+        # TODO if you want to sort by multiple parameters, then this class will have to have a pointer to the filter
+        # class that contains it, and upon updating this class there is a call back to the container class to insert
+        # this parameter in a list
+        self.query_params.sort_direction = sort_direction
+        self.b_initialized = True
+
 
 class _SingleFieldFilter(_BaseFilter):
     """for now can't handle multiple ranges. set range will clear out a previously designated range"""
@@ -169,18 +184,6 @@ class _SingleFieldFilter(_BaseFilter):
             p_select = p_select.where(self._append_ranges(self.query_params.exclude_ranges, True))
 
         return p_select
-
-    def sort_by(self, sort_direction: epl_imagery_pb2.SortDirection):
-        """
-        sort the returned results by this field. if you sort by multiple fields your results may not be sorted properly
-        :param sort_direction:
-        :return:
-        """
-        # TODO if you want to sort by multiple parameters, then this class will have to have a pointer to the filter
-        # class that contains it, and upon updating this class there is a call back to the container class to insert
-        # this parameter in a list
-        self.query_params.sort_direction = sort_direction
-        self.b_initialized = True
 
 
 class _PairFieldFilter(_BaseFilter):

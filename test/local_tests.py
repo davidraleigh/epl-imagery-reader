@@ -340,6 +340,11 @@ class TestMetadata(unittest.TestCase):
         stuff = landsat_filter.aoi.get_geometry()
         self.assertMultiLineEqual(area_shape.wkt, shapely.wkb.loads(stuff[0]).wkt)
 
-
+    def test_raise_sort_by(self):
+        landsat_filter = LandsatQueryFilters()
+        landsat_filter.aoi.sort_by(epl_imagery_pb2.ASCENDING)
+        landsat_filter.wrs_path.sort_by(epl_imagery_pb2.DESCENDING)
+        with self.assertRaises(NotImplementedError):
+            landsat_filter.wrs_path_row.sort_by(epl_imagery_pb2.ASCENDING)
 
 
