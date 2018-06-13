@@ -9,9 +9,9 @@ from lxml import etree
 from osgeo import gdal
 from shapely.wkt import loads
 
-from epl.imagery.native import PLATFORM_PROVIDER
-from epl.imagery.native.reader import MetadataService, SpacecraftID, Metadata, FunctionDetails, Landsat, DataType
-from epl.imagery.native.metadata_helpers import LandsatQueryFilters
+from epl.native.imagery import PLATFORM_PROVIDER
+from epl.native.imagery.reader import MetadataService, SpacecraftID, Metadata, FunctionDetails, Landsat, DataType
+from epl.native.imagery.metadata_helpers import LandsatQueryFilters
 from test.tools.test_helpers import xml_compare
 
 
@@ -58,7 +58,7 @@ class TestAWSMetadata(unittest.TestCase):
         landsat_filters = LandsatQueryFilters()
         landsat_filters.collection_number.set_exclude_value("PRE")
         landsat_filters.acquired.set_range(start=d_start, end=d_end)
-        landsat_filters.bounds.set_bounds(*bounding_box)
+        landsat_filters.aoi.set_bounds(*bounding_box)
         rows = metadata_service.search(SpacecraftID.LANDSAT_8,
                                        limit=2,
                                        data_filters=landsat_filters)
@@ -186,7 +186,7 @@ class TestAWSPixelFunctions(unittest.TestCase):
         landsat_filters = LandsatQueryFilters()
         landsat_filters.scene_id.set_exclude_value("LC80400312016103LGN00")
         landsat_filters.acquired.set_range(start=d_start, end=d_end)
-        landsat_filters.bounds.set_bounds(*bounding_box)
+        landsat_filters.aoi.set_bounds(*bounding_box)
         rows = metadata_service.search(SpacecraftID.LANDSAT_8,
                                        limit=1,
                                        data_filters=landsat_filters)
@@ -204,7 +204,7 @@ class TestAWSPixelFunctions(unittest.TestCase):
         landsat_filters = LandsatQueryFilters()
         landsat_filters.collection_number.set_exclude_value("PRE")
         landsat_filters.acquired.set_range(start=d_start, end=d_end)
-        landsat_filters.bounds.set_bounds(*self.taos_shape.bounds)
+        landsat_filters.aoi.set_bounds(*self.taos_shape.bounds)
         rows = self.metadata_service.search(
             SpacecraftID.LANDSAT_8,
             limit=10,
