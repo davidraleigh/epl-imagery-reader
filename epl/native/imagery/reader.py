@@ -36,6 +36,7 @@ from peewee import Field
 # Imports the Google Cloud client library
 from google.cloud import bigquery, storage
 
+from epl.grpc.imagery import epl_imagery_pb2
 from epl.native.imagery import PLATFORM_PROVIDER
 from epl.native.imagery.metadata_helpers import SpacecraftID, Band, BandMap, MetadataFilters, LandsatQueryFilters
 
@@ -937,6 +938,8 @@ class Landsat(Imagery):
             if self.storage.mount_sub_folder(metadata, request_key=str(self.__id)) is False:
                 return None
 
+            # TODO, the envelope requested should be a part of the metadata, so that the envelope
+            # boundary can be pulled from that if available
             vrt = self.get_vrt(band_definitions, metadata=metadata, envelope_boundary=envelope_boundary)
             # http://gdal.org/python/
             # http://gdal.org/python/osgeo.gdal-module.html#TranslateOptions
@@ -1029,47 +1032,6 @@ class MetadataService(metaclass=__Singleton):
         self.m_wrs_geometry = WRSGeometries()
         self.m_timeout_ms = 10000
 
-        # these values were define on July 16, 2017, buffered by half a degree
-        self.m_danger_east_lon = -165.0661 + 0.5
-        self.m_danger_west_lon = 165.59402 - 0.5
-
-        # TODO, this is overkill. probably, best to use continuous integration to check once a day and update danger
-        # TODO zone as needed. and for now, just buffer the danger zone by a half a degree
-        # do some async query to check if the danger_zone needs updating
-        # thread = threading.Thread(target=self.__get_danger_zone, args=())
-        # thread.daemon = True  # Daemonize thread
-        # thread.start()
-
-    # TODO this is probably overkill
-    def __get_danger_zone(self):
-        # 165.59402
-        west_lon_sql = """SELECT west_lon
-FROM [bigquery-public-data:cloud_storage_geo_index.landsat_index] 
-WHERE west_lon = (
-SELECT MIN(west_lon)
-FROM [bigquery-public-data:cloud_storage_geo_index.landsat_index]
-WHERE east_lon < 0
-AND west_lon > 0 )
-LIMIT 1"""
-
-        # -165.0661
-        east_lon_sql = """SELECT east_lon
-FROM [bigquery-public-data:cloud_storage_geo_index.landsat_index] 
-WHERE east_lon = (
-SELECT MAX(east_lon)
-FROM [bigquery-public-data:cloud_storage_geo_index.landsat_index]
-WHERE east_lon < 0
-AND west_lon > 0 )
-LIMIT 1"""
-        query = self.m_client.run_sync_query(west_lon_sql)
-        query.timeout_ms = self.m_timeout_ms
-        query.run()
-        self.m_danger_west_lon = query.rows[0][0]
-        query = self.m_client.run_sync_query(east_lon_sql)
-        query.timeout_ms = self.m_timeout_ms
-        query.run()
-        self.m_danger_east_lon = query.rows[0][0]
-
     # @staticmethod
     # def get_aws_landsat_path(wrs_path,
     #                          wrs_row,
@@ -1100,7 +1062,7 @@ LIMIT 1"""
         return result
 
     @staticmethod
-    def split_by_dateline(poly: shapely.geometry.Polygon):
+    def split_by_dateline(poly: shapely.geometry.Polygon) -> [shapely.geometry.Polygon]:
         if not isinstance(poly, shapely.geometry.Polygon):
             raise ValueError
 
@@ -1165,24 +1127,41 @@ LIMIT 1"""
 
         return results
 
-    def get_wrs(self, polygon_wkbs: List[bytes], search_area_unioned: shapely.geometry):
-        polygons = MetadataService.split_all_by_dateline(polygon_wkbs)
-
-        if not search_area_unioned:
+    def bounds_from_multipolygon(self, multi_polygon):
+        results = []
+        if multi_polygon.type == "MultiPolygon":
+            for p in multi_polygon.geoms:
+                results.append(p.bounds)
+        elif multi_polygon.type == "Polygon":
+            results = [multi_polygon.bounds]
+        else:
             raise ValueError
 
-        intersecting_wrs = []
-        for poly in polygons:
-            wrs_set = self.m_wrs_geometry.get_path_row(poly.bounds)
-            for wrs_pair in wrs_set:
-                wrs_geometry = shapely.wkb.loads(self.m_wrs_geometry.get_wrs_geometry(wrs_row=wrs_pair[1], wrs_path=wrs_pair[0]))
-                if wrs_geometry.intersects(poly):
-                    # calculate area overlap and save in tuple
-                    # TODO this is not geodetic, so there will be errors as latitudes move from zero
-                    intersecting_area = wrs_geometry.intersection(search_area_unioned).area
-                    intersecting_wrs.append((intersecting_area, *wrs_pair))
+        return results
 
-        return sorted(intersecting_wrs, key=itemgetter(0), reverse=True)
+    def get_wrs(self, polygon_wkbs: List[bytes], search_area_unioned):
+        polygon_shapes = MetadataService.split_all_by_dateline(polygon_wkbs)
+        wrs_set = set()
+        for poly in polygon_shapes:
+            temp_set = self.m_wrs_geometry.get_path_row(poly.bounds)
+            for temp_wrs_pair in temp_set:
+                wrs_geometry = shapely.wkb.loads(self.m_wrs_geometry.get_wrs_geometry(wrs_row=temp_wrs_pair[1], wrs_path=temp_wrs_pair[0]))
+                if wrs_geometry.intersects(search_area_unioned):
+                    wrs_set.add(temp_wrs_pair)
+
+        return list(wrs_set)
+
+    def sorted_wrs_overlaps(self, wrs_set, search_area):
+        wrs_overlaps = []
+        for temp_wrs_pair in wrs_set:
+            wrs_geometry = shapely.wkb.loads(
+            self.m_wrs_geometry.get_wrs_geometry(wrs_row=temp_wrs_pair[1], wrs_path=temp_wrs_pair[0]))
+            inserecting_area = wrs_geometry.intersection(search_area).area
+            if inserecting_area > 0:
+                wrs_overlaps.append((*temp_wrs_pair, inserecting_area))
+
+        return sorted(wrs_overlaps, key=itemgetter(2), reverse=False)
+
 
     @staticmethod
     def get_search_area(data_filters: MetadataFilters=None) -> shapely.geometry:
@@ -1313,62 +1292,137 @@ LIMIT 1"""
                         data_filters.product_id.set_exclude_value(product_id)
                 query_string = data_filters.get_sql(limit=limit)
 
-    def _layer_group_by_area(self):
-        return None
+    def _layer_group_by_area(self,
+                             data_filters_copy: LandsatQueryFilters,
+                             wrs_intersections,
+                             search_area_polygon,
+                             satellite_id=None,
+                             by_area=False):
 
-    def _layer_group_by_sort(self, data_filters: LandsatQueryFilters, satellite_id=None):
-        return None
+        loop_var = search_area_polygon.area
+        if by_area:
+            # this seems not intuitive, since this is by area, but this is for the best
+            loop_var = len(wrs_intersections)
+
+        while loop_var > 0:
+
+            if by_area:
+                wrs_intersections_sorted = self.sorted_wrs_overlaps(wrs_intersections, search_area_polygon)
+                wrs_details = wrs_intersections_sorted.pop()
+                wrs_intersections.remove((wrs_details[0], wrs_details[1]))
+
+                # TODO get consistent about wrs_pair order
+                data_filters_copy.wrs_path_row.set_pair(wrs_details[0], wrs_details[1])
+
+            sort_value = None
+            for metadata in self.search(satellite_id=satellite_id, limit=1, data_filters=data_filters_copy):
+                wrs_shape = shapely.wkb.loads(self.m_wrs_geometry.get_wrs_geometry(wrs_row=metadata.wrs_row, wrs_path=metadata.wrs_path))
+                wrs_poly_intersection = wrs_shape.intersection(search_area_polygon)
+                wrs_poly_intersection = wrs_poly_intersection.buffer(0.00000008)
+                previous_area = search_area_polygon.area
+                search_area_polygon = search_area_polygon.difference(wrs_poly_intersection)
+
+                if previous_area > search_area_polygon.area:
+                    yield metadata
+
+                if search_area_polygon.area <= 0:
+                    return
+
+                sort_value = metadata.__dict__[data_filters_copy.sorted_by.field.name]
+
+            if data_filters_copy.sorted_by.query_params.sort_direction == epl_imagery_pb2.DESCENDING:
+                data_filters_copy.sorted_by.set_exclude_range(start=sort_value)
+            elif data_filters_copy.sorted_by.query_params.sort_direction == epl_imagery_pb2.ASCENDING:
+                data_filters_copy.sorted_by.set_exclude_range(end=sort_value)
+
+            if by_area:
+                loop_var = len(wrs_intersections)
+                # reset the query_params (or we could do another deep copy, but that seems bad
+                data_filters_copy.wrs_path_row.query_params.values.pop()
+                data_filters_copy.wrs_path_row.query_params.values.pop()
+            else:
+                loop_var = search_area_polygon.area
+                data_filters_copy.aoi.query_params.ClearField("bounds")
+                for bounds in self.bounds_from_multipolygon(search_area_polygon):
+                    data_filters_copy.aoi.set_bounds(*bounds)
+
+    def _layer_group_by_sort(self,
+                             data_filters_copy: LandsatQueryFilters,
+                             search_area_polygon,
+                             satellite_id=None):
+
+
+        while search_area_polygon.area > 0:
+
+
+
+
+
+
+            sort_value = None
+            for metadata in self.search(satellite_id=satellite_id, limit=10, data_filters=data_filters_copy):
+                # buffer by wgs-84 tolerance
+                wrs_shape = shapely.wkb.loads(self.m_wrs_geometry.get_wrs_geometry(wrs_row=metadata.wrs_row, wrs_path=metadata.wrs_path))
+                wrs_poly_intersection = wrs_shape.intersection(search_area_polygon)
+                wrs_poly_intersection = wrs_poly_intersection.buffer(0.00000008)
+                previous_area = search_area_polygon.area
+                search_area_polygon = search_area_polygon.difference(wrs_poly_intersection)
+
+                if previous_area > search_area_polygon.area:
+                    yield metadata
+
+                if search_area_polygon.area <= 0:
+                    return
+
+                sort_value = metadata.__dict__[data_filters_copy.sorted_by.field.name]
+
+            if data_filters_copy.sorted_by.query_params.sort_direction == epl_imagery_pb2.DESCENDING:
+                data_filters_copy.sorted_by.set_exclude_range(start=sort_value)
+            elif data_filters_copy.sorted_by.query_params.sort_direction == epl_imagery_pb2.ASCENDING:
+                data_filters_copy.sorted_by.set_exclude_range(end=sort_value)
+
+            data_filters_copy.aoi.query_params.ClearField("bounds")
+            for bounds in self.bounds_from_multipolygon(search_area_polygon):
+                data_filters_copy.aoi.set_bounds(*bounds)
 
     def search_layer_group(self,
                            data_filters: LandsatQueryFilters,
                            satellite_id=None):
         polygon_wkbs = []
 
-        if data_filters.aoi.geometry_bag.geometry_binaries:
+        polygon, sr_data = data_filters.aoi.get_geometry()
+        if polygon:
             polygon_wkbs = data_filters.aoi.geometry_bag.geometry_binaries
         elif data_filters.aoi:
             for bounding_box in data_filters.aoi.query_params.bounds:
                 polygon_wkbs.append((shapely.geometry.box(bounding_box.xmin,
-                                                         bounding_box.ymin,
-                                                         bounding_box.xmax,
-                                                         bounding_box.ymax).envelope).wkb)
+                                                          bounding_box.ymin,
+                                                          bounding_box.xmax,
+                                                          bounding_box.ymax).envelope).wkb)
+
         else:
             raise ValueError("must have a search area to create a layer group")
 
         search_area_polygon = self.get_search_area(data_filters=data_filters)
-        # search_area_polygon = shapely.wkb.loads(search_area_polygon_wkbs)
 
-        data_filters_copy = copy.deepcopy(data_filters)
-        wrs_pairs = self.get_wrs(polygon_wkbs, search_area_polygon)
+        if not data_filters.sorted_by:
+            data_filters.acquired.sort_by(epl_imagery_pb2.DESCENDING)
 
-        for index in range(0, len(wrs_pairs)):
-            wrs_pair = wrs_pairs[index]
-            wrs_wkb = self.m_wrs_geometry.get_wrs_geometry(wrs_path=wrs_pair[2], wrs_row=wrs_pair[1])
-            # perpare for next row
-            wrs_shape = shapely.wkb.loads(wrs_wkb)
-            wrs_poly_intersection = wrs_shape.intersection(search_area_polygon)
-
-            # TODO get consistent about wrs_pair order
-            data_filters_copy.wrs_path_row.set_pair(wrs_pair[2], wrs_pair[1])
-            for metadata in self.search(satellite_id=satellite_id, limit=1, data_filters=data_filters_copy):
-                yield metadata
-                # buffer by wgs-84 tolerance
-                wrs_poly_intersection = wrs_poly_intersection.buffer(0.00000008)
-                search_area_polygon = search_area_polygon.difference(wrs_poly_intersection)
-
-            # reset the query_params (or we could do another deep copy, but that seems bad
-            data_filters_copy.wrs_path_row.query_params.values.pop()
-            data_filters_copy.wrs_path_row.query_params.values.pop()
-
-            wrs_pairs = self.get_wrs(polygon_wkbs, search_area_polygon)
-
-
-
-        # Since this probably isn't a huge set of data we'll get all data to service and iterate
-
-
-
-
+        if data_filters.aoi.query_params.sort_direction != epl_imagery_pb2.NOT_SORTED:
+            data_filters.acquired.sort_by(epl_imagery_pb2.DESCENDING)
+            wrs_intersections = self.get_wrs(polygon_wkbs, search_area_polygon)
+            data_filters_copy = copy.deepcopy(data_filters)
+            data_filters_copy.aoi.query_params.ClearField("bounds")
+            return self._layer_group_by_area(data_filters_copy=data_filters_copy,
+                                             wrs_intersections=wrs_intersections,
+                                             search_area_polygon=search_area_polygon,
+                                             satellite_id=satellite_id,
+                                             by_area=True)
+        else:
+            data_filters_copy = copy.deepcopy(data_filters)
+            return self._layer_group_by_sort(data_filters_copy=data_filters_copy,
+                                             search_area_polygon=search_area_polygon,
+                                             satellite_id=satellite_id)
 
 
 class Storage(metaclass=__Singleton):

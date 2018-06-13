@@ -142,7 +142,7 @@ class TestMetadata(unittest.TestCase):
         landsat_filter.aoi.set_bounds(*bounding_box)
         landsat_filter.acquired.sort_by(epl_imagery_pb2.DESCENDING)
         result = landsat_filter.get_sql()
-        expected = "{}{}".format(expected_prefix, ' WHERE ((((t1.sensing_time >= "2017-06-24T00:00:00") AND (t1.sensing_time <= "2017-09-24T23:59:59.999999")) AND ((((t1.west_lon >= -115.927734375) & (t1.west_lon <= -78.31054687499999)) | ((t1.west_lon <= -115.927734375) & (t1.east_lon >= -115.927734375))) & (((t1.south_lat <= 34.52466147177172) & (t1.north_lat >= 34.52466147177172)) | ((t1.south_lat > 34.52466147177172) & (t1.south_lat <= 44.84029065139799))))) AND NOT (t1.collection_number IN ("PRE"))) ORDER BY t1.sensing_time DESC LIMIT 10')
+        expected = "{}{}".format(expected_prefix, ' WHERE ((((t1.sensing_time >= "2017-06-24T00:00:00") AND (t1.sensing_time <= "2017-09-24T23:59:59.999999")) AND ((((t1.west_lon >= -115.927734375) AND (t1.west_lon <= -78.31054687499999)) OR ((t1.west_lon <= -115.927734375) AND (t1.east_lon >= -115.927734375))) AND (((t1.south_lat <= 34.52466147177172) AND (t1.north_lat >= 34.52466147177172)) OR ((t1.south_lat > 34.52466147177172) AND (t1.south_lat <= 44.84029065139799))))) AND NOT (t1.collection_number IN ("PRE"))) ORDER BY t1.sensing_time DESC LIMIT 10')
         self.maxDiff = None
         self.assertMultiLineEqual(expected, result)
 
@@ -390,4 +390,19 @@ class TestMetadata(unittest.TestCase):
         self.assertMultiLineEqual(expected, landsat_filter_2.get_sql())
         self.assertEqual(landsat_filter_2.aoi.query_params.sort_direction, epl_imagery_pb2.DESCENDING)
 
+    def test_clear_bounds(self):
+        d_start = date(2017, 6, 24)
+        d_end = date(2017, 9, 24)
+        bounding_box = (-115.927734375, 34.52466147177172, -78.31054687499999, 44.84029065139799)
+        # sql_filters = ['collection_number!="PRE"']
+        landsat_filter = LandsatQueryFilters()
+        landsat_filter.collection_number.set_exclude_value("PRE")
+        landsat_filter.acquired.set_range(d_start, True, d_end, True)
+        expected = landsat_filter.get_sql()
+        landsat_filter.aoi.set_bounds(*bounding_box)
+        landsat_filter.aoi.query_params.ClearField("bounds")
+
+        actual = landsat_filter.get_sql()
+        self.maxDiff = None
+        self.assertMultiLineEqual(expected, actual)
 

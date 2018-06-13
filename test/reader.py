@@ -310,13 +310,16 @@ class TestMetaDataSQL(unittest.TestCase):
         wkt = "POLYGON((-172 53, 175 53, 175 48, -172 48, -172 53))"
         islands_shape = loads(wkt)
         metadata_service = MetadataService()
-        data = metadata_service.get_wrs([islands_shape.wkb], search_area_unioned=islands_shape)
-        self.assertIsNotNone(data)
-        self.assertGreater(len(data), 0)
-        prev_area = 10000
-        for wrs_info in data:
-            self.assertGreaterEqual(prev_area, wrs_info[0])
-            prev_area = wrs_info[0]
+        wrs_set = metadata_service.get_wrs([islands_shape.wkb], search_area_unioned=islands_shape)
+        sorted_overlaps = metadata_service.sorted_wrs_overlaps(wrs_set=wrs_set, search_area=islands_shape)
+        self.assertIsNotNone(wrs_set)
+        self.assertIsNotNone(sorted_overlaps)
+        self.assertGreater(len(wrs_set), 0)
+        self.assertGreater(len(sorted_overlaps), 0)
+        prev_area = 0
+        for wrs_overlap in sorted_overlaps:
+            self.assertLessEqual(prev_area, wrs_overlap[2])
+            prev_area = wrs_overlap[2]
 
     def test_alaskan_aleutians(self):
         # wkt = "MULTIPOLYGON (((40 40, 20 45, 45 30, 40 40)), ((-172 53, 175 53, 175 48, -172 48, -172 53)), ((20 35, 45 20, 30 5, 10 10, 10 30, 20 35), (30 20, 20 25, 20 15, 30 20)))"
@@ -358,36 +361,44 @@ class TestMetaDataSQL(unittest.TestCase):
             limit=20,
             data_filters=belgium_filter)
 
-    # def test_search_group(self):
-    #     import shapely.wkb
-    #     r = requests.get("https://raw.githubusercontent.com/johan/world.geo.json/master/countries/BEL.geo.json")
-    #
-    #     area_geom = r.json()
-    #     area_shape = shapely.geometry.shape(area_geom['features'][0]['geometry'])
-    #
-    #     d_start = date(2017, 1, 1)  # 2017-03-12
-    #     d_end = date(2017, 5, 19)  # epl api is inclusive
-    #
-    #     belgium_filter = LandsatQueryFilters()
-    #
-    #     # PRE is a collection type that specifies certain QA standards
-    #     belgium_filter.collection_number.set_value("PRE")
-    #     belgium_filter.cloud_cover.set_range(end=15, end_inclusive=False)
-    #     belgium_filter.acquired.set_range(start=d_start, end=d_end)
-    #     belgium_filter.aoi.set_bounds(*area_shape.bounds)
-    #     # search the satellite metadata for images of Belgium withing the given date range
-    #     metadata_service = MetadataService()
-    #     metadata_gen = metadata_service.search_layer_group(data_filters=belgium_filter, satellite_id=SpacecraftID.LANDSAT_8)
-    #     max_percent = 100
-    #     for metadata in metadata_gen:
-    #         wrs_polygon = metadata.get_wrs_polygon()
-    #         wrs_shape = shapely.wkb.loads(wrs_polygon)
-    #         percent = wrs_shape.intersection(area_shape).area / area_shape.area
-    #         self.assertLessEqual(percent, max_percent)
-    #         max_percent = percent
+    def test_search_group(self):
+        import shapely.wkb
+        r = requests.get("https://raw.githubusercontent.com/johan/world.geo.json/master/countries/BEL.geo.json")
 
+        area_geom = r.json()
+        area_shape = shapely.geometry.shape(area_geom['features'][0]['geometry'])
 
+        d_start = date(2017, 1, 1)  # 2017-03-12
+        d_end = date(2017, 5, 19)  # epl api is inclusive
 
+        belgium_filter = LandsatQueryFilters()
+
+        # PRE is a collection type that specifies certain QA standards
+        # belgium_filter.collection_number.set_value("PRE")
+        belgium_filter.cloud_cover.set_range(end=15, end_inclusive=False)
+        belgium_filter.acquired.set_range(start=d_start, end=d_end)
+        belgium_filter.aoi.set_bounds(*area_shape.bounds)
+        # search the satellite metadata for images of Belgium withing the given date range
+        metadata_service = MetadataService()
+        metadata_gen = metadata_service.search_layer_group(data_filters=belgium_filter, satellite_id=SpacecraftID.LANDSAT_8)
+        unioned_beast = shapely.geometry.Polygon()
+        for metadata in metadata_gen:
+            wrs_polygon = metadata.get_wrs_polygon()
+            wrs_shape = shapely.wkb.loads(wrs_polygon)
+            unioned_beast = unioned_beast.union(wrs_shape)
+
+        self.assertTrue(unioned_beast.contains(area_shape))
+
+        belgium_filter.aoi.sort_by(epl_imagery_pb2.DESCENDING)
+        metadata_gen = metadata_service.search_layer_group(data_filters=belgium_filter,
+                                                           satellite_id=SpacecraftID.LANDSAT_8)
+        unioned_beast = shapely.geometry.Polygon()
+        for metadata in metadata_gen:
+            wrs_polygon = metadata.get_wrs_polygon()
+            wrs_shape = shapely.wkb.loads(wrs_polygon)
+            unioned_beast = unioned_beast.union(wrs_shape)
+
+        self.assertTrue(unioned_beast.contains(area_shape))
 
 
 class TestMetadata(unittest.TestCase):

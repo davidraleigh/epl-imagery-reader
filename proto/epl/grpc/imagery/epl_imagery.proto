@@ -256,6 +256,9 @@ message MetadataResult {
     //    ServiceEnvelope2D bounds = 21;
     //  (minx, miny, maxx, maxy)
     repeated float bounds = 21;
+
     repeated bytes wrs_polygon_wkb = 22;
     string full_mount_path = 23;
+
+    epl.grpc.geometry.EnvelopeData searched_bounds = 24;
 }

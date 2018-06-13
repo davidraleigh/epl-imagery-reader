@@ -249,10 +249,10 @@ class _GeometryFilter(_BaseFilter):
         self.east_field = east_field
 
     def set_bounds(self,
-                   west: float=None,
-                   south: float=None,
-                   east: float=None,
-                   north: float=None,
+                   west: float,
+                   south: float,
+                   east: float,
+                   north: float,
                    spatial_reference: SpatialReferenceData=None):
         # TODO maybe in the future we allow multiple areas of interest to be set for a query?
         # if self.query_params.geometry_bag.geometry_binaries:
@@ -260,14 +260,6 @@ class _GeometryFilter(_BaseFilter):
         # if self.query_params.bounds:
         #     raise ValueError("bounds aoi already set")
 
-        if not west:
-            west = -180
-        if not east:
-            east = 180
-        if not south:
-            south = -90
-        if not north:
-            north = 90
         if not spatial_reference:
             spatial_reference = SpatialReferenceData(wkid=4326)
 
@@ -289,7 +281,9 @@ class _GeometryFilter(_BaseFilter):
         self.query_params.geometry_bag.spatial_reference.CopyFrom(spatial_reference)
 
     def get_geometry(self, index: int=0) -> (bytes, SpatialReferenceData):
-        return self.query_params.geometry_bag.geometry_binaries[index], self.query_params.geometry_bag.spatial_reference
+        if self.query_params.geometry_bag.geometry_binaries:
+            return self.query_params.geometry_bag.geometry_binaries[index], self.query_params.geometry_bag.spatial_reference
+        return None, None
 
     def append_select(self, p_select: ModelSelect):
         if not self.b_initialized:
@@ -303,24 +297,25 @@ class _GeometryFilter(_BaseFilter):
             xmax = bounds.xmax
             ymax = bounds.ymax
 
-            a = (xmin <= self.west_field).bin_and((xmax >= self.west_field))
-            b = (xmin >= self.west_field).bin_and((self.east_field >= xmin))
-            ab = a.bin_or(b)
-            c = (self.south_field <= ymin).bin_and((self.north_field >= ymin))
-            d = (self.south_field > ymin).bin_and((ymax >= self.south_field))
-            cd = c.bin_or(d)
-            abcd = ab.bin_and(cd)
+            a = (xmin <= self.west_field) & (xmax >= self.west_field)
+            b = (xmin >= self.west_field) & (self.east_field >= xmin)
+            ab = a | b
+            c = (self.south_field <= ymin) & (self.north_field >= ymin)
+            d = (self.south_field > ymin) & (ymax >= self.south_field)
+            cd = c | d
+            abcd = ab & cd
             expression_part = abcd
 
             if not expression:
                 expression = expression_part
             else:
-                expression.bin_or(expression_part)
+                expression = expression | expression_part
 
         # TODO process append_select for geometries:
         # for polygon_wkb in self.query_params.geometry_bag.geometry_binaries:
-
-        return p_select.where(expression)
+        if expression:
+            return p_select.where(expression)
+        return p_select
 
 
 class MetadataModel(Model):
