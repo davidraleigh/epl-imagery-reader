@@ -1007,6 +1007,8 @@ class Landsat(Imagery):
                                    cutlineDSName=cutlineDSName,
                                    outputType=output_type.gdal,
                                    dstAlpha=dstAlpha)
+
+
         return dataset_warped
 
 

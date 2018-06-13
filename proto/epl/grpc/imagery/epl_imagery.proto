@@ -259,6 +259,4 @@ message MetadataResult {
 
     repeated bytes wrs_polygon_wkb = 22;
     string full_mount_path = 23;
-
-    epl.grpc.geometry.EnvelopeData searched_bounds = 24;
 }
