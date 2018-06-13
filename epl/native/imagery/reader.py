@@ -1294,20 +1294,23 @@ class MetadataService(metaclass=__Singleton):
 
     def _layer_group_by_area(self,
                              data_filters_copy: LandsatQueryFilters,
-                             wrs_intersections,
                              search_area_polygon,
+                             wrs_intersections=None,
                              satellite_id=None,
                              by_area=False):
 
         loop_var = search_area_polygon.area
+        limit = 10
         if by_area:
             # this seems not intuitive, since this is by area, but this is for the best
             loop_var = len(wrs_intersections)
+            limit = 1
 
         while loop_var > 0:
 
             if by_area:
                 wrs_intersections_sorted = self.sorted_wrs_overlaps(wrs_intersections, search_area_polygon)
+                loop_var = len(wrs_intersections_sorted)
                 wrs_details = wrs_intersections_sorted.pop()
                 wrs_intersections.remove((wrs_details[0], wrs_details[1]))
 
@@ -1315,7 +1318,7 @@ class MetadataService(metaclass=__Singleton):
                 data_filters_copy.wrs_path_row.set_pair(wrs_details[0], wrs_details[1])
 
             sort_value = None
-            for metadata in self.search(satellite_id=satellite_id, limit=1, data_filters=data_filters_copy):
+            for metadata in self.search(satellite_id=satellite_id, limit=limit, data_filters=data_filters_copy):
                 wrs_shape = shapely.wkb.loads(self.m_wrs_geometry.get_wrs_geometry(wrs_row=metadata.wrs_row, wrs_path=metadata.wrs_path))
                 wrs_poly_intersection = wrs_shape.intersection(search_area_polygon)
                 wrs_poly_intersection = wrs_poly_intersection.buffer(0.00000008)
@@ -1330,60 +1333,19 @@ class MetadataService(metaclass=__Singleton):
 
                 sort_value = metadata.__dict__[data_filters_copy.sorted_by.field.name]
 
-            if data_filters_copy.sorted_by.query_params.sort_direction == epl_imagery_pb2.DESCENDING:
-                data_filters_copy.sorted_by.set_exclude_range(start=sort_value)
-            elif data_filters_copy.sorted_by.query_params.sort_direction == epl_imagery_pb2.ASCENDING:
-                data_filters_copy.sorted_by.set_exclude_range(end=sort_value)
-
             if by_area:
-                loop_var = len(wrs_intersections)
                 # reset the query_params (or we could do another deep copy, but that seems bad
                 data_filters_copy.wrs_path_row.query_params.values.pop()
                 data_filters_copy.wrs_path_row.query_params.values.pop()
             else:
+                if sort_value and data_filters_copy.sorted_by.query_params.sort_direction == epl_imagery_pb2.DESCENDING:
+                    data_filters_copy.sorted_by.set_exclude_range(start=sort_value)
+                elif sort_value and data_filters_copy.sorted_by.query_params.sort_direction == epl_imagery_pb2.ASCENDING:
+                    data_filters_copy.sorted_by.set_exclude_range(end=sort_value)
                 loop_var = search_area_polygon.area
                 data_filters_copy.aoi.query_params.ClearField("bounds")
                 for bounds in self.bounds_from_multipolygon(search_area_polygon):
                     data_filters_copy.aoi.set_bounds(*bounds)
-
-    def _layer_group_by_sort(self,
-                             data_filters_copy: LandsatQueryFilters,
-                             search_area_polygon,
-                             satellite_id=None):
-
-
-        while search_area_polygon.area > 0:
-
-
-
-
-
-
-            sort_value = None
-            for metadata in self.search(satellite_id=satellite_id, limit=10, data_filters=data_filters_copy):
-                # buffer by wgs-84 tolerance
-                wrs_shape = shapely.wkb.loads(self.m_wrs_geometry.get_wrs_geometry(wrs_row=metadata.wrs_row, wrs_path=metadata.wrs_path))
-                wrs_poly_intersection = wrs_shape.intersection(search_area_polygon)
-                wrs_poly_intersection = wrs_poly_intersection.buffer(0.00000008)
-                previous_area = search_area_polygon.area
-                search_area_polygon = search_area_polygon.difference(wrs_poly_intersection)
-
-                if previous_area > search_area_polygon.area:
-                    yield metadata
-
-                if search_area_polygon.area <= 0:
-                    return
-
-                sort_value = metadata.__dict__[data_filters_copy.sorted_by.field.name]
-
-            if data_filters_copy.sorted_by.query_params.sort_direction == epl_imagery_pb2.DESCENDING:
-                data_filters_copy.sorted_by.set_exclude_range(start=sort_value)
-            elif data_filters_copy.sorted_by.query_params.sort_direction == epl_imagery_pb2.ASCENDING:
-                data_filters_copy.sorted_by.set_exclude_range(end=sort_value)
-
-            data_filters_copy.aoi.query_params.ClearField("bounds")
-            for bounds in self.bounds_from_multipolygon(search_area_polygon):
-                data_filters_copy.aoi.set_bounds(*bounds)
 
     def search_layer_group(self,
                            data_filters: LandsatQueryFilters,
@@ -1414,15 +1376,16 @@ class MetadataService(metaclass=__Singleton):
             data_filters_copy = copy.deepcopy(data_filters)
             data_filters_copy.aoi.query_params.ClearField("bounds")
             return self._layer_group_by_area(data_filters_copy=data_filters_copy,
-                                             wrs_intersections=wrs_intersections,
                                              search_area_polygon=search_area_polygon,
+                                             wrs_intersections=wrs_intersections,
                                              satellite_id=satellite_id,
                                              by_area=True)
         else:
             data_filters_copy = copy.deepcopy(data_filters)
-            return self._layer_group_by_sort(data_filters_copy=data_filters_copy,
+            return self._layer_group_by_area(data_filters_copy=data_filters_copy,
                                              search_area_polygon=search_area_polygon,
-                                             satellite_id=satellite_id)
+                                             satellite_id=satellite_id,
+                                             by_area=False)
 
 
 class Storage(metaclass=__Singleton):
