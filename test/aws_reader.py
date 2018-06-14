@@ -34,21 +34,26 @@ class TestAWSMetadata(unittest.TestCase):
         landsat_filters.collection_number.set_value("PRE")
         rows = metadataservice.search(SpacecraftID.LANDSAT_8,
                                       data_filters=landsat_filters)
+
         # turn gernator into list
-        rows = list(rows)
-        self.assertEqual(len(rows), 1)
-        metadata = rows[0]
+        metadata_set = list(rows)
+        self.assertEqual(len(metadata_set), 1)
+        metadata = metadata_set[0]
         self.assertEqual(metadata.get_aws_file_path(), "/imagery/L8/139/045/LC81390452014295LGN00")
 
         landsat_filters.collection_number.set_exclude_value("PRE")
         landsat_filters.acquired.set_range(start=date(2017, 3, 4), end=date(2017, 3, 4))
         rows = metadataservice.search(SpacecraftID.LANDSAT_8,
                                       data_filters=landsat_filters)
-        rows = list(rows)
-        self.assertEqual(len(rows), 1)
-        metadata = rows[0]
+        metadata_set = list(rows)
+        self.assertEqual(len(metadata_set), 2)
+        metadata = metadata_set[0]
         self.assertEqual(metadata.get_aws_file_path(),
                          "/imagery/c1/L8/139/045/LC08_L1TP_139045_20170304_20170316_01_T1")
+
+        metadata = metadata_set[1]
+        self.assertEqual(metadata.get_aws_file_path(),
+                         "/imagery/L8/139/045/LC81390452014295LGN00")
 
     def test_google_aws_mismatch(self):
         metadata_service = MetadataService()
@@ -184,9 +189,11 @@ class TestAWSPixelFunctions(unittest.TestCase):
         bounding_box = (-115.927734375, 34.52466147177172, -78.31054687499999, 44.84029065139799)
         # sql_filters = ['scene_id="LC80400312016103LGN00"']
         landsat_filters = LandsatQueryFilters()
-        landsat_filters.scene_id.set_exclude_value("LC80400312016103LGN00")
-        landsat_filters.acquired.set_range(start=d_start, end=d_end)
-        landsat_filters.aoi.set_bounds(*bounding_box)
+        landsat_filters.scene_id.set_value("LC80400312016103LGN00")
+        # landsat_filters.acquired.set_range(start=d_start, end=d_end)
+        # landsat_filters.data_type.set_exclude_value('L1GT')
+        # landsat_filters.wrs_path_row.set_pair(40, 31)
+        # landsat_filters.aoi.set_bounds(*bounding_box)
         rows = metadata_service.search(SpacecraftID.LANDSAT_8,
                                        limit=1,
                                        data_filters=landsat_filters)
@@ -205,6 +212,7 @@ class TestAWSPixelFunctions(unittest.TestCase):
         landsat_filters.collection_number.set_exclude_value("PRE")
         landsat_filters.acquired.set_range(start=d_start, end=d_end)
         landsat_filters.aoi.set_bounds(*self.taos_shape.bounds)
+        landsat_filters.data_type.set_exclude_value('L1GT')
         rows = self.metadata_service.search(
             SpacecraftID.LANDSAT_8,
             limit=10,

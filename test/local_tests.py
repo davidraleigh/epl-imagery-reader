@@ -6,7 +6,7 @@ from shapely.wkt import loads as loads_wkt
 from shapely.wkb import loads as loads_wkb
 from shapely.geometry import shape
 from shapely.geometry import box
-from datetime import date
+from datetime import date, datetime
 
 from epl.grpc.geometry.geometry_operators_pb2 import SpatialReferenceData
 from epl.grpc.imagery import epl_imagery_pb2
@@ -406,3 +406,25 @@ class TestMetadata(unittest.TestCase):
         self.maxDiff = None
         self.assertMultiLineEqual(expected, actual)
 
+    def test_set_and_exclude(self):
+        start_date = datetime.strptime('14295', '%y%j').date()
+        landsat_filters = LandsatQueryFilters()
+        landsat_filters.wrs_path.set_value(139)
+        landsat_filters.wrs_row.set_value(45)
+        landsat_filters.acquired.set_range(start_date, True, start_date, True)
+        landsat_filters.collection_number.set_value("PRE")
+        actual_1 = landsat_filters.get_sql()
+        self.maxDiff = None
+        expected = expected_prefix + ' WHERE (((((t1.sensing_time >= "2014-10-22T00:00:00") AND (t1.sensing_time <= "2014-10-22T23:59:59.999999")) AND (t1.collection_number IN ("PRE"))) AND (t1.wrs_path IN (139))) AND (t1.wrs_row IN (45))) LIMIT 10'
+        self.assertMultiLineEqual(expected, actual_1)
+
+        # # turn gernator into list
+        # metadata_set = list(rows)
+        # self.assertEqual(len(metadata_set), 1)
+        # metadata = metadata_set[0]
+        # self.assertEqual(metadata.get_aws_file_path(), "/imagery/L8/139/045/LC81390452014295LGN00")
+        #
+        landsat_filters.collection_number.set_exclude_value("PRE")
+        actual_1 = landsat_filters.get_sql()
+        expected = expected_prefix + ' WHERE (((((t1.sensing_time >= "2014-10-22T00:00:00") AND (t1.sensing_time <= "2014-10-22T23:59:59.999999")) AND NOT (t1.collection_number IN ("PRE"))) AND (t1.wrs_path IN (139))) AND (t1.wrs_row IN (45))) LIMIT 10'
+        self.assertMultiLineEqual(expected, actual_1)

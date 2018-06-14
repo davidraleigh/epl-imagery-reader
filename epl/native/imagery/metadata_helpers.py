@@ -42,8 +42,12 @@ class _BaseFilter:
             value = value.isoformat()
 
         if b_equals and str(value) not in self.query_params.values:
+            if str(value) in self.query_params.excluded_values:
+                self.query_params.excluded_values.remove(str(value))
             self.query_params.values.append(str(value))
         elif not b_equals and str(value) not in self.query_params.excluded_values:
+            if str(value) in self.query_params.values:
+                self.query_params.values.remove(str(value))
             self.query_params.excluded_values.append(str(value))
 
     def get_query_params(self) -> epl_imagery_pb2.QueryParams:
@@ -114,6 +118,7 @@ class _SingleFieldFilter(_BaseFilter):
 
         self.b_initialized = True
 
+        # TODO test if value already in include ranges and don't add. if in exclude ranges remove before putting in include
         self.query_params.include_ranges.add(start=_BaseFilter._prep_data(start, datetime.min.time()),
                                              start_inclusive=start_inclusive,
                                              end=_BaseFilter._prep_data(end, datetime.max.time()),
@@ -128,6 +133,7 @@ class _SingleFieldFilter(_BaseFilter):
 
         self.b_initialized = True
 
+        # TODO test if value already in exclude ranges and don't add. if in include ranges remove before putting in exclude
         self.query_params.exclude_ranges.add(start=_BaseFilter._prep_data(start, datetime.min.time()),
                                              start_inclusive=start_inclusive,
                                              end=_BaseFilter._prep_data(end, datetime.max.time()),
