@@ -452,10 +452,11 @@ LLNppprrrOOYYDDDMM_AA.TIF  where:
             if len(search) == 0:
                 # there is a potential situation where AWS has processed the PRE and removed PRE data but google only has PRE
                 partial = self.scene_id[:16]
-                search = glob.glob(self.__base_mount_path + path + partial + "*")
+                path_check = self.__base_mount_path + path + partial + "*"
+                search = glob.glob(path_check)
                 if len(search) == 0:
                     # TODO instead of raising an exception maybe I need to handle this differently?
-                    details = "glob returned {0} results for the following path search {1}".format(len(search), partial)
+                    details = "glob returned {0} results for the following path search {1}".format(len(search), path_check)
                     raise FileNotFoundError(details)
             if len(search) > 1:
                 print("retrieved more than one entry. for {0} from method call 'get_aws_file_path'".format(partial))
@@ -1285,7 +1286,7 @@ class MetadataService(metaclass=__Singleton):
                 try:
                     metadata = Metadata(row, base_mount_path)
                 except FileNotFoundError:
-                    Warning("scene {0} / product {1} not found".format(row.scene_id, row.product_id))
+                    Warning("scene {0} / product {1} not found in aws".format(row[0], row[1]))
                     continue
 
                 if search_area_polygon is None or search_area_polygon.is_empty:

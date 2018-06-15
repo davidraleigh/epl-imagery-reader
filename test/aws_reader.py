@@ -239,3 +239,26 @@ def multiply_rounded(in_ar, out_ar, xoff, yoff, xsize, ysize, raster_xsize,
             actual = etree.XML(vrt)
             result, message = xml_compare(expected, actual, {"GeoTransform": 1e-10})
             self.assertTrue(result, message)
+
+    def test_missing_data(self):
+        start = date(2017, 4, 15)
+        end = date(2017, 5, 15)
+
+        r = requests.get("https://raw.githubusercontent.com/johan/world.geo.json/master/countries/BEL.geo.json")
+
+        area_geom = r.json()
+        area_shape = shapely.geometry.shape(area_geom['features'][0]['geometry'])
+
+        landsat_filter = LandsatQueryFilters()
+        landsat_filter.acquired.set_range(start=start, end=end)
+        landsat_filter.aoi.set_bounds(*area_shape.bounds)
+        rows = self.metadata_service.search(
+            SpacecraftID.LANDSAT_8,
+            limit=40,
+            data_filters=landsat_filter)
+
+        metadataset= []
+        for row in rows:
+            metadataset.append(row)
+
+        self.assertEqual(40, len(metadataset))
