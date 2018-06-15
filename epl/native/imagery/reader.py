@@ -1,4 +1,5 @@
 import os
+import sys
 import errno
 import tempfile
 import py_compile
@@ -35,6 +36,7 @@ from typing import List, Tuple
 from peewee import Field
 # Imports the Google Cloud client library
 from google.cloud import bigquery, storage
+from google.cloud import exceptions
 
 from epl.grpc.imagery import epl_imagery_pb2
 from epl.native.imagery import PLATFORM_PROVIDER
@@ -1254,7 +1256,18 @@ class MetadataService(metaclass=__Singleton):
             # TODO update to use bigquery asynchronous query.
             query = self.m_client.run_sync_query(query_string)
             query.timeout_ms = self.m_timeout_ms
-            query.run()
+
+            # TODO this should moved into a method by itself and handled more elegantly
+            try:
+                query.run()
+            except exceptions.GoogleCloudError:
+                try:
+                    query.run()
+                    Warning("exceptions.GoogleCloudError:", sys.exc_info()[0])
+                except exceptions.GoogleCloudError:
+                    raise
+            except ValueError:
+                raise
 
             if len(query.rows) == 0:
                 return

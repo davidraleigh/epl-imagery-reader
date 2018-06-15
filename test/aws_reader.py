@@ -187,13 +187,8 @@ class TestAWSPixelFunctions(unittest.TestCase):
         d_start = date(2015, 6, 24)
         d_end = date(2016, 6, 24)
         bounding_box = (-115.927734375, 34.52466147177172, -78.31054687499999, 44.84029065139799)
-        # sql_filters = ['scene_id="LC80400312016103LGN00"']
         landsat_filters = LandsatQueryFilters()
         landsat_filters.scene_id.set_value("LC80400312016103LGN00")
-        # landsat_filters.acquired.set_range(start=d_start, end=d_end)
-        # landsat_filters.data_type.set_exclude_value('L1GT')
-        # landsat_filters.wrs_path_row.set_pair(40, 31)
-        # landsat_filters.aoi.set_bounds(*bounding_box)
         rows = metadata_service.search(SpacecraftID.LANDSAT_8,
                                        limit=1,
                                        data_filters=landsat_filters)
