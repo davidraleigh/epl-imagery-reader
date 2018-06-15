@@ -1394,7 +1394,7 @@ class MetadataService(metaclass=__Singleton):
 
         polygon, sr_data = data_filters.aoi.get_geometry()
         if polygon:
-            polygon_wkbs = data_filters.aoi.geometry_bag.geometry_binaries
+            polygon_wkbs = data_filters.aoi.query_params.geometry_bag.geometry_binaries
         elif data_filters.aoi:
             for bounding_box in data_filters.aoi.query_params.bounds:
                 polygon_wkbs.append((shapely.geometry.box(bounding_box.xmin,

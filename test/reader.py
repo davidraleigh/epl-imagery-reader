@@ -400,6 +400,45 @@ class TestMetaDataSQL(unittest.TestCase):
 
         self.assertTrue(unioned_beast.contains(area_shape))
 
+    def test_search_group_geometry(self):
+        import shapely.wkb
+        r = requests.get("https://raw.githubusercontent.com/johan/world.geo.json/master/countries/BEL.geo.json")
+
+        area_geom = r.json()
+        area_shape = shapely.geometry.shape(area_geom['features'][0]['geometry'])
+
+        d_start = date(2017, 1, 1)  # 2017-03-12
+        d_end = date(2017, 5, 19)  # epl api is inclusive
+
+        belgium_filter = LandsatQueryFilters()
+
+        # PRE is a collection type that specifies certain QA standards
+        # belgium_filter.collection_number.set_value("PRE")
+        belgium_filter.cloud_cover.set_range(end=15, end_inclusive=False)
+        belgium_filter.acquired.set_range(start=d_start, end=d_end)
+        belgium_filter.aoi.set_geometry(area_shape.wkb)
+        # belgium_filter.aoi.set_bounds(*area_shape.bounds)
+        # search the satellite metadata for images of Belgium withing the given date range
+        metadata_service = MetadataService()
+        metadata_gen = metadata_service.search_layer_group(data_filters=belgium_filter, satellite_id=SpacecraftID.LANDSAT_8)
+        unioned_beast = shapely.geometry.Polygon()
+        for metadata in metadata_gen:
+            wrs_polygon = metadata.get_wrs_polygon()
+            wrs_shape = shapely.wkb.loads(wrs_polygon)
+            unioned_beast = unioned_beast.union(wrs_shape)
+
+        self.assertTrue(unioned_beast.contains(area_shape))
+
+        belgium_filter.aoi.sort_by(epl_imagery_pb2.DESCENDING)
+        metadata_gen = metadata_service.search_layer_group(data_filters=belgium_filter,
+                                                           satellite_id=SpacecraftID.LANDSAT_8)
+        unioned_beast = shapely.geometry.Polygon()
+        for metadata in metadata_gen:
+            wrs_polygon = metadata.get_wrs_polygon()
+            wrs_shape = shapely.wkb.loads(wrs_polygon)
+            unioned_beast = unioned_beast.union(wrs_shape)
+
+        self.assertTrue(unioned_beast.contains(area_shape))
 
 class TestMetadata(unittest.TestCase):
     def test_bounds(self):
