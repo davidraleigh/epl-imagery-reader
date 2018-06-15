@@ -41,7 +41,10 @@ class TestAWSMetadata(unittest.TestCase):
         metadata = metadata_set[0]
         self.assertEqual(metadata.get_aws_file_path(), "/imagery/L8/139/045/LC81390452014295LGN00")
 
-        landsat_filters.collection_number.set_exclude_value("PRE")
+        landsat_filters = LandsatQueryFilters()
+        landsat_filters.wrs_path.set_value(139)
+        landsat_filters.wrs_row.set_value(45)
+        # landsat_filters.collection_number.set_exclude_value("PRE")
         landsat_filters.acquired.set_range(start=date(2017, 3, 4), end=date(2017, 3, 4))
         rows = metadataservice.search(SpacecraftID.LANDSAT_8,
                                       data_filters=landsat_filters)
@@ -53,7 +56,7 @@ class TestAWSMetadata(unittest.TestCase):
 
         metadata = metadata_set[1]
         self.assertEqual(metadata.get_aws_file_path(),
-                         "/imagery/L8/139/045/LC81390452014295LGN00")
+                         "/imagery/L8/139/045/LC81390452017063LGN00")
 
     def test_google_aws_mismatch(self):
         metadata_service = MetadataService()

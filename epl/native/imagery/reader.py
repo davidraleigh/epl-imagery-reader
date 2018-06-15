@@ -442,15 +442,18 @@ LLNppprrrOOYYDDDMM_AA.TIF  where:
         # TODO if empty throw a warning?
         return []
 
-    def get_aws_file_path(self):
+    def get_aws_file_path(self, requested_category='T2'):
         path = "/L8/{0}/{1}/".format(str(self.wrs_path).zfill(3), str(self.wrs_row).zfill(3))
         # PRE        s3://landsat-pds/L8/139/045/LC81390452014295LGN00/
         # non-PRE s3://landsat-pds/c1/L8/139/045/LC08_L1TP_139045_20170304_20170316_01_T1/
         if self.collection_number != "PRE":
             partial = self.product_id[:25]
-            search = glob.glob(self.__base_mount_path + "/c1" + path + partial + "*")
+            path_check = self.__base_mount_path + "/c1" + path + partial + "*"
+            search = glob.glob(path_check)
+            index = 0
             if len(search) == 0:
-                # there is a potential situation where AWS has processed the PRE and removed PRE data but google only has PRE
+                # TODO there is a potential situation where AWS has processed the PRE and
+                # removed PRE data but google only has PRE
                 partial = self.scene_id[:16]
                 path_check = self.__base_mount_path + path + partial + "*"
                 search = glob.glob(path_check)
@@ -459,14 +462,23 @@ LLNppprrrOOYYDDDMM_AA.TIF  where:
                     details = "glob returned {0} results for the following path search {1}".format(len(search), path_check)
                     raise FileNotFoundError(details)
             if len(search) > 1:
-                print("retrieved more than one entry. for {0} from method call 'get_aws_file_path'".format(partial))
+                # probably a category choice.
+                endings = [complete_path[-2:] for complete_path in search]
+                if requested_category in endings:
+                    index = endings.index(requested_category)
+                elif 'T2' in endings:
+                    index = endings.index('T2')
+                elif 'T1' in endings:
+                    index = endings.index('T1')
+
+                print("retrieved more than one entry. for {0} from method call 'get_aws_file_path'".format(path_check))
             # update the product_id
-            self.product_id = search[0].split("/")[-1]
+            self.product_id = search[index].split("/")[-1]
 
             # update Collection category
-            self.collection_category = self.product_id[-2:]
+            self.collection_category = search[index][-2:]
 
-            return search[0]
+            return search[index]
         else:
             path = self.__base_mount_path + path + self.scene_id
 
@@ -1283,6 +1295,7 @@ class MetadataService(metaclass=__Singleton):
                 b_limit_reached = True
 
             for row in query.rows:
+                metadata = None
                 try:
                     metadata = Metadata(row, base_mount_path)
                 except FileNotFoundError:
