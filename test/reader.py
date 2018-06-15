@@ -122,12 +122,12 @@ class TestMetaDataSQL(unittest.TestCase):
         landsat_filter.acquired.set_range(end=d, end_inclusive=True)
         landsat_filter.acquired.sort_by(epl_imagery_pb2.DESCENDING)
         landsat_filter.aoi.set_bounds(*area_shape.bounds)
-        rows = metadata_service.search(SpacecraftID.LANDSAT_7, data_filters=landsat_filter)
+        rows = metadata_service.search(SpacecraftID.LANDSAT_8, data_filters=landsat_filter)
         rows = list(rows)
         self.assertEqual(len(rows), 10)
         d_previous = d
         for row in rows:
-            self.assertEqual(row.spacecraft_id.name, SpacecraftID.LANDSAT_7.name)
+            self.assertEqual(row.spacecraft_id.name, SpacecraftID.LANDSAT_8.name)
             d_actual = datetime.datetime.strptime(row.date_acquired, '%Y-%m-%d').date()
             self.assertLessEqual(d_actual, d_previous)
 

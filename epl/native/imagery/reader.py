@@ -454,10 +454,11 @@ LLNppprrrOOYYDDDMM_AA.TIF  where:
                 partial = self.scene_id[:16]
                 search = glob.glob(self.__base_mount_path + path + partial + "*")
                 if len(search) == 0:
-                    raise Exception("glob returned {0} results for the following path search {1}".format(len(search), partial))
+                    # TODO instead of raising an exception maybe I need to handle this differently?
+                    details = "glob returned {0} results for the following path search {1}".format(len(search), partial)
+                    raise FileNotFoundError(details)
             if len(search) > 1:
-                print("retrieved more than one entry. for {0} from method call 'get_aws_file_path'"
-                              .format(partial))
+                print("retrieved more than one entry. for {0} from method call 'get_aws_file_path'".format(partial))
             # update the product_id
             self.product_id = search[0].split("/")[-1]
 
@@ -1236,6 +1237,12 @@ class MetadataService(metaclass=__Singleton):
                data_filters: MetadataFilters=None,
                base_mount_path='/imagery') -> Generator[Metadata, None, None]:
 
+        if PLATFORM_PROVIDER == 'AWS':
+            # this is really arbitrary, but we're saying any data before mid-year 2013 should be excluded
+            # from searches. This could be refined, but really, if you want data from before then use google.
+            exclude_data_before = date(2013, 7, 1)
+            data_filters.acquired.set_exclude_range(end=exclude_data_before)
+
         if not data_filters:
             data_filters = LandsatQueryFilters()
 
@@ -1275,7 +1282,11 @@ class MetadataService(metaclass=__Singleton):
                 b_limit_reached = True
 
             for row in query.rows:
-                metadata = Metadata(row, base_mount_path)
+                try:
+                    metadata = Metadata(row, base_mount_path)
+                except FileNotFoundError:
+                    Warning("scene {0} / product {1} not found".format(row.scene_id, row.product_id))
+                    continue
 
                 if search_area_polygon is None or search_area_polygon.is_empty:
                     exclude_scene_id.append(metadata.scene_id)
