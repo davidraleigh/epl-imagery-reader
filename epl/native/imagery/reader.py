@@ -246,7 +246,9 @@ LLNppprrrOOYYDDDMM_AA.TIF  where:
 
         # TODO we should flesh out the AWS from path instantiation
         if isinstance(row, str):
-            self.__construct_aws(row)
+            if not (self.__construct_aws(row)):
+                self.__wrs_geometries = None
+                return
             self.spacecraft_id = SpacecraftID[self.spacecraft_id]
         elif isinstance(row, tuple):
             self.__construct(row, base_mount_path)
@@ -335,8 +337,9 @@ LLNppprrrOOYYDDDMM_AA.TIF  where:
 
     def __construct_aws(self, row):
         # TODO there should be Metadata class for AWS and GOOGLE?
+        self.product_id = os.path.basename(row)
+
         self.full_mount_path = row
-        self.product_id = os.path.basename(self.full_mount_path)
         # we know this is Landsat 8
         self.spacecraft_id = SpacecraftID.LANDSAT_8.name
 
@@ -348,32 +351,10 @@ LLNppprrrOOYYDDDMM_AA.TIF  where:
                                   int(reg_results_1.group(7))).strftime("%Y-%m-%d")
         self.collection_category = reg_results_1.group(8)
 
-        mtl_file_path = "{0}/{1}_MTL.json".format(self.full_mount_path, self.name_prefix)
-        mtl = self.parse_mtl(mtl_file_path)
+        # mtl_file_path = "{0}/{1}_MTL.json".format(self.full_mount_path, self.name_prefix)
 
-        # '16:18:27.0722979Z'
-        sensing_time = mtl['L1_METADATA_FILE']['PRODUCT_METADATA']['SCENE_CENTER_TIME']
-
-        # '2017-10-28'
-        date_acquired = mtl['L1_METADATA_FILE']['PRODUCT_METADATA']['DATE_ACQUIRED']
-
-        reg_results_2 = self.datetime_reg.search(date_acquired + "T" + sensing_time)
-        date_acquired = reg_results_2.group(1) + reg_results_2.group(2) + reg_results_2.group(3)
-        self.sensing_time = datetime.strptime(date_acquired, "%Y-%m-%dT%H:%M:%S.%fZ")
-        self.date_acquired = self.sensing_time.date().isoformat()
-        # '2017-11-08T23:42:51Z'
-        self.cloud_cover = mtl['L1_METADATA_FILE']['IMAGE_ATTRIBUTES']['CLOUD_COVER']
-        self.cloud_cover_land = mtl['L1_METADATA_FILE']['IMAGE_ATTRIBUTES']['CLOUD_COVER_LAND']
-        self.date_processed = datetime.strptime(mtl['L1_METADATA_FILE']['METADATA_FILE_INFO']['FILE_DATE'],
-                                                "%Y-%m-%dT%H:%M:%SZ")
-
-        # TODO, this is a crummy estimate. should use WRS paths result or actually select the extremes (distortion in projection makes this incorrect)
-        self.north_lat = mtl['L1_METADATA_FILE']['PRODUCT_METADATA']['CORNER_LL_LAT_PRODUCT']  # FLOAT	NULLABLE The northern latitude of the bounding box of this scene.
-        self.south_lat = mtl['L1_METADATA_FILE']['PRODUCT_METADATA']['CORNER_UL_LAT_PRODUCT']  # FLOAT	NULLABLE The southern latitude of the bounding box of this scene.
-        self.west_lon = mtl['L1_METADATA_FILE']['PRODUCT_METADATA']['CORNER_UL_LON_PRODUCT']  # FLOAT	NULLABLE The western longitude of the bounding box of this scene.
-        self.east_lon = mtl['L1_METADATA_FILE']['PRODUCT_METADATA']['CORNER_UL_LON_PRODUCT']  # FLOAT	NULLABLE The eastern longitude of the bounding box of this scene.
-        # self.sensing_time = datetime.combine(date(2011, 01, 01), datetime.time(10, 23))
-        return
+        self.metadata_from_file("{0}/{1}_MTL".format(self.full_mount_path, self.name_prefix))
+        return True
 
     @property
     def bucket_name(self):
@@ -394,6 +375,78 @@ LLNppprrrOOYYDDDMM_AA.TIF  where:
     @property
     def center(self):
         return shape(self.get_wrs_polygon()).centroid
+
+    def metadata_from_file(self, mtl_file_path_no_ext):
+        json_file = mtl_file_path_no_ext + ".json"
+        txt_file = mtl_file_path_no_ext + ".txt"
+        if os.path.exists(json_file):
+            self.metadata_from_json(json_file)
+        elif os.path.exists(txt_file):
+            self.metadat_from_txt(txt_file)
+        else:
+            raise FileNotFoundError("both files\n{0}.json\n{0}.txt metadata files don't exist".format(mtl_file_path_no_ext))
+
+    def metadata_from_json(self, mtl_file_path):
+        mtl = self.parse_mtl(mtl_file_path)
+
+        # '16:18:27.0722979Z'
+        sensing_time = mtl['L1_METADATA_FILE']['PRODUCT_METADATA']['SCENE_CENTER_TIME']
+
+        # '2017-10-28'
+        date_acquired = mtl['L1_METADATA_FILE']['PRODUCT_METADATA']['DATE_ACQUIRED']
+
+        reg_results_2 = self.datetime_reg.search(date_acquired + "T" + sensing_time)
+        date_acquired = reg_results_2.group(1) + reg_results_2.group(2) + reg_results_2.group(3)
+        self.sensing_time = datetime.strptime(date_acquired, "%Y-%m-%dT%H:%M:%S.%fZ")
+        self.date_acquired = self.sensing_time.date().isoformat()
+        # '2017-11-08T23:42:51Z'
+
+        self.cloud_cover = mtl['L1_METADATA_FILE']['IMAGE_ATTRIBUTES']['CLOUD_COVER']
+        self.cloud_cover_land = mtl['L1_METADATA_FILE']['IMAGE_ATTRIBUTES']['CLOUD_COVER_LAND']
+        self.date_processed = datetime.strptime(mtl['L1_METADATA_FILE']['METADATA_FILE_INFO']['FILE_DATE'],
+                                                "%Y-%m-%dT%H:%M:%SZ")
+
+        # TODO, this is a crummy estimate. should use WRS paths result or actually select the extremes (distortion in projection makes this incorrect)
+        self.north_lat = mtl['L1_METADATA_FILE']['PRODUCT_METADATA'][
+            'CORNER_LL_LAT_PRODUCT']  # FLOAT	NULLABLE The northern latitude of the bounding box of this scene.
+        self.south_lat = mtl['L1_METADATA_FILE']['PRODUCT_METADATA'][
+            'CORNER_UL_LAT_PRODUCT']  # FLOAT	NULLABLE The southern latitude of the bounding box of this scene.
+        self.west_lon = mtl['L1_METADATA_FILE']['PRODUCT_METADATA'][
+            'CORNER_UL_LON_PRODUCT']  # FLOAT	NULLABLE The western longitude of the bounding box of this scene.
+        self.east_lon = mtl['L1_METADATA_FILE']['PRODUCT_METADATA'][
+            'CORNER_UL_LON_PRODUCT']  # FLOAT	NULLABLE The eastern longitude of the bounding box of this scene.
+        # self.sensing_time = datetime.combine(date(2011, 01, 01), datetime.time(10, 23))
+        return None
+
+    def metadat_from_txt(self, file_path):
+        container = {}
+        with open(file_path) as f:
+            for line in f:
+                if line.count(' = '):
+                    line_parts = line.split(sep='=')
+                    value = line_parts[1].strip()
+                    if value.startswith('"'):
+                        value = value[1:-1]
+                    container[line_parts[0].strip()] = value
+
+        sensing_time = container['SCENE_CENTER_TIME']
+        date_acquired = container['DATE_ACQUIRED']
+
+        reg_results_2 = self.datetime_reg.search(date_acquired + "T" + sensing_time)
+        date_acquired = reg_results_2.group(1) + reg_results_2.group(2) + reg_results_2.group(3)
+        self.sensing_time = datetime.strptime(date_acquired, "%Y-%m-%dT%H:%M:%S.%fZ")
+        self.date_acquired = self.sensing_time.date().isoformat()
+
+        self.cloud_cover = float(container['CLOUD_COVER'])
+        self.cloud_cover_land = float(container['CLOUD_COVER_LAND'])
+        self.date_processed = datetime.strptime(container['FILE_DATE'], "%Y-%m-%dT%H:%M:%SZ")
+
+        # TODO, this is a crummy estimate. should use WRS paths result or actually select the extremes (distortion in projection makes this incorrect)
+        self.north_lat = float(container['CORNER_LL_LAT_PRODUCT'])  # FLOAT	NULLABLE The northern latitude of the bounding box of this scene.
+        self.south_lat = float(container['CORNER_UL_LAT_PRODUCT'])  # FLOAT	NULLABLE The southern latitude of the bounding box of this scene.
+        self.west_lon = float(container['CORNER_UL_LON_PRODUCT'])  # FLOAT	NULLABLE The western longitude of the bounding box of this scene.
+        self.east_lon = float(container['CORNER_UL_LON_PRODUCT'])  # FLOAT	NULLABLE The eastern longitude of the bounding box of this scene.
+        return None
 
     @staticmethod
     def parse_mtl(mtl_file_name):
